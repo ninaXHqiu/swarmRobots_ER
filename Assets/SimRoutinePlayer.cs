@@ -7,14 +7,20 @@ using UnityEngine;
 using toio;
 using toio.Simulator;
 
-// Watch routines on simulated robots: open Assets/development/RoutineSimulator.unity and press
-// Play. Spawns `robots` simulated cubes on the mat, then lists every routine with a Play button.
-// Add ?play=<number> to the web build's URL to start that routine automatically.
+// Runs routines in two modes, switched with the buttons at the top of the panel:
+//   Simulated (dev)  - `robots` simulated cubes on the 3D mat, for building and watching routines
+//   Real robots (test) - pair real toio cubes one by one with "+ Add robot", same routine buttons
+// In the Unity editor, Play opens this scene. Add ?play=<number> to the web build's URL to start
+// that routine automatically.
 public class SimRoutinePlayer : MonoBehaviour
 {
     // How many simulated robots (2-8), remembered between runs; change it with - / + on screen
     const string RobotsKey = "SimulatorRobots";
     int robots;
+
+    // Simulated (dev) or real robots (test), remembered between runs
+    const string ModeKey = "RobotMode";
+    bool realRobots;
 
     CubeManager cubeManager;
     Cube[] cubes;
@@ -26,6 +32,8 @@ public class SimRoutinePlayer : MonoBehaviour
     void Awake()
     {
         robots = Mathf.Clamp(PlayerPrefs.GetInt(RobotsKey, 8), 2, 8);
+        realRobots = PlayerPrefs.GetInt(ModeKey, 0) == 1;
+        if (realRobots) { return; }
         // Simulated robots in a row near the top of the mat
         var prefab = Resources.Load<GameObject>("Cube");
         for (int i = 0; i < robots; i++)
@@ -38,6 +46,13 @@ public class SimRoutinePlayer : MonoBehaviour
     async void Start()
     {
         routines = FindRoutines();
+        if (realRobots)
+        {
+            cubeManager = new CubeManager(ConnectType.Real);
+            cubes = new Cube[0];
+            status = "Turn robots on, then press + Add robot once per robot";
+            return;
+        }
         cubeManager = new CubeManager(ConnectType.Simulator);
         cubes = await cubeManager.MultiConnect(robots);
         ctx = new RoutineContext { Cubes = cubes, Navigators = cubeManager.navigators.ToArray(), CubeManager = cubeManager };
@@ -45,6 +60,25 @@ public class SimRoutinePlayer : MonoBehaviour
 
         int auto = AutoPlayIndex();
         if (auto >= 0 && auto < routines.Count) { Play(routines[auto]); }
+    }
+
+    // Real robots: pair one more (in the browser this opens the pairing popup)
+    async void AddRealRobot()
+    {
+        status = "Pairing...";
+        var cube = await cubeManager.SingleConnect();
+        cubes = cubeManager.cubes.ToArray();
+        ctx = new RoutineContext { Cubes = cubes, Navigators = cubeManager.navigators.ToArray(), CubeManager = cubeManager };
+        status = cube == null ? "No robot found, try again" : cubes.Length + " real robot(s) connected";
+    }
+
+    // Switch between simulated and real robots (restarts this screen)
+    void SetMode(bool real)
+    {
+        if (real == realRobots) { return; }
+        if (running != null) { StopCoroutine(running); Swarm.StopAll(ctx); }
+        PlayerPrefs.SetInt(ModeKey, real ? 1 : 0);
+        UnityEngine.SceneManagement.SceneManager.LoadScene(SceneSwitcher.SimulatorScene);
     }
 
     static int AutoPlayIndex()
@@ -83,17 +117,27 @@ public class SimRoutinePlayer : MonoBehaviour
         GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
 
         GUILayout.BeginArea(new Rect(16, 16, 300, 720 - 32), panelStyle);
-        GUILayout.Label("Simulator", titleStyle);
+        GUILayout.Label("Routines", titleStyle);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Simulated", realRobots ? buttonStyle : activeStyle, GUILayout.Height(36))) { SetMode(false); }
+        if (GUILayout.Button("Real robots", realRobots ? activeStyle : buttonStyle, GUILayout.Height(36))) { SetMode(true); }
+        GUILayout.EndHorizontal();
         GUILayout.Label(status, textStyle);
         GUILayout.BeginHorizontal();
-        GUILayout.Label("Robots: " + robots, textStyle, GUILayout.Width(120));
-        if (GUILayout.Button("-", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots - 1); }
-        if (GUILayout.Button("+", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots + 1); }
+        if (realRobots)
+        {
+            if (GUILayout.Button("+ Add robot", buttonStyle, GUILayout.Height(34))) { AddRealRobot(); }
+        }
+        else
+        {
+            GUILayout.Label("Robots: " + robots, textStyle, GUILayout.Width(120));
+            if (GUILayout.Button("-", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots - 1); }
+            if (GUILayout.Button("+", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots + 1); }
+        }
         GUILayout.EndHorizontal();
         GUILayout.Space(8);
         if (ctx != null)
         {
-            GUILayout.Label("Routines", textStyle);
             foreach (var routine in routines)
             {
                 if (cubes.Length < routine.MinRobots) { continue; }

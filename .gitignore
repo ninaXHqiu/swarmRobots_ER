@@ -12,3 +12,6 @@ UserSettings/
 # Crash dumps and OS clutter
 mono_crash.*.json
 .DS_Store
+
+# Simulator web build: made locally by tools/run-simulator.sh
+SimPreview/

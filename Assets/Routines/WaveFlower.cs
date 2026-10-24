@@ -2,18 +2,24 @@ using System.Collections;
 using UnityEngine;
 
 // Wave: robots stand in a row and move up and down, each at its own speed and distance.
-// Gradually they fall into step until the row moves as one travelling wave. Then they gather
-// into a ring, the ring turns, and it opens into a turning flower.
+// Gradually they fall into step as one travelling wave, then the wave grows into larger,
+// longer waves that keep a steady speed.
 public class WaveFlower : SwarmRoutine
 {
-    public override string Name { get { return "Wave -> flower"; } }
+    public override string Name { get { return "Wave -> large waves"; } }
     public override int MinRobots { get { return 3; } }
 
-    const float SettleSecs = 14f;   // how long until everyone moves as one wave
-    const float HoldSecs = 6f;      // how long the finished wave keeps going
-    const float WaveHeight = 60f;   // up/down distance of the finished wave
-    const float WaveHz = 0.25f;     // finished wave speed (cycles per second)
-    const float WaveStep = 0.7f;    // phase step between neighbours (how "wavy" the row is)
+    // Timing (seconds)
+    const float SettleSecs = 14f;   // everyone falls into one wave
+    const float GrowSecs = 8f;      // the wave grows larger
+    const float HoldSecs = 20f;     // large waves keep going
+
+    // Wave shape
+    const float WaveHz = 0.2f;      // wave speed (cycles per second), the same throughout
+    const float SmallHeight = 50f;  // up/down distance of the first, small wave
+    const float LargeHeight = 120f; // up/down distance of the large waves
+    const float SmallStep = 0.8f;   // phase step between neighbours: small, tight waves
+    const float LargeStep = 0.45f;  // phase step between neighbours: longer, larger waves
 
     public override IEnumerator Run(RoutineContext ctx)
     {
@@ -25,11 +31,8 @@ public class WaveFlower : SwarmRoutine
         Swarm.AssignNearest(ctx, row);
         yield return Swarm.MoveTo(ctx, row, maxSpeed: 90, timeoutMs: 10000);
 
-        // Everyone at their own speed and distance, settling into one wave
-        float total = SettleSecs + HoldSecs;
-        yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 80);
-
-        yield return Shapes.CircleToFlower(ctx);
+        float total = SettleSecs + GrowSecs + HoldSecs;
+        yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 100);
     }
 
     static float RowX(int i, int n)
@@ -37,19 +40,21 @@ public class WaveFlower : SwarmRoutine
         return n == 1 ? Swarm.Centre : Mathf.Lerp(100, 400, i / (float)(n - 1));
     }
 
-    // Up/down offset of robot i at time t: its own rhythm blending into the shared wave
+    // Up/down offset of robot i at time t
     static float Height(int i, float t)
     {
-        // Each robot's own speed and distance (fixed per robot, varied across robots)
-        float ownHz = 0.15f + 0.3f * Frac(i * 0.618f);
-        float ownHeight = 25f + 60f * Frac(i * 0.414f + 0.3f);
-        float ownPhase = 6.28f * Frac(i * 0.271f);
-        float own = ownHeight * Mathf.Sin(2 * Mathf.PI * ownHz * t + ownPhase);
+        // Each robot's own rhythm (fixed per robot, varied across robots)
+        float ownHz = 0.15f + 0.3f * Shapes.Hash(i, 1);
+        float ownHeight = 25f + 60f * Shapes.Hash(i, 2);
+        float own = ownHeight * Mathf.Sin(2 * Mathf.PI * ownHz * t + 6.28f * Shapes.Hash(i, 3));
 
-        float wave = WaveHeight * Mathf.Sin(2 * Mathf.PI * WaveHz * t - WaveStep * i);
+        // The shared wave: same speed throughout, growing larger and longer after settling
+        float grow = Mathf.SmoothStep(0, 1, (t - SettleSecs) / GrowSecs);
+        float height = Mathf.Lerp(SmallHeight, LargeHeight, grow);
+        float step = Mathf.Lerp(SmallStep, LargeStep, grow);
+        float wave = height * Mathf.Sin(2 * Mathf.PI * WaveHz * t - step * i);
+
         float settle = Mathf.SmoothStep(0, 1, t / SettleSecs);
         return Mathf.Lerp(own, wave, settle);
     }
-
-    static float Frac(float v) { return v - Mathf.Floor(v); }
 }

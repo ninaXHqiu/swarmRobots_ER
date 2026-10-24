@@ -1,41 +1,31 @@
-using System.Collections;
 using UnityEngine;
 
-// Shapes and endings shared by more than one routine
+// Shapes shared by routines. Angles in degrees, positions in mat coordinates.
 public static class Shapes
 {
-    static readonly Vector2 Centre = new Vector2(Swarm.Centre, Swarm.Centre);
+    public static readonly Vector2 Centre = new Vector2(Swarm.Centre, Swarm.Centre);
 
-    // Robot i of n on a ring, turned by turnDeg
-    public static Vector2 Circle(int i, int n, float radius, float turnDeg)
+    // Point on a ring around the mat centre
+    public static Vector2 OnCircle(float angleDeg, float radius)
     {
-        float a = (360f * i / n + turnDeg) * Mathf.Deg2Rad;
+        float a = angleDeg * Mathf.Deg2Rad;
         return Centre + radius * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
     }
 
-    // Ring that opens into a flower: every other robot moves out (petal tips) and the rest
-    // move in. bloom 0 = plain circle, 1 = full flower.
-    public static Vector2 Flower(int i, int n, float radius, float bloom, float turnDeg)
+    // Point on a flower outline: the radius swells into `petals` petals around the ring.
+    // A robot whose angle keeps increasing travels along the petal outline (in and out of
+    // each petal) instead of circling at a fixed distance. bloom 0 = plain circle, 1 = full flower.
+    public static Vector2 OnFlower(float angleDeg, float radius, float bloom, int petals = 5)
     {
-        float a = (360f * i / n + turnDeg) * Mathf.Deg2Rad;
-        float r = radius * (1f + bloom * 0.45f * (i % 2 == 0 ? 1f : -1f));
+        float a = angleDeg * Mathf.Deg2Rad;
+        float r = radius * (1f + bloom * 0.4f * Mathf.Cos(petals * a));
         return Centre + r * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
     }
 
-    // Shared ending: gather into a ring, turn it, then bloom into a turning flower
-    public static IEnumerator CircleToFlower(RoutineContext ctx, float radius = 100, float degPerSec = 20)
+    // Small repeatable "random" number in [0, 1) for robot/pair i and a salt
+    public static float Hash(int i, float salt)
     {
-        int n = ctx.Count;
-        var ring = new Vector2Int[n];
-        for (int i = 0; i < n; i++) { ring[i] = Vector2Int.RoundToInt(Circle(i, n, radius, 0)); }
-        Swarm.AssignNearest(ctx, ring);
-        yield return Swarm.MoveTo(ctx, ring, maxSpeed: 90, timeoutMs: 10000);
-
-        float turnSecs = 8f;
-        yield return Swarm.Follow(ctx, (i, t) => Circle(i, n, radius, t * degPerSec), (int)(turnSecs * 1000), maxSpeed: 60);
-
-        float startAngle = turnSecs * degPerSec;
-        float bloomSecs = 5f;
-        yield return Swarm.Follow(ctx, (i, t) => Flower(i, n, radius, Mathf.SmoothStep(0, 1, t / bloomSecs), startAngle + t * degPerSec), 15000, maxSpeed: 60);
+        float v = Mathf.Sin(i * 12.9898f + salt * 78.233f) * 43758.5453f;
+        return v - Mathf.Floor(v);
     }
 }

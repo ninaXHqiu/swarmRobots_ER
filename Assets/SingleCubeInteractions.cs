@@ -39,6 +39,7 @@ public class SingleCubeInteractions : MonoBehaviour
         new Color32(255, 128, 0, 255), new Color32(255, 255, 255, 255), new Color32(128, 0, 255, 255),
         new Color32(0, 128, 255, 255)
     };
+    public static Color32 LedColour(int i){ return LedColours[i % LedColours.Length]; }
     bool[] initReached = new bool[0];
     int RobotCount { get { return cubes == null ? 0 : cubes.Length; } }
     bool HasRobots(int needed){
@@ -56,7 +57,7 @@ public class SingleCubeInteractions : MonoBehaviour
         }
     }
 
-    // Used by RoutinePanel to run routines on the robots connected here
+    // Used by SwarmUi to run routines on the robots connected here
     public Cube[] ConnectedRobots { get { return cubes; } }
     public CubeManager Manager { get { return cubeManager; } }
     // Turn off every built-in interaction so a routine has the robots to itself
@@ -376,7 +377,7 @@ public class SingleCubeInteractions : MonoBehaviour
         connected = true; initialized = false;
         initReached = new bool[cubes.Length];
         connectButton.text = "Connected (" + cubes.Length + ")";
-        connectButton.color = MockupTheme.Accent;
+        connectButton.color = new Color(0.12f, 0.37f, 0.84f);
         foreach (var navigator in cubeManager.navigators){ navigator.ClearOther(); }
         SetLeds();
         // The circle can now use every connected robot
@@ -394,7 +395,7 @@ public class SingleCubeInteractions : MonoBehaviour
     async void AddRobot(){
         await cubeManager.SingleConnect();
         connectButton.text = "Connect (" + cubeManager.cubes.Count + ")";
-        connectButton.color = MockupTheme.Ink;
+        connectButton.color = new Color(0.06f, 0.14f, 0.25f);
     }
 
     public void Disconnect()
@@ -403,7 +404,7 @@ public class SingleCubeInteractions : MonoBehaviour
         {
             cubeManager.DisconnectAll();
             connectButton.text = "Connect";
-            connectButton.color = MockupTheme.Ink;
+            connectButton.color = new Color(0.06f, 0.14f, 0.25f);
             connected = false;
         }
     }
@@ -414,7 +415,7 @@ public class SingleCubeInteractions : MonoBehaviour
         {
             await cubeManager.ReConnectAll();
             connectButton.text = "Connected (" + cubes.Length + ")";
-            connectButton.color = MockupTheme.Accent;
+            connectButton.color = new Color(0.12f, 0.37f, 0.84f);
             initialized = false;
             initReached = new bool[cubes.Length];
             connected = true;

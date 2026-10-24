@@ -12,7 +12,9 @@ using toio.Simulator;
 // Add ?play=<number> to the web build's URL to start that routine automatically.
 public class SimRoutinePlayer : MonoBehaviour
 {
-    public int robots = 8;
+    // How many simulated robots (2-8), remembered between runs; change it with - / + on screen
+    const string RobotsKey = "SimulatorRobots";
+    int robots;
 
     CubeManager cubeManager;
     Cube[] cubes;
@@ -23,6 +25,7 @@ public class SimRoutinePlayer : MonoBehaviour
 
     void Awake()
     {
+        robots = Mathf.Clamp(PlayerPrefs.GetInt(RobotsKey, 8), 2, 8);
         // Simulated robots in a row near the top of the mat
         var prefab = Resources.Load<GameObject>("Cube");
         for (int i = 0; i < robots; i++)
@@ -56,50 +59,100 @@ public class SimRoutinePlayer : MonoBehaviour
     void Play(SwarmRoutine routine)
     {
         if (running != null) { StopCoroutine(running); Swarm.StopAll(ctx); }
+        activeRoutine = routine.Name;
         running = StartCoroutine(Run(routine));
-    }
-
-    // Logs every robot's mat position every 2 s (browser console / Unity Console) to check routines
-    IEnumerator LogPositions()
-    {
-        while (true)
-        {
-            yield return new WaitForSeconds(2f);
-            if (cubes == null) { continue; }
-            var sb = new System.Text.StringBuilder("[sim] t=" + Time.time.ToString("0") + " ");
-            foreach (var c in cubes) { sb.Append("(" + c.x + "," + c.y + ") "); }
-            Debug.Log(sb.ToString());
-        }
     }
 
     IEnumerator Run(SwarmRoutine routine)
     {
-        StartCoroutine(LogPositions());
         status = "Running: " + routine.Name;
         yield return routine.Run(ctx);
         status = "Finished: " + routine.Name;
         running = null;
     }
 
+    // ---------- Screen: a panel on the left, same look as the Control screen ----------
+
+    GUIStyle panelStyle, titleStyle, textStyle, buttonStyle, primaryStyle, activeStyle;
+    string activeRoutine;
+
     void OnGUI()
     {
-        GUI.skin.label.fontSize = 18;
-        GUI.skin.button.fontSize = 18;
-        GUILayout.BeginArea(new Rect(16, 16, 320, Screen.height - 32));
-        GUILayout.Label(status);
+        if (panelStyle == null) { BuildStyles(); }
+        float scale = Screen.height / 720f;
+        GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
+
+        GUILayout.BeginArea(new Rect(16, 16, 300, 720 - 32), panelStyle);
+        GUILayout.Label("Simulator", titleStyle);
+        GUILayout.Label(status, textStyle);
+        GUILayout.BeginHorizontal();
+        GUILayout.Label("Robots: " + robots, textStyle, GUILayout.Width(120));
+        if (GUILayout.Button("-", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots - 1); }
+        if (GUILayout.Button("+", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots + 1); }
+        GUILayout.EndHorizontal();
+        GUILayout.Space(8);
         if (ctx != null)
         {
+            GUILayout.Label("Routines", textStyle);
             foreach (var routine in routines)
             {
                 if (cubes.Length < routine.MinRobots) { continue; }
-                if (GUILayout.Button(routine.Name, GUILayout.Height(40))) { Play(routine); }
+                var style = running != null && activeRoutine == routine.Name ? activeStyle : buttonStyle;
+                if (GUILayout.Button(routine.Name, style, GUILayout.Height(40))) { Play(routine); }
             }
-            if (running != null && GUILayout.Button("Stop", GUILayout.Height(40)))
+            GUILayout.Space(8);
+            if (running != null && GUILayout.Button("Stop", primaryStyle, GUILayout.Height(40)))
             {
                 StopCoroutine(running); running = null; Swarm.StopAll(ctx); status = "Stopped";
             }
         }
+        GUILayout.FlexibleSpace();
+        if (GUILayout.Button("Control (real robots)", buttonStyle, GUILayout.Height(40))) { SceneSwitcher.OpenControl(); }
         GUILayout.EndArea();
+    }
+
+    // Restart the simulator with a different number of robots
+    void SetRobots(int count)
+    {
+        count = Mathf.Clamp(count, 2, 8);
+        if (count == robots) { return; }
+        PlayerPrefs.SetInt(RobotsKey, count);
+        UnityEngine.SceneManagement.SceneManager.LoadScene(SceneSwitcher.SimulatorScene);
+    }
+
+    void BuildStyles()
+    {
+        var ink = new Color(0.06f, 0.14f, 0.25f);
+        var accent = new Color(0.12f, 0.37f, 0.84f);
+        panelStyle = new GUIStyle { normal = { background = Solid(Color.white) }, padding = new RectOffset(16, 16, 14, 14) };
+        titleStyle = new GUIStyle { fontSize = 24, fontStyle = FontStyle.Bold, normal = { textColor = ink }, margin = new RectOffset(0, 0, 0, 6) };
+        textStyle = new GUIStyle { fontSize = 15, wordWrap = true, normal = { textColor = new Color(0.35f, 0.42f, 0.52f) }, margin = new RectOffset(0, 0, 2, 4) };
+        buttonStyle = new GUIStyle
+        {
+            fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
+            normal = { background = Solid(Color.white), textColor = accent },
+            hover = { background = Solid(new Color(0.9f, 0.93f, 1f)), textColor = accent },
+            active = { background = Solid(new Color(0.8f, 0.85f, 0.95f)), textColor = accent },
+            border = new RectOffset(2, 2, 2, 2), margin = new RectOffset(0, 0, 4, 4)
+        };
+        buttonStyle.normal.background = Outlined(accent);
+        activeStyle = new GUIStyle(buttonStyle) { normal = { background = Solid(accent), textColor = Color.white } };
+        primaryStyle = new GUIStyle(buttonStyle) { normal = { background = Solid(new Color(0.95f, 0.79f, 0.30f)), textColor = ink } };
+    }
+
+    static Texture2D Solid(Color c)
+    {
+        var t = new Texture2D(1, 1); t.SetPixel(0, 0, c); t.Apply(); return t;
+    }
+
+    // White square with a 1px border, stretched by the style's border setting
+    static Texture2D Outlined(Color border)
+    {
+        var t = new Texture2D(5, 5);
+        for (int x = 0; x < 5; x++) for (int y = 0; y < 5; y++)
+            t.SetPixel(x, y, x == 0 || y == 0 || x == 4 || y == 4 ? border : Color.white);
+        t.Apply();
+        return t;
     }
 
     static List<SwarmRoutine> FindRoutines()

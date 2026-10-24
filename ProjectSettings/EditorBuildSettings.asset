@@ -26,4 +26,7 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/development/CircleInteractions.unity
     guid: 2388598ff96054c6f8ad1ce67000ff88
+  - enabled: 1
+    path: Assets/development/RoutineSimulator.unity
+    guid: 96c19492cba46494697ca617aa5d49de
   m_configObjects: {}

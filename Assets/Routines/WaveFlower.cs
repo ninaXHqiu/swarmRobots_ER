@@ -7,7 +7,7 @@ using UnityEngine;
 public class WaveFlower : SwarmRoutine
 {
     public override string Name { get { return "Wave -> large waves"; } }
-    public override int MinRobots { get { return 3; } }
+    public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)
     const float SettleSecs = 14f;   // everyone falls into one wave

@@ -79,7 +79,6 @@ public static class Swarm
     // arrived or timeoutMs has passed, so a stuck robot can't hang the routine.
     public static IEnumerator MoveTo(RoutineContext ctx, Vector2Int[] targets, int maxSpeed = 60, int timeoutMs = 8000)
     {
-        Debug.Log("[sim] MoveTo start t=" + Time.time.ToString("0.0"));
         float end = Time.time + timeoutMs / 1000f;
         var arrived = new bool[ctx.Count];
         while (Time.time < end)
@@ -112,7 +111,6 @@ public static class Swarm
     // position at t seconds into the step; use it for anything that flows (turning shapes, waves).
     public static IEnumerator Follow(RoutineContext ctx, System.Func<int, float, Vector2> targetAt, int durationMs, int maxSpeed = 70)
     {
-        Debug.Log("[sim] Follow start t=" + Time.time.ToString("0.0") + " for " + durationMs + "ms");
         float start = Time.time;
         float duration = durationMs / 1000f;
         while (Time.time - start < duration)

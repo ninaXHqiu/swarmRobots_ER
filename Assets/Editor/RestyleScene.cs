@@ -59,6 +59,10 @@ public static class RestyleScene
         // Header and robot row
         var title = TextObj("AppTitle", "Swarm Control", 30, FontStyle.Bold, Ink, TextAnchor.MiddleLeft);
         Place(title, -460, 305, 360, 50);
+        // Switch to the Simulator part
+        var simButton = PlayButton("OpenSimulator");
+        simButton.GetComponentInChildren<Text>().text = "Simulator";
+        Place(simButton.transform, 527, 305, 160, 44);
         Place(Get("Connect (1)"), -517, 245, 140, 46); Button(Get("Connect (1)"), true, "+ Add robot");
         Place(Get("ButtonConnect"), -362, 245, 160, 46); Button(Get("ButtonConnect"), false, null);
         Place(Get("ButtonDisconnect"), -192, 245, 160, 46); Button(Get("ButtonDisconnect"), false, null);
@@ -129,6 +133,12 @@ public static class RestyleScene
         runner.playLabel = play.GetComponentInChildren<Text>();
         runner.playImage = play.GetComponent<Image>();
         runner.status = status.GetComponent<Text>();
+        var switcher = sceneUI.GetComponent<SceneSwitcher>();
+        if (switcher == null) { switcher = sceneUI.AddComponent<SceneSwitcher>(); }
+        var simClick = simButton.GetComponent<Button>().onClick;
+        for (int i = simClick.GetPersistentEventCount() - 1; i >= 0; i--) { UnityEventTools.RemovePersistentListener(simClick, i); }
+        UnityEventTools.AddPersistentListener(simClick, switcher.OpenSimulator);
+
         var playButton = play.GetComponent<Button>();
         for (int i = playButton.onClick.GetPersistentEventCount() - 1; i >= 0; i--) { UnityEventTools.RemovePersistentListener(playButton.onClick, i); }
         UnityEventTools.AddPersistentListener(playButton.onClick, runner.TogglePlay);

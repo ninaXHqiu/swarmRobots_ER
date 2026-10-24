@@ -26,7 +26,7 @@ public static class WebBuild
     {
         var options = new BuildPlayerOptions
         {
-            scenes = new[] { Scene },
+            scenes = new[] { Scene, CreateSimScene.ScenePath }, // Control first, Simulator second
             locationPathName = Output,
             target = BuildTarget.WebGL,
             options = BuildOptions.None

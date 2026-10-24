@@ -64,8 +64,7 @@ public static class RestyleScene
         Place(Get("ButtonDisconnect"), -192, 245, 160, 46); Button(Get("ButtonDisconnect"), false, null);
         Place(Get("ButtonReconnect"), -22, 245, 160, 46); Button(Get("ButtonReconnect"), false, null);
         for (int k = 2; k <= 5; k++) { Get("Connect (" + k + ")").gameObject.SetActive(false); }
-        var hint = TextObj("RobotHint", "Press + once per robot (each opens the pairing popup), then Connect.", 16, FontStyle.Normal, Muted, TextAnchor.MiddleLeft);
-        Place(hint, 345, 245, 480, 46);
+        Remove("RobotHint");
 
         // Cards
         Card("SimpleIntBG", 0); Card("MagnetBG", 1); Card("RemoteBG", 2); Card("CircleBG", 3);
@@ -109,10 +108,9 @@ public static class RestyleScene
         Place(dropdown.transform, x, 128, 200, 46);
         var play = PlayButton("RoutinePlay");
         Place(play.transform, x, 70, 200, 46);
-        var status = TextObj("RoutineStatus", "Connect robots, then pick a routine", 15, FontStyle.Normal, Muted, TextAnchor.UpperLeft);
+        var status = TextObj("RoutineStatus", "", 15, FontStyle.Normal, Muted, TextAnchor.UpperLeft);
         Place(status, x, 0, 200, 70);
-        var routineHint = TextObj("RoutineHint", "Routine files live in Assets/Routines. The participant sits at the bottom edge of the mat.", 13, FontStyle.Normal, Muted, TextAnchor.UpperLeft);
-        Place(routineHint, x, -150, 200, 80);
+        Remove("RoutineHint");
 
         // Speed along the bottom
         Label(Get("Speed"), "Speed (all robots)", 20, TextAnchor.MiddleLeft);
@@ -147,6 +145,12 @@ public static class RestyleScene
         var t = panel.Find(name);
         if (t == null) { throw new System.Exception("RestyleScene: '" + name + "' not found under Panel"); }
         return t;
+    }
+
+    static void Remove(string name)
+    {
+        var t = panel.Find(name);
+        if (t != null) { Object.DestroyImmediate(t.gameObject); }
     }
 
     static void Place(Transform t, float x, float y, float w, float h)

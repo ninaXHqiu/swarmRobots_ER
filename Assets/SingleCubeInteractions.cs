@@ -30,6 +30,32 @@ public class SingleCubeInteractions : MonoBehaviour
     int numOfCubes = 2;
     bool circle = false; int circleRadius = 70; int circleNumOfCubes = 5;
     
+    // Any number of robots can connect. Interactions written for exactly 5 robots
+    // (magnet, repel, flick, multi-flick, remote) only start when at least 5 are connected.
+    const int LEGACY_ROBOTS = 5;
+    static readonly Color32[] LedColours = {
+        new Color32(0, 255, 0, 255), new Color32(255, 255, 0, 255), new Color32(0, 255, 255, 255),
+        new Color32(255, 0, 255, 255), new Color32(255, 0, 0, 255), new Color32(0, 0, 255, 255),
+        new Color32(255, 128, 0, 255), new Color32(255, 255, 255, 255), new Color32(128, 0, 255, 255),
+        new Color32(0, 128, 255, 255)
+    };
+    bool[] initReached = new bool[0];
+    int RobotCount { get { return cubes == null ? 0 : cubes.Length; } }
+    bool HasRobots(int needed){
+        if (RobotCount >= needed){ return true; }
+        ShowStatus("Needs " + needed + " robots");
+        return false;
+    }
+    void ShowStatus(string message){
+        if (connectButton != null){ connectButton.text = message; }
+    }
+    void SetLeds(){
+        for (int i = 0; i < RobotCount; i++){
+            var c = LedColours[i % LedColours.Length];
+            cubes[i].TurnLedOn(c.r, c.g, c.b, 0);
+        }
+    }
+
     public TextMeshProUGUI output;
     public Text connectButton;
     public Text hapticButton; public Text soundButton;
@@ -83,6 +109,7 @@ public class SingleCubeInteractions : MonoBehaviour
             // cubeManager.navigators[1].AddOther(cubeManager.navigators[0]);
             magnetButton.text = "Magnet Off";
         } else {
+            if (!HasRobots(LEGACY_ROBOTS)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
@@ -102,6 +129,7 @@ public class SingleCubeInteractions : MonoBehaviour
             //cubeManager.navigators[1].ClearOther();
             repelButton.text = "Repel Off";
         } else {
+            if (!HasRobots(LEGACY_ROBOTS)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
@@ -119,6 +147,7 @@ public class SingleCubeInteractions : MonoBehaviour
             multiFlick = false;
             multiFlickButton.text = "MultiFlick Off";
         } else {
+            if (!HasRobots(LEGACY_ROBOTS)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
@@ -134,6 +163,7 @@ public class SingleCubeInteractions : MonoBehaviour
             circle = false;
             circleButton.text = "Circle Off";
         } else {
+            if (!HasRobots(1)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (multiFlick){MultiFlickToggle();}
@@ -142,11 +172,7 @@ public class SingleCubeInteractions : MonoBehaviour
             circle = true;
             circleButton.text = "Circle On";
             GetCirclePositions();
-            cubeManager.navigators[0].ClearOther();
-            cubeManager.navigators[1].ClearOther();
-            cubeManager.navigators[2].ClearOther();
-            cubeManager.navigators[3].ClearOther();
-            cubeManager.navigators[4].ClearOther();
+            foreach (var navigator in cubeManager.navigators){ navigator.ClearOther(); }
         }
     }
     public void HandleCircleRadius(int val){
@@ -160,23 +186,16 @@ public class SingleCubeInteractions : MonoBehaviour
         circleNumOfCubesValue.text = val.ToString();
         GetCirclePositions();
     }
+    void ClearSingleListeners(){
+        for (int i = 0; i < RobotCount; i++){
+            cubes[i].doubleTapCallback.RemoveListener("EventScene");
+            cubes[i].shakeCallback.RemoveListener("EventScene");
+            cubes[i].slopeCallback.RemoveListener("EventScene");
+        }
+    }
     public void HandleInputData(int val){ //Single Interaction
         if (val == 0){
-            cubes[0].doubleTapCallback.RemoveListener("EventScene");
-            cubes[0].shakeCallback.RemoveListener("EventScene");
-            cubes[0].slopeCallback.RemoveListener("EventScene");
-            cubes[1].doubleTapCallback.RemoveListener("EventScene");
-            cubes[1].shakeCallback.RemoveListener("EventScene");
-            cubes[1].slopeCallback.RemoveListener("EventScene");
-            cubes[2].doubleTapCallback.RemoveListener("EventScene");
-            cubes[2].shakeCallback.RemoveListener("EventScene");
-            cubes[2].slopeCallback.RemoveListener("EventScene");
-            cubes[3].doubleTapCallback.RemoveListener("EventScene");
-            cubes[3].shakeCallback.RemoveListener("EventScene");
-            cubes[3].slopeCallback.RemoveListener("EventScene");
-            cubes[4].doubleTapCallback.RemoveListener("EventScene");
-            cubes[4].shakeCallback.RemoveListener("EventScene");
-            cubes[4].slopeCallback.RemoveListener("EventScene");
+            ClearSingleListeners();
             flick = false;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
@@ -185,21 +204,8 @@ public class SingleCubeInteractions : MonoBehaviour
             if (multiFlick){MultiFlickToggle();}
         }
         if (val == 1){
-            cubes[0].doubleTapCallback.AddListener("EventScene", OnDoubleTap);
-            cubes[0].shakeCallback.RemoveListener("EventScene");
-            cubes[0].slopeCallback.RemoveListener("EventScene");
-            cubes[1].doubleTapCallback.AddListener("EventScene", OnDoubleTap);
-            cubes[1].shakeCallback.RemoveListener("EventScene");
-            cubes[1].slopeCallback.RemoveListener("EventScene");
-            cubes[2].doubleTapCallback.AddListener("EventScene", OnDoubleTap);
-            cubes[2].shakeCallback.RemoveListener("EventScene");
-            cubes[2].slopeCallback.RemoveListener("EventScene");
-            cubes[3].doubleTapCallback.AddListener("EventScene", OnDoubleTap);
-            cubes[3].shakeCallback.RemoveListener("EventScene");
-            cubes[3].slopeCallback.RemoveListener("EventScene");
-            cubes[4].doubleTapCallback.AddListener("EventScene", OnDoubleTap);
-            cubes[4].shakeCallback.RemoveListener("EventScene");
-            cubes[4].slopeCallback.RemoveListener("EventScene");
+            ClearSingleListeners();
+            for (int i = 0; i < RobotCount; i++){ cubes[i].doubleTapCallback.AddListener("EventScene", OnDoubleTap); }
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
@@ -208,21 +214,8 @@ public class SingleCubeInteractions : MonoBehaviour
             flick = false;
         }
         if (val == 2){
-            cubes[0].shakeCallback.AddListener("EventScene", OnShake);
-            cubes[0].slopeCallback.RemoveListener("EventScene");
-            cubes[0].doubleTapCallback.RemoveListener("EventScene");
-            cubes[1].shakeCallback.AddListener("EventScene", OnShake);
-            cubes[1].slopeCallback.RemoveListener("EventScene");
-            cubes[1].doubleTapCallback.RemoveListener("EventScene");
-            cubes[2].shakeCallback.AddListener("EventScene", OnShake);
-            cubes[2].slopeCallback.RemoveListener("EventScene");
-            cubes[2].doubleTapCallback.RemoveListener("EventScene");
-            cubes[3].shakeCallback.AddListener("EventScene", OnShake);
-            cubes[3].slopeCallback.RemoveListener("EventScene");
-            cubes[3].doubleTapCallback.RemoveListener("EventScene");
-            cubes[4].shakeCallback.AddListener("EventScene", OnShake);
-            cubes[4].slopeCallback.RemoveListener("EventScene");
-            cubes[4].doubleTapCallback.RemoveListener("EventScene");
+            ClearSingleListeners();
+            for (int i = 0; i < RobotCount; i++){ cubes[i].shakeCallback.AddListener("EventScene", OnShake); }
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
@@ -231,21 +224,8 @@ public class SingleCubeInteractions : MonoBehaviour
             flick = false;
         }
         if (val == 3){
-            cubes[0].slopeCallback.AddListener("EventScene", OnSlope);
-            cubes[0].shakeCallback.RemoveListener("EventScene");
-            cubes[0].doubleTapCallback.RemoveListener("EventScene");
-            cubes[1].slopeCallback.AddListener("EventScene", OnSlope);
-            cubes[1].shakeCallback.RemoveListener("EventScene");
-            cubes[1].doubleTapCallback.RemoveListener("EventScene");
-            cubes[2].slopeCallback.AddListener("EventScene", OnSlope);
-            cubes[2].shakeCallback.RemoveListener("EventScene");
-            cubes[2].doubleTapCallback.RemoveListener("EventScene");
-            cubes[3].slopeCallback.AddListener("EventScene", OnSlope);
-            cubes[3].shakeCallback.RemoveListener("EventScene");
-            cubes[3].doubleTapCallback.RemoveListener("EventScene");
-            cubes[4].slopeCallback.AddListener("EventScene", OnSlope);
-            cubes[4].shakeCallback.RemoveListener("EventScene");
-            cubes[4].doubleTapCallback.RemoveListener("EventScene");
+            ClearSingleListeners();
+            for (int i = 0; i < RobotCount; i++){ cubes[i].slopeCallback.AddListener("EventScene", OnSlope); }
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
@@ -254,37 +234,17 @@ public class SingleCubeInteractions : MonoBehaviour
             flick = false;
         }
         if (val == 4){
+            // Flick is written for exactly 5 robots
+            if (!HasRobots(LEGACY_ROBOTS)){ GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0; return; }
+            ClearSingleListeners();
             flick = true;
-            fx1 = cubes[0].x;
-            fy1 = cubes[0].y;
-            fx2 = cubes[1].x;
-            fy2 = cubes[1].y;
-            fx3 = cubes[2].x;
-            fy3 = cubes[2].y;
-            fx4 = cubes[3].x;
-            fy4 = cubes[3].y;
-            fx5 = cubes[4].x;
-            fy5 = cubes[4].y;
+            fx1 = cubes[0].x; fy1 = cubes[0].y; fx2 = cubes[1].x; fy2 = cubes[1].y; fx3 = cubes[2].x;
+            fy3 = cubes[2].y; fx4 = cubes[3].x; fy4 = cubes[3].y; fx5 = cubes[4].x; fy5 = cubes[4].y;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
             if (circle){CircleToggle();}
             if (multiFlick){MultiFlickToggle();}
-            cubes[0].doubleTapCallback.RemoveListener("EventScene");
-            cubes[0].shakeCallback.RemoveListener("EventScene");
-            cubes[0].slopeCallback.RemoveListener("EventScene");
-            cubes[1].doubleTapCallback.RemoveListener("EventScene");
-            cubes[1].shakeCallback.RemoveListener("EventScene");
-            cubes[1].slopeCallback.RemoveListener("EventScene");
-            cubes[2].doubleTapCallback.RemoveListener("EventScene");
-            cubes[2].shakeCallback.RemoveListener("EventScene");
-            cubes[2].slopeCallback.RemoveListener("EventScene");
-            cubes[3].doubleTapCallback.RemoveListener("EventScene");
-            cubes[3].shakeCallback.RemoveListener("EventScene");
-            cubes[3].slopeCallback.RemoveListener("EventScene");
-            cubes[4].doubleTapCallback.RemoveListener("EventScene");
-            cubes[4].shakeCallback.RemoveListener("EventScene");
-            cubes[4].slopeCallback.RemoveListener("EventScene");
         }
 
     }
@@ -298,7 +258,12 @@ public class SingleCubeInteractions : MonoBehaviour
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
             if (multiFlick){MultiFlickToggle();}
-            cubes[0].poseCallback.RemoveListener("EventScene");
+            if (RobotCount > 0){ cubes[0].poseCallback.RemoveListener("EventScene"); }
+        }
+        if (val > 0 && !HasRobots(LEGACY_ROBOTS)){
+            // Remote modes are written for exactly 5 robots
+            GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
+            return;
         }
         if (val == 1){ // remote with mat
             cubeManager.navigators[0].AddOther(cubeManager.navigators[1]);
@@ -375,75 +340,71 @@ public class SingleCubeInteractions : MonoBehaviour
         circleNumOfCubesSlider.onValueChanged.AddListener(delegate {HandleCircleNumOfCubes((int)circleNumOfCubesSlider.value);});
         circleNumOfCubesValue = GameObject.Find("CircleNumberOfCubesValText").GetComponent<Text>();
         connectButton = GameObject.Find("ConnectText").GetComponent<Text>();
+        // One "+" button pairs robots one at a time, so C2-C5 are no longer needed
+        var addRobotButton = GameObject.Find("Connect (1)");
+        if (addRobotButton != null){ addRobotButton.GetComponentInChildren<Text>().text = "+"; }
+        for (int k = 2; k <= 5; k++){
+            var oldButton = GameObject.Find("Connect (" + k + ")");
+            if (oldButton != null){ oldButton.SetActive(false); }
+        }
         durationSlider = GameObject.Find("DurationSlider").GetComponent<Slider>();
         durationSlider.onValueChanged.AddListener(delegate {HandleDuration((int)durationSlider.value);});
         durationValue = GameObject.Find("DurationValText").GetComponent<Text>();
 
         // GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().onValueChanged.AddListener(delegate {HandleInputData(GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value);});
     }
+    // Pair robots one at a time with the "+" button (one browser popup per robot),
+    // then press Connect to start using however many are paired.
     public void Connect()
     {
-        if (null == cubes || !cubes[0].isConnected || !cubes[1].isConnected)
-        {
-            cubes = cubeManager.cubes.ToArray();
-            if (cubeManager.cubes.Count == 5){Debug.Log("Worked");}
-            if (cubes.Length == 5){connected = true; initialized = false;}
-            //else{connected = false; initialized = false; Debug.Log("Not Connected");
-            connectButton.text = "Connected";
-            connectButton.color = Color.green;
-            cubeManager.navigators[0].ClearOther();
-            cubeManager.navigators[1].ClearOther();
-            cubeManager.navigators[2].ClearOther();
-            cubeManager.navigators[3].ClearOther();
-            cubeManager.navigators[4].ClearOther();
-            cubes[0].TurnLedOn(0, 255, 0, 0);
-            cubes[1].TurnLedOn(255, 255, 0, 0);
-            cubes[2].TurnLedOn(0, 255, 255, 0);
-            cubes[3].TurnLedOn(255, 0, 255, 0);
-            cubes[4].TurnLedOn(255, 0, 0, 0);
-        }
+        cubes = cubeManager.cubes.ToArray();
+        if (cubes.Length == 0){ ShowStatus("Add robots first"); return; }
+        connected = true; initialized = false;
+        initReached = new bool[cubes.Length];
+        connectButton.text = "Connected (" + cubes.Length + ")";
+        connectButton.color = MockupTheme.Accent;
+        foreach (var navigator in cubeManager.navigators){ navigator.ClearOther(); }
+        SetLeds();
+        // The circle can now use every connected robot
+        circleNumOfCubesSlider.minValue = 1;
+        circleNumOfCubesSlider.maxValue = cubes.Length;
+        circleNumOfCubesSlider.value = cubes.Length;
+        GetCirclePositions();
     }
-    public async void Connect1(){
-        cube1 = await cubeManager.SingleConnect();
-    }
-    public async void Connect2(){
-        cube2 = await cubeManager.SingleConnect();
-    }
-    public async void Connect3(){
-        cube3 = await cubeManager.SingleConnect();
-    }
-    public async void Connect4(){
-        cube4 = await cubeManager.SingleConnect();
-    }
-    public async void Connect5(){
-        cube5 = await cubeManager.SingleConnect();
+    // The scene's C1-C5 buttons are wired to these; only the first ("+") stays visible.
+    public void Connect1(){ AddRobot(); }
+    public void Connect2(){ AddRobot(); }
+    public void Connect3(){ AddRobot(); }
+    public void Connect4(){ AddRobot(); }
+    public void Connect5(){ AddRobot(); }
+    async void AddRobot(){
+        await cubeManager.SingleConnect();
+        connectButton.text = "Connect (" + cubeManager.cubes.Count + ")";
+        connectButton.color = MockupTheme.Ink;
     }
 
     public void Disconnect()
     {
-        if (null != cubes && cubes[0].isConnected && cubes[1].isConnected)
+        if (RobotCount > 0)
         {
             cubeManager.DisconnectAll();
             connectButton.text = "Connect";
-            connectButton.color = Color.black;
+            connectButton.color = MockupTheme.Ink;
             connected = false;
         }
     }
 
     public async void ReConnect()
     {
-        if (null != cubes && !cubes[0].isConnected && !cubes[1].isConnected)
+        if (RobotCount > 0 && !cubes[0].isConnected)
         {
             await cubeManager.ReConnectAll();
-            connectButton.text = "Connected";
-            connectButton.color = Color.green;
+            connectButton.text = "Connected (" + cubes.Length + ")";
+            connectButton.color = MockupTheme.Accent;
             initialized = false;
+            initReached = new bool[cubes.Length];
             connected = true;
-            cubes[0].TurnLedOn(0, 255, 0, 0);
-            cubes[1].TurnLedOn(255, 255, 0, 0);
-            cubes[2].TurnLedOn(0, 255, 255, 0);
-            cubes[3].TurnLedOn(255, 0, 255, 0);
-            cubes[4].TurnLedOn(255, 0, 0, 0);
+            SetLeds();
         }
     }
 
@@ -464,9 +425,25 @@ public class SingleCubeInteractions : MonoBehaviour
     void MoveC5(){
         if (cubes[4].x != ipx5 && cubes[4].y != ipy5){var mv4 = cubeManager.navigators[4].Navi2Target(ipx5, ipy5, maxSpd:speed).Exec(); if(mv4.reached){r5 = true; mc5 = false;}}
     }
+    // Start position for robot i: Samira's 5 spots in a row, spread evenly when more robots connect
+    Vector2Int HomePosition(int i){
+        int n = RobotCount;
+        if (n <= LEGACY_ROBOTS){
+            int[] xs = { ipx1, ipx2, ipx3, ipx4, ipx5 };
+            return new Vector2Int(xs[i], ipy1);
+        }
+        int left = 80; int right = 420;
+        return new Vector2Int(left + (right - left) * i / (n - 1), ipy1);
+    }
     void Initialize(){
-        MoveC1(); MoveC2(); MoveC3(); MoveC4(); MoveC5();
-        if (r1 && r2 && r3 && r4 && r5){ initialized = true; }
+        bool all = true;
+        for (int i = 0; i < RobotCount; i++){
+            if (initReached[i]){ continue; }
+            var home = HomePosition(i);
+            var mv = cubeManager.navigators[i].Navi2Target(home.x, home.y, maxSpd:speed).Exec();
+            if (mv.reached){ initReached[i] = true; } else { all = false; }
+        }
+        if (all){ initialized = true; }
     }
     void OnPressButton(Cube c)
     {
@@ -830,90 +807,37 @@ public class SingleCubeInteractions : MonoBehaviour
             if (c.pose.ToString() == right){cubes[1].Move(-50, 50, 140); cubes[2].Move(-50, 50, 140); cubes[3].Move(-50, 50, 140); cubes[4].Move(-50, 50, 140);}
         }
     }
-    int cX = 250; int cY = 250; int x0 = 334; int y0 = 229; int x1 = 316; int y1 = 312; int x2 = 176; int y2 = 228; int x3 = 257; int y3 = 173; int x4 = 199; int y4 = 311;
-    double[] positionsX = new double[5]; double[] positionsY = new double[5]; double[] angles = new double[5];
-    int moveC0 = 0; int moveC1 = 0; int moveC2 = 0; int moveC3 = 0; int moveC4 = 0; int moveC = 0; int nav = 0;
+    // Circle: the first circleNumOfCubes connected robots form the ring,
+    // any others wait at their start position.
+    int cX = 250; int cY = 250;
+    const int CIRCLE_TOLERANCE = 8; // mat units; stops robots re-correcting forever at their spot
+    Vector2Int[] circleTargets = new Vector2Int[0];
+    bool[] circleMoving = new bool[0];
     void GetCirclePositions(){
-        double circumference = 2 * Math.PI * circleRadius;
-        double angleIncrement = 2*Math.PI / circleNumOfCubes;
-        if (circleNumOfCubes == 5){
-            double angle1 = 0*angleIncrement;
-            double angle2 = 1*angleIncrement;
-            double angle3 = 2*angleIncrement;
-            double angle4 = 3*angleIncrement;
-            double angle5 = 4*angleIncrement;
-            x0 = (int)(cX + circleRadius * Math.Cos(angle1));
-            y0 = (int)(cY + circleRadius * Math.Sin(angle1));
-            x1 = (int)(cX + circleRadius * Math.Cos(angle2));
-            y1 = (int)(cY + circleRadius * Math.Sin(angle2));
-            x2 = (int)(cX + circleRadius * Math.Cos(angle3));
-            y2 = (int)(cY + circleRadius * Math.Sin(angle3));
-            x3 = (int)(cX + circleRadius * Math.Cos(angle4));
-            y3 = (int)(cY + circleRadius * Math.Sin(angle4));
-            x4 = (int)(cX + circleRadius * Math.Cos(angle5));
-            y4 = (int)(cY + circleRadius * Math.Sin(angle5));
-            //Debug.Log($"x0 {x0} y0 = {y0}, x1 {x1} y1 = {y1}, x2 {x2} y2 = {y2}, x3 {x3} y3 = {y3}, x4 {x4} y4 = {y4}");
+        int n = RobotCount;
+        if (n == 0){ return; }
+        int inRing = Mathf.Clamp(circleNumOfCubes, 1, n);
+        circleTargets = new Vector2Int[n];
+        circleMoving = new bool[n];
+        for (int i = 0; i < n; i++){
+            if (i < inRing){
+                double angle = 2 * Math.PI * i / inRing;
+                circleTargets[i] = new Vector2Int((int)(cX + circleRadius * Math.Cos(angle)), (int)(cY + circleRadius * Math.Sin(angle)));
+            } else {
+                circleTargets[i] = HomePosition(i);
+            }
         }
-        if (circleNumOfCubes == 4){
-            double angle1 = 0*angleIncrement;
-            double angle2 = 1*angleIncrement;
-            double angle3 = 2*angleIncrement;
-            double angle4 = 3*angleIncrement;
-            x0 = (int)(cX + circleRadius * Math.Cos(angle1));
-            y0 = (int)(cY + circleRadius * Math.Sin(angle1));
-            x1 = (int)(cX + circleRadius * Math.Cos(angle2));
-            y1 = (int)(cY + circleRadius * Math.Sin(angle2));
-            x2 = (int)(cX + circleRadius * Math.Cos(angle3));
-            y2 = (int)(cY + circleRadius * Math.Sin(angle3));
-            x3 = (int)(cX + circleRadius * Math.Cos(angle4));
-            y3 = (int)(cY + circleRadius * Math.Sin(angle4));
-            x4 = ipx5;
-            y4 = ipy5;
-        }
-        if (circleNumOfCubes == 3){
-            double angle1 = 0*angleIncrement;
-            double angle2 = 1*angleIncrement;
-            double angle3 = 2*angleIncrement;
-            x0 = (int)(cX + circleRadius * Math.Cos(angle1));
-            y0 = (int)(cY + circleRadius * Math.Sin(angle1));
-            x1 = (int)(cX + circleRadius * Math.Cos(angle2));
-            y1 = (int)(cY + circleRadius * Math.Sin(angle2));
-            x2 = (int)(cX + circleRadius * Math.Cos(angle3));
-            y2 = (int)(cY + circleRadius * Math.Sin(angle3));
-            x3 = ipx4;
-            y3 = ipy4;
-            x4 = ipx5;
-            y4 = ipy5;
-        }
-
-
-        
     }
     void Circle(){
-        if (cubes[0].x != x0 || cubes[0].y != y0){moveC0 = 1;}
-        if (cubes[1].x != x1 || cubes[1].y != y1){moveC1 = 1;}
-        if (cubes[2].x != x2 || cubes[2].y != y2){moveC2 = 1;}
-        if (cubes[3].x != x3 || cubes[3].y != y3){moveC3 = 1;}
-        if (cubes[4].x != x4 || cubes[4].y != y4){moveC4 = 1;}
-        if (moveC0 == 1){
-            var mv = cubeManager.navigators[0].Navi2Target(x0, y0, maxSpd:150).Exec();
-            if (mv.reached){moveC0 = 0;} 
-        }
-        if (moveC1 == 1){
-            var mv = cubeManager.navigators[1].Navi2Target(x1, y1, maxSpd:150).Exec();
-            if (mv.reached){ moveC1 = 0;} 
-        }
-        if (moveC2 == 1){
-            var mv = cubeManager.navigators[2].Navi2Target(x2, y2, maxSpd:150).Exec();
-            if (mv.reached){moveC2 = 0;} 
-        }
-        if (moveC3 == 1){
-            var mv = cubeManager.navigators[3].Navi2Target(x3, y3, maxSpd:150).Exec();
-            if (mv.reached){moveC3 = 0;} 
-        }
-        if (moveC4 == 1){
-            var mv = cubeManager.navigators[4].Navi2Target(x4, y4, maxSpd:150).Exec();
-            if (mv.reached){moveC4 = 0;} 
+        if (circleTargets.Length != RobotCount){ GetCirclePositions(); }
+        for (int i = 0; i < RobotCount; i++){
+            var target = circleTargets[i];
+            int dx = cubes[i].x - target.x; int dy = cubes[i].y - target.y;
+            if (dx * dx + dy * dy > CIRCLE_TOLERANCE * CIRCLE_TOLERANCE){ circleMoving[i] = true; }
+            if (circleMoving[i]){
+                var mv = cubeManager.navigators[i].Navi2Target(target.x, target.y, maxSpd:150).Exec();
+                if (mv.reached){ circleMoving[i] = false; }
+            }
         }
     }
     int ph = 0; int mvCube = 0;

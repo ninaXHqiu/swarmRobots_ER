@@ -357,7 +357,7 @@ public class SingleCubeInteractions : MonoBehaviour
         connectButton = GameObject.Find("ConnectText").GetComponent<Text>();
         // One "+" button pairs robots one at a time, so C2-C5 are no longer needed
         var addRobotButton = GameObject.Find("Connect (1)");
-        if (addRobotButton != null){ addRobotButton.GetComponentInChildren<Text>().text = "+"; }
+        if (addRobotButton != null){ addRobotButton.GetComponentInChildren<Text>().text = "+ Add robot"; }
         for (int k = 2; k <= 5; k++){
             var oldButton = GameObject.Find("Connect (" + k + ")");
             if (oldButton != null){ oldButton.SetActive(false); }

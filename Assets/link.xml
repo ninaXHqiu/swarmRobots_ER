@@ -1,0 +1,5 @@
+<!-- Keep every class in the project's own scripts in web builds. Routines are found by
+     reflection, so without this Unity's code stripping could remove unused-looking ones. -->
+<linker>
+  <assembly fullname="Assembly-CSharp" preserve="all"/>
+</linker>

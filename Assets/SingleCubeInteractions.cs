@@ -56,6 +56,20 @@ public class SingleCubeInteractions : MonoBehaviour
         }
     }
 
+    // Used by RoutinePanel to run routines on the robots connected here
+    public Cube[] ConnectedRobots { get { return cubes; } }
+    public CubeManager Manager { get { return cubeManager; } }
+    // Turn off every built-in interaction so a routine has the robots to itself
+    public void StopInteractions(){
+        if (circle){ CircleToggle(); }
+        if (magnet){ MagnetToggle(); }
+        if (repel){ RepelToggle(); }
+        if (multiFlick){ MultiFlickToggle(); }
+        GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
+        GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
+        initialized = true; // skip the move-to-start-row step while a routine runs
+    }
+
     public TextMeshProUGUI output;
     public Text connectButton;
     public Text hapticButton; public Text soundButton;

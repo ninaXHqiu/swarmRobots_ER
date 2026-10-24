@@ -14,12 +14,12 @@ public class StudyFlowExample : SwarmRoutine
     {
         // 1. Idle: line up in front of the participant, facing them
         yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 60, timeoutMs: 8000);
-        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant(ctx.Side));
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
         yield return Swarm.Wait(5000);
 
         // 2. Approach: half circle opening toward the participant
         yield return Swarm.MoveTo(ctx, HalfCircle(ctx, 110), maxSpeed: 50, timeoutMs: 6000);
-        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant(ctx.Side));
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
 
         // 3. Acknowledge: small head shake, 3 times
         for (int k = 0; k < 3; k++)
@@ -34,16 +34,16 @@ public class StudyFlowExample : SwarmRoutine
 
         // 5. Exit: slowly back to the line
         yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 30, timeoutMs: 10000);
-        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant(ctx.Side));
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
     }
 
-    // Robots side by side, `distance` mat units in from the participant's edge
+    // Robots side by side, `distance` mat units in from the participant's (bottom) edge
     Vector2Int[] Line(RoutineContext ctx, int distance)
     {
         int n = ctx.Count;
         float spacing = n > 1 ? Mathf.Min(45f, 300f / (n - 1)) : 0f;
-        Vector2 centre = Swarm.InFrontOf(ctx.Side, distance);
-        Vector2 along = Swarm.Along(ctx.Side);
+        Vector2 centre = Swarm.InFrontOfParticipant(distance);
+        Vector2 along = Swarm.Along;
         var points = new Vector2Int[n];
         for (int i = 0; i < n; i++)
         {
@@ -56,9 +56,9 @@ public class StudyFlowExample : SwarmRoutine
     Vector2Int[] HalfCircle(RoutineContext ctx, int radius)
     {
         int n = ctx.Count;
-        Vector2 centre = Swarm.InFrontOf(ctx.Side, 40);
-        Vector2 along = Swarm.Along(ctx.Side);
-        Vector2 inward = Swarm.Inward(ctx.Side);
+        Vector2 centre = Swarm.InFrontOfParticipant(40);
+        Vector2 along = Swarm.Along;
+        Vector2 inward = Swarm.Inward;
         var points = new Vector2Int[n];
         for (int i = 0; i < n; i++)
         {

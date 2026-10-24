@@ -7,17 +7,16 @@ using UnityEngine;
 using UnityEngine.UI;
 
 // Adds a "Routines" panel to the SingleCubeInteraction scene when it loads:
-// participant side, a list of every SwarmRoutine in the project, and Play / Stop.
+// a list of every SwarmRoutine in the project, and Play / Stop.
 // Built in code so the scene file doesn't need hand editing.
 public class RoutinePanel : MonoBehaviour
 {
     // Panel placement on the canvas (top-right corner, in canvas units)
-    static readonly Vector2 PanelSize = new Vector2(260, 230);
+    static readonly Vector2 PanelSize = new Vector2(260, 170);
     static readonly Vector2 PanelOffset = new Vector2(-10, -10);
 
     SingleCubeInteractions app;
     List<SwarmRoutine> routines = new List<SwarmRoutine>();
-    Dropdown sideDropdown;
     Dropdown routineDropdown;
     Text playLabel;
     Text status;
@@ -82,10 +81,6 @@ public class RoutinePanel : MonoBehaviour
         layout.childForceExpandHeight = false; layout.childForceExpandWidth = true;
 
         AddText(panel.transform, "Routines", 18, FontStyle.Bold);
-        AddText(panel.transform, "Participant side", 13, FontStyle.Normal);
-        sideDropdown = AddDropdown(panel.transform, resources, Enum.GetNames(typeof(ParticipantSide)).ToList());
-        sideDropdown.value = (int)ParticipantSide.Bottom;
-
         AddText(panel.transform, "Routine", 13, FontStyle.Normal);
         var names = routines.Select(r => r.Name + "  (" + r.MinRobots + "+)").ToList();
         if (names.Count == 0) { names.Add("No routines found"); }
@@ -155,8 +150,7 @@ public class RoutinePanel : MonoBehaviour
         runningContext = new RoutineContext
         {
             Cubes = cubes,
-            CubeManager = app.Manager,
-            Side = (ParticipantSide)sideDropdown.value
+            CubeManager = app.Manager
         };
         running = StartCoroutine(RunRoutine(routine, runningContext));
     }

@@ -13,15 +13,13 @@ using toio;
 //
 // Mat coordinates: x grows to the right, y grows downward, the usable mat is about
 // 45..455 on both axes, and (250, 250) is the centre.
+// The participant always sits at the bottom-centre edge of the mat (see Swarm.Participant).
 
-public enum ParticipantSide { Top, Bottom, Left, Right }
-
-// What a running routine can see: the connected robots and where the participant sits
+// What a running routine can see: the connected robots
 public class RoutineContext
 {
     public Cube[] Cubes;
     public CubeManager CubeManager;
-    public ParticipantSide Side;
 
     public int Count { get { return Cubes.Length; } }
 }
@@ -50,39 +48,28 @@ public static class Swarm
         return new Vector2Int(Mathf.Clamp(p.x, lo, hi), Mathf.Clamp(p.y, lo, hi));
     }
 
-    // Unit vector pointing from the participant's edge into the mat
-    public static Vector2 Inward(ParticipantSide side)
+    // Where the participant sits: bottom-centre edge of the mat.
+    // If the setup changes, this is the one line to edit.
+    public static readonly Vector2 Participant = new Vector2(Centre, MatMax);
+
+    // Point straight in front of the participant, `distance` mat units in from their edge
+    public static Vector2 InFrontOfParticipant(int distance)
     {
-        switch (side)
-        {
-            case ParticipantSide.Top: return new Vector2(0, 1);
-            case ParticipantSide.Bottom: return new Vector2(0, -1);
-            case ParticipantSide.Left: return new Vector2(1, 0);
-            default: return new Vector2(-1, 0);
-        }
+        return Participant + Inward * distance;
     }
 
-    // Unit vector running along the participant's edge
-    public static Vector2 Along(ParticipantSide side)
-    {
-        Vector2 inward = Inward(side);
-        return new Vector2(inward.y, -inward.x);
-    }
-
-    // Point in front of the participant, `distance` mat units in from their edge
-    public static Vector2 InFrontOf(ParticipantSide side, int distance)
-    {
-        Vector2 centre = new Vector2(Centre, Centre);
-        Vector2 inward = Inward(side);
-        Vector2 edge = centre - inward * (Centre - MatMin);
-        return edge + inward * distance;
-    }
+    // Direction from the participant into the mat, and along their edge
+    public static Vector2 Inward { get { return (new Vector2(Centre, Centre) - Participant).normalized; } }
+    public static Vector2 Along { get { return new Vector2(-Inward.y, Inward.x); } }
 
     // Mat angle (degrees) that faces the participant
-    public static double FacingParticipant(ParticipantSide side)
+    public static double FacingParticipant
     {
-        Vector2 toParticipant = -Inward(side);
-        return Mathf.Atan2(toParticipant.y, toParticipant.x) * Mathf.Rad2Deg;
+        get
+        {
+            Vector2 toParticipant = -Inward;
+            return Mathf.Atan2(toParticipant.y, toParticipant.x) * Mathf.Rad2Deg;
+        }
     }
 
     // Drive every robot to its target with collision avoidance. Finishes when all have

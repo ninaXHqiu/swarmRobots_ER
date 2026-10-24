@@ -27,13 +27,13 @@ http://localhost:8002, with as little effort on their side as possible. macOS on
    later runs only rebuild when scripts changed. It opens http://localhost:8002 in Chrome.
    If it fails, the script prints the compile errors or the licence message - fix and rerun.
 
-5. **Explain the screen** (left panel):
-   - **Simulated / Real robots** switch at the top. Simulated = dev mode: simulated robots on
-     the 3D mat. Real robots = test mode: turn toio cubes on, press **+ Add robot** once per
-     robot (each opens Chrome's pairing popup). Same routine buttons in both modes.
-   - **Robots - / +** (simulated mode): 2 to 8 robots, remembered.
-   - One button per routine; the running one turns blue. **Stop** ends it.
-   - **Control (real robots)** opens Samira's original interactions screen (magnet, circle, remote...).
+5. **Explain the two screens:**
+   - **Simulator** (opens first): simulated robots on the 3D mat. **Robots - / +** sets 2 to 8
+     robots; one button per routine (the running one turns blue); **Stop** ends it.
+   - **Real robots** (button at the top) opens the Control screen: turn toio cubes on, press
+     **+ Add robot** once per robot (each opens Chrome's pairing popup), then **Connect**. Its
+     Routines card runs the same routines on the real robots; Samira's interactions (magnet,
+     circle, remote...) are there too. **Simulator** (top right) goes back.
 
 ## Day-to-day after the first run
 

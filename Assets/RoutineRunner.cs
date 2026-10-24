@@ -62,7 +62,7 @@ public class RoutineRunner : MonoBehaviour
             return;
         }
         app.StopInteractions();
-        runningContext = new RoutineContext { Cubes = cubes, CubeManager = app.Manager };
+        runningContext = new RoutineContext { Cubes = cubes, Navigators = app.Manager.navigators.ToArray(), CubeManager = app.Manager };
         running = StartCoroutine(Run(routine, runningContext));
     }
 

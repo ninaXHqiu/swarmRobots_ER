@@ -9,6 +9,19 @@ public static class WebBuild
     const string Scene = "Assets/development/SingleCubeInteraction.unity";
     const string Output = "SwarmControl";
 
+    // Web build of the routine simulator, output to SimPreview/
+    public static void BuildSimulator()
+    {
+        var report = BuildPipeline.BuildPlayer(new BuildPlayerOptions
+        {
+            scenes = new[] { CreateSimScene.ScenePath },
+            locationPathName = "SimPreview",
+            target = BuildTarget.WebGL,
+            options = BuildOptions.None
+        });
+        EditorApplication.Exit(report.summary.result == BuildResult.Succeeded ? 0 : 1);
+    }
+
     public static void Build()
     {
         var options = new BuildPlayerOptions

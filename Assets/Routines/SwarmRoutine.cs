@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using toio;
+using toio.Navigation;
 
 // How to add a routine
 // --------------------
@@ -19,6 +20,7 @@ using toio;
 public class RoutineContext
 {
     public Cube[] Cubes;
+    public CubeNavigator[] Navigators;   // same order as Cubes
     public CubeManager CubeManager;
 
     public int Count { get { return Cubes.Length; } }
@@ -72,10 +74,12 @@ public static class Swarm
         }
     }
 
-    // Drive every robot to its target with collision avoidance. Finishes when all have
+    // Drive every robot straight to its target (no avoidance: routine shapes are planned so
+    // robots don't cross, and avoidance stalls formations where robots sit close). Finishes when all have
     // arrived or timeoutMs has passed, so a stuck robot can't hang the routine.
     public static IEnumerator MoveTo(RoutineContext ctx, Vector2Int[] targets, int maxSpeed = 60, int timeoutMs = 8000)
     {
+        Debug.Log("[sim] MoveTo start t=" + Time.time.ToString("0.0"));
         float end = Time.time + timeoutMs / 1000f;
         var arrived = new bool[ctx.Count];
         while (Time.time < end)
@@ -95,13 +99,62 @@ public static class Swarm
                         continue;
                     }
                     all = false;
-                    ctx.CubeManager.navigators[i].Navi2Target(t.x, t.y, maxSpd: maxSpeed).Exec();
+                    ctx.Navigators[i].handle.Move2Target(t.x, t.y, maxSpd: maxSpeed).Exec();
                 }
                 if (all) { break; }
             }
             yield return null;
         }
         StopAll(ctx);
+    }
+
+    // Keep every robot chasing a moving target for durationMs. targetAt(i, t) gives robot i's
+    // position at t seconds into the step; use it for anything that flows (turning shapes, waves).
+    public static IEnumerator Follow(RoutineContext ctx, System.Func<int, float, Vector2> targetAt, int durationMs, int maxSpeed = 70)
+    {
+        Debug.Log("[sim] Follow start t=" + Time.time.ToString("0.0") + " for " + durationMs + "ms");
+        float start = Time.time;
+        float duration = durationMs / 1000f;
+        while (Time.time - start < duration)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                float t = Time.time - start;
+                for (int i = 0; i < ctx.Count; i++)
+                {
+                    var p = Clamp(Vector2Int.RoundToInt(targetAt(i, t)));
+                    ctx.Navigators[i].handle.Move2Target(p.x, p.y, maxSpd: maxSpeed).Exec();
+                }
+            }
+            yield return null;
+        }
+        StopAll(ctx);
+    }
+
+    // Re-number the robots so robot i is the nearest free robot to targets[i]. Call before a
+    // new formation so robots take short trips instead of crossing the mat.
+    public static void AssignNearest(RoutineContext ctx, Vector2Int[] targets)
+    {
+        int n = ctx.Count;
+        var used = new bool[n];
+        var cubes = (Cube[])ctx.Cubes.Clone();
+        var navigators = (CubeNavigator[])ctx.Navigators.Clone();
+        for (int i = 0; i < n && i < targets.Length; i++)
+        {
+            int best = -1; float bestDist = float.MaxValue;
+            for (int j = 0; j < n; j++)
+            {
+                if (used[j]) { continue; }
+                float dx = ctx.Cubes[j].x - targets[i].x, dy = ctx.Cubes[j].y - targets[i].y;
+                float d = dx * dx + dy * dy;
+                if (d < bestDist) { bestDist = d; best = j; }
+            }
+            used[best] = true;
+            cubes[i] = ctx.Cubes[best];
+            navigators[i] = ctx.Navigators[best];
+        }
+        ctx.Cubes = cubes;
+        ctx.Navigators = navigators;
     }
 
     // Turn every robot to a mat angle in degrees (0 = right, 90 = down)
@@ -115,7 +168,7 @@ public static class Swarm
                 bool all = true;
                 for (int i = 0; i < ctx.Count; i++)
                 {
-                    var mv = ctx.CubeManager.navigators[i].handle.Rotate2Deg(degrees).Exec();
+                    var mv = ctx.Navigators[i].handle.Rotate2Deg(degrees).Exec();
                     if (!mv.reached) { all = false; }
                 }
                 if (all) { break; }

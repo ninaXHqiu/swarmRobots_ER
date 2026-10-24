@@ -23,17 +23,22 @@ public class SimRoutinePlayer : MonoBehaviour
     List<SwarmRoutine> routines = new List<SwarmRoutine>();
     Coroutine running;
     RoutineContext ctx;
-    string status = "Connecting simulated robots...";
+    string status = "Connecting robots...";
 
     void Awake()
     {
         robots = Mathf.Clamp(PlayerPrefs.GetInt(RobotsKey, 8), 2, 8);
-        // Simulated robots in a row near the top of the mat
+        // Simulated robots in up to two rows in the middle of the mat, well away from the
+        // edges (robots pushed off the mat lose their position and get stuck)
         var prefab = Resources.Load<GameObject>("Cube");
+        int perRow = Mathf.CeilToInt(robots / 2f);
         for (int i = 0; i < robots; i++)
         {
-            float x = robots == 1 ? 250 : Mathf.Lerp(90, 410, i / (float)(robots - 1));
-            Instantiate(prefab, Mat.MatCoord2UnityCoord(x, 100), Quaternion.identity);
+            int row = i / perRow, col = i % perRow;
+            int inRow = row == 0 ? perRow : robots - perRow;
+            float x = inRow == 1 ? 250 : Mathf.Lerp(150, 350, col / (float)(inRow - 1));
+            float y = robots <= perRow ? 250 : (row == 0 ? 210 : 290);
+            Instantiate(prefab, Mat.MatCoord2UnityCoord(x, y), Quaternion.identity);
         }
     }
 
@@ -102,14 +107,13 @@ public class SimRoutinePlayer : MonoBehaviour
         foreach (var routine in routines)
         {
             var style = running != null && activeRoutine == routine.Name ? activeStyle : buttonStyle;
-            if (GUILayout.Button(routine.Name, style, GUILayout.Height(40)))
+            GUI.enabled = ctx != null; // greyed out until the simulated robots are connected
+            if (GUILayout.Button(routine.Name, style, GUILayout.Height(40)) && ctx != null)
             {
-                if (ctx == null || connected < routine.MinRobots)
-                {
-                    status = "Needs " + routine.MinRobots + " robots, " + connected + " connected";
-                }
+                if (connected < routine.MinRobots) { status = "Needs " + routine.MinRobots + " robots"; }
                 else { Play(routine); }
             }
+            GUI.enabled = true;
         }
         GUILayout.Space(8);
         if (running != null && GUILayout.Button("Stop", primaryStyle, GUILayout.Height(40)))

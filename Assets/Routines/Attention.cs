@@ -9,6 +9,7 @@ public class Attention : SwarmRoutine
 
     public override IEnumerator Run(RoutineContext ctx)
     {
+        yield return Swarm.StartInLine(ctx);
         yield return Swarm.FacePoint(ctx, Swarm.Participant, timeoutMs: 4000);
     }
 }

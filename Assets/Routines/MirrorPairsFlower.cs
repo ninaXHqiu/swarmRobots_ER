@@ -31,6 +31,7 @@ public class MirrorPairsFlower : SwarmRoutine
     public override IEnumerator Run(RoutineContext ctx)
     {
         int n = ctx.Count;
+        yield return Swarm.StartInLine(ctx);
 
         // Unorganized pairs
         var start = new Vector2Int[n];

@@ -2,8 +2,8 @@ using System.Collections;
 using System.Linq;
 using UnityEngine;
 
-// Closing: regroup into a small circle, widen it into a bigger circle, settle into a line,
-// then go back to where each robot stood before the routine started.
+// Closing: regroup into a small circle, widen it into a bigger circle, then end in the shared
+// line (the same line every routine starts in).
 // Runs on its own, and at the end of the mirroring and wave routines.
 public class Closing : SwarmRoutine
 {
@@ -11,7 +11,6 @@ public class Closing : SwarmRoutine
     public override int MinRobots { get { return 2; } }
 
     const float BigScale = 1.5f;    // big circle = 1.5 x the small one (stays in the middle)
-    const float LineSpacing = 40f;  // compact line, centred
     const float GatherSecs = 6f;    // spiral in to the small circle
     const float WidenSecs = 5f;     // small circle slowly widens
     const float LineSecs = 6f;      // circle settles into a line
@@ -55,7 +54,7 @@ public class Closing : SwarmRoutine
         var line = new Vector2[n];
         for (int rank = 0; rank < n; rank++)
         {
-            float x = Swarm.Centre + (rank - (n - 1) / 2f) * LineSpacing;
+            float x = Swarm.Centre + (rank - (n - 1) / 2f) * Swarm.LineSpacing;
             line[order[rank]] = new Vector2(x, LineY);
         }
         yield return Swarm.Follow(ctx, (i, t) =>
@@ -65,13 +64,6 @@ public class Closing : SwarmRoutine
             return new Vector2(Mathf.Lerp(from[i].x, line[i].x, sideways), Mathf.Lerp(from[i].y, line[i].y, upDown));
         }, (int)(LineSecs * 1000), maxSpeed: 80);
 
-        // 4. Back to where each robot started (with collision avoidance, since start spots can
-        //    be in any order)
-        if (ctx.Cubes.All(c => ctx.Home.ContainsKey(c)))
-        {
-            var home = ctx.Cubes.Select(c => ctx.Home[c]).ToArray();
-            yield return Swarm.MoveToAvoiding(ctx, home, maxSpeed: 60, timeoutMs: 15000);
-        }
     }
 
     // Ring angle (deg) per robot: robots keep their order around the centre, evenly spaced

@@ -25,11 +25,8 @@ public class WaveFlower : SwarmRoutine
     {
         int n = ctx.Count;
 
-        // Start: a compact row in the middle of the mat
-        var row = new Vector2Int[n];
-        for (int i = 0; i < n; i++) { row[i] = new Vector2Int(Mathf.RoundToInt(RowX(i, n)), Swarm.Centre); }
-        Swarm.AssignNearest(ctx, row);
-        yield return Swarm.GlideTo(ctx, row, maxSpeed: 90);
+        // Start: the shared line, which is also the row the wave runs along
+        yield return Swarm.StartInLine(ctx);
 
         float total = SettleSecs + GrowSecs + HoldSecs;
         yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 110);
@@ -39,7 +36,7 @@ public class WaveFlower : SwarmRoutine
 
     static float RowX(int i, int n)
     {
-        return Swarm.Centre + (i - (n - 1) / 2f) * 35f; // robots 35 apart, centred
+        return Swarm.Centre + (i - (n - 1) / 2f) * Swarm.LineSpacing; // same as the shared line
     }
 
     // Up/down offset of robot i at time t

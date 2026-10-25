@@ -15,6 +15,7 @@ public class Approach : SwarmRoutine
     public override IEnumerator Run(RoutineContext ctx)
     {
         int n = ctx.Count;
+        yield return Swarm.StartInLine(ctx);
         Vector2 centre = Vector2.zero;
         for (int i = 0; i < n; i++) { centre += new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         centre /= n;

@@ -115,6 +115,23 @@ public static class Swarm
         StopAll(ctx);
     }
 
+    // The shared line every routine starts in and the Closing ends in: robots 35 apart, centred
+    public const float LineSpacing = 35f;
+    public static Vector2Int[] Line(int n)
+    {
+        var line = new Vector2Int[n];
+        for (int i = 0; i < n; i++) { line[i] = new Vector2Int(Mathf.RoundToInt(Centre + (i - (n - 1) / 2f) * LineSpacing), Centre); }
+        return line;
+    }
+
+    // Start of every routine: robots glide into the shared line
+    public static IEnumerator StartInLine(RoutineContext ctx)
+    {
+        var line = Line(ctx.Count);
+        AssignNearest(ctx, line);
+        yield return GlideTo(ctx, line, maxSpeed: 90);
+    }
+
     // Ease every robot from where it is to its target over a fixed time (longest trip at about
     // `unitsPerSec`, at least 2 s), then carry straight on - no waiting for stragglers, so the
     // routine never pauses.

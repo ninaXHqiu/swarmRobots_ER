@@ -15,7 +15,7 @@ public class WaveFlower : SwarmRoutine
     const float HoldSecs = 20f;     // large waves keep going
 
     // Wave shape
-    const float WaveHz = 0.2f;      // wave speed (cycles per second), the same throughout
+    const float WaveHz = 0.3f;      // wave speed (cycles per second), the same throughout
     const float SmallHeight = 50f;  // up/down distance of the first, small wave
     const float LargeHeight = 120f; // up/down distance of the large waves
     const float SmallStep = 0.8f;   // phase step between neighbours: small, tight waves
@@ -29,10 +29,10 @@ public class WaveFlower : SwarmRoutine
         var row = new Vector2Int[n];
         for (int i = 0; i < n; i++) { row[i] = new Vector2Int(Mathf.RoundToInt(RowX(i, n)), Swarm.Centre); }
         Swarm.AssignNearest(ctx, row);
-        yield return Swarm.MoveTo(ctx, row, maxSpeed: 60, timeoutMs: 12000);
+        yield return Swarm.MoveTo(ctx, row, maxSpeed: 90, timeoutMs: 10000);
 
         float total = SettleSecs + GrowSecs + HoldSecs;
-        yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 100);
+        yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 110);
     }
 
     static float RowX(int i, int n)

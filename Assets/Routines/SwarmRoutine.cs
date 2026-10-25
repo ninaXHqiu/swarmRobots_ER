@@ -155,6 +155,27 @@ public static class Swarm
         ctx.Navigators = navigators;
     }
 
+    // Turn each robot to face a point on the mat (each robot gets its own angle)
+    public static IEnumerator FacePoint(RoutineContext ctx, Vector2 point, int timeoutMs = 3000)
+    {
+        float end = Time.time + timeoutMs / 1000f;
+        while (Time.time < end)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                bool all = true;
+                for (int i = 0; i < ctx.Count; i++)
+                {
+                    double deg = Mathf.Atan2(point.y - ctx.Cubes[i].y, point.x - ctx.Cubes[i].x) * Mathf.Rad2Deg;
+                    if (!ctx.Navigators[i].handle.Rotate2Deg(deg).Exec().reached) { all = false; }
+                }
+                if (all) { break; }
+            }
+            yield return null;
+        }
+        StopAll(ctx);
+    }
+
     // Turn every robot to a mat angle in degrees (0 = right, 90 = down)
     public static IEnumerator TurnTo(RoutineContext ctx, double degrees, int timeoutMs = 3000)
     {

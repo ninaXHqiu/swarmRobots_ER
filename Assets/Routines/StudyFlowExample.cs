@@ -13,12 +13,12 @@ public class StudyFlowExample : SwarmRoutine
     public override IEnumerator Run(RoutineContext ctx)
     {
         // 1. Idle: line up in front of the participant, facing them
-        yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 60, timeoutMs: 8000);
+        yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 90, timeoutMs: 8000);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
         yield return Swarm.Wait(5000);
 
         // 2. Approach: half circle opening toward the participant
-        yield return Swarm.MoveTo(ctx, HalfCircle(ctx, 110), maxSpeed: 50, timeoutMs: 6000);
+        yield return Swarm.MoveTo(ctx, HalfCircle(ctx, 110), maxSpeed: 75, timeoutMs: 6000);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
 
         // 3. Acknowledge: small head shake, 3 times
@@ -29,11 +29,11 @@ public class StudyFlowExample : SwarmRoutine
         }
 
         // 4. Expressive: circle in the middle of the mat
-        yield return Swarm.MoveTo(ctx, Circle(ctx, 80), maxSpeed: 60, timeoutMs: 8000);
+        yield return Swarm.MoveTo(ctx, Circle(ctx, 80), maxSpeed: 90, timeoutMs: 8000);
         yield return Swarm.Wait(10000);
 
         // 5. Exit: slowly back to the line
-        yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 30, timeoutMs: 10000);
+        yield return Swarm.MoveTo(ctx, Line(ctx, 90), maxSpeed: 45, timeoutMs: 10000);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant);
     }
 

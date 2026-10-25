@@ -44,8 +44,10 @@ public class RoutineRunner : MonoBehaviour
         var list = new GameObject("RoutineList", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
         list.transform.SetParent(card, false);
         var listRect = (RectTransform)list.transform;
-        listRect.anchorMin = listRect.anchorMax = listRect.pivot = new Vector2(0.5f, 1f);
-        listRect.anchoredPosition = new Vector2(top.x, top.y - 30);
+        // Same centre anchor as the other controls; pivot at the top so the list hangs below Stop
+        listRect.anchorMin = listRect.anchorMax = new Vector2(0.5f, 0.5f);
+        listRect.pivot = new Vector2(0.5f, 1f);
+        listRect.anchoredPosition = new Vector2(top.x, top.y - 28);
         listRect.sizeDelta = new Vector2(210, 260);
         list.GetComponent<Image>().color = new Color(1, 1, 1, 0); // invisible, but catches scroll/drag
 

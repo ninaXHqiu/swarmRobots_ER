@@ -89,6 +89,7 @@ public class SimRoutinePlayer : MonoBehaviour
         float scale = Screen.height / 720f;
         GUI.matrix = Matrix4x4.Scale(new Vector3(scale, scale, 1));
 
+        FitViewBesideSidebar(scale);
         GUILayout.BeginArea(new Rect(16, 16, 300, 720 - 32), panelStyle);
         GUILayout.Label("Routines", titleStyle);
         GUILayout.BeginHorizontal();
@@ -122,6 +123,25 @@ public class SimRoutinePlayer : MonoBehaviour
         }
         GUILayout.FlexibleSpace();
         GUILayout.EndArea();
+    }
+
+    // The 3D view uses only the area right of the sidebar. A background camera repaints the
+    // whole window first, so nothing stale is left under the sidebar.
+    Camera background;
+    void FitViewBesideSidebar(float scale)
+    {
+        var view = Camera.main;
+        if (view == null || Event.current.type != EventType.Repaint) { return; }
+        if (background == null)
+        {
+            background = new GameObject("Background").AddComponent<Camera>();
+            background.depth = view.depth - 1;
+            background.clearFlags = CameraClearFlags.SolidColor;
+            background.backgroundColor = new Color(0.95f, 0.96f, 0.98f);
+            background.cullingMask = 0;
+        }
+        float left = (16 + 300 + 16) * scale / Screen.width;
+        view.rect = new Rect(left, 0, 1 - left, 1);
     }
 
     // Restart the simulator with a different number of robots

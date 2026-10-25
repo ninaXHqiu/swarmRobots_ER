@@ -28,17 +28,12 @@ public class SimRoutinePlayer : MonoBehaviour
     void Awake()
     {
         robots = Mathf.Clamp(PlayerPrefs.GetInt(RobotsKey, 8), 2, 8);
-        // Simulated robots in up to two rows in the middle of the mat, well away from the
-        // edges (robots pushed off the mat lose their position and get stuck)
+        // Simulated robots start in the shared single line (the same line every routine
+        // starts in and the Closing ends in)
         var prefab = Resources.Load<GameObject>("Cube");
-        int perRow = Mathf.CeilToInt(robots / 2f);
-        for (int i = 0; i < robots; i++)
+        foreach (var spot in Swarm.Line(robots))
         {
-            int row = i / perRow, col = i % perRow;
-            int inRow = row == 0 ? perRow : robots - perRow;
-            float x = inRow == 1 ? 250 : Mathf.Lerp(150, 350, col / (float)(inRow - 1));
-            float y = robots <= perRow ? 250 : (row == 0 ? 210 : 290);
-            Instantiate(prefab, Mat.MatCoord2UnityCoord(x, y), Quaternion.identity);
+            Instantiate(prefab, Mat.MatCoord2UnityCoord(spot.x, spot.y), Quaternion.identity);
         }
     }
 

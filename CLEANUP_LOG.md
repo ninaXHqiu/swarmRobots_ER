@@ -30,9 +30,26 @@ Xcode projects exported by Unity's macOS build. Native desktop builds, unrelated
 | `ToioMove/` | Xcode project `ToioMove.xcodeproj` + app bundle. Likely a build of the ToioMove demo (`Assets/ToioMoveDemo.cs`) |
 | `Xcode_Toio/` | Xcode project `Xcode_Toio.xcodeproj` + app bundle. Same layout, a general test build |
 
-## Kept for reference (not removed)
+## Removed in the second cleanup (2026-10-24)
 
-Old WebGL builds. Each folder is a complete web app (`index.html`, `Build/`, `TemplateData/`) that can be opened in Chrome or served with GitHub Pages. Kept because they show working connection UIs and interactions we may want to compare against. The "likely source" column is inferred from names and dates, not confirmed.
+Everything below is still in git history at commit `20d000d`. To restore any item:
+
+```bash
+git checkout 20d000d -- "<path>"
+```
+
+### GitHub Pages leftovers
+Added for a GitHub Pages site that was later dropped (the project runs locally). Nothing used them.
+
+| Item | What it was |
+|---|---|
+| `index.html` | Pages landing page linking to `SwarmControl/` and Samira's original build |
+| `.nojekyll` | Empty file telling GitHub Pages not to run Jekyll |
+| `SwarmControl/` | Stale web build of the Control app from 2026-10-23, before the routines existed. The local web build is now `SimPreview/` (made by `tools/run-simulator.sh`, not in git) |
+| `WebBuild.Build()` in `Assets/Editor/WebBuild.cs` | The build command that wrote `SwarmControl/`. `WebBuild.BuildSimulator()` stays |
+
+### Old WebGL builds (previously kept for reference)
+About 380 MB. Each folder was a complete web app (`index.html`, `Build/`, `TemplateData/`). The source scenes and scripts are still in `Assets/`, so any of them can be rebuilt. The "likely source" column is inferred from names and dates, not confirmed.
 
 | Folder | Built | Likely source in `Assets/` | Notes |
 |---|---|---|---|

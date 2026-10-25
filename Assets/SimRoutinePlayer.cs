@@ -77,6 +77,7 @@ public class SimRoutinePlayer : MonoBehaviour
     // ---------- Screen: a panel on the left, same look as the Control screen ----------
 
     GUIStyle panelStyle, titleStyle, textStyle, buttonStyle, primaryStyle, activeStyle;
+    Vector2 routineScroll;
     string activeRoutine;
 
     void OnGUI()
@@ -99,8 +100,17 @@ public class SimRoutinePlayer : MonoBehaviour
         if (GUILayout.Button("+", buttonStyle, GUILayout.Width(44), GUILayout.Height(34))) { SetRobots(robots + 1); }
         GUILayout.EndHorizontal();
         GUILayout.Space(8);
-        // Routines always listed; in real mode they need enough connected robots to start
+        // Stop robots: always visible, above the list
+        if (GUILayout.Button("Stop robots", primaryStyle, GUILayout.Height(40)))
+        {
+            if (running != null) { StopCoroutine(running); running = null; }
+            if (ctx != null) { Swarm.StopAll(ctx); }
+            status = "All robots stopped";
+        }
+        GUILayout.Space(6);
+        // Routine list scrolls when there are more routines than fit
         int connected = cubes == null ? 0 : cubes.Length;
+        routineScroll = GUILayout.BeginScrollView(routineScroll, false, false);
         foreach (var routine in routines)
         {
             var style = running != null && activeRoutine == routine.Name ? activeStyle : buttonStyle;
@@ -112,11 +122,7 @@ public class SimRoutinePlayer : MonoBehaviour
             }
             GUI.enabled = true;
         }
-        GUILayout.Space(8);
-        if (running != null && GUILayout.Button("Stop", primaryStyle, GUILayout.Height(40)))
-        {
-            StopCoroutine(running); running = null; Swarm.StopAll(ctx); status = "Stopped";
-        }
+        GUILayout.EndScrollView();
         GUILayout.FlexibleSpace();
         GUILayout.EndArea();
     }

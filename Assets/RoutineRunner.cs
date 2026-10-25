@@ -30,22 +30,47 @@ public class RoutineRunner : MonoBehaviour
     {
         routines = FindRoutines();
 
-        // One button per routine, stacked where the dropdown was
+        // Layout inside the Routines card: Stop (always visible) at the top, then a scrolling
+        // list with one button per routine, then the status line
         var card = routineDropdown.transform.parent;
         var top = ((RectTransform)routineDropdown.transform).anchoredPosition;
         routineDropdown.gameObject.SetActive(false);
         var font = Resources.GetBuiltinResource<Font>("Arial.ttf");
-        const float Step = 44f;
+
+        var stopRect = (RectTransform)playImage.transform;
+        stopRect.anchoredPosition = new Vector2(top.x, top.y);
+        stopRect.sizeDelta = new Vector2(200, 38);
+
+        var list = new GameObject("RoutineList", typeof(RectTransform), typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+        list.transform.SetParent(card, false);
+        var listRect = (RectTransform)list.transform;
+        listRect.anchorMin = listRect.anchorMax = listRect.pivot = new Vector2(0.5f, 1f);
+        listRect.anchoredPosition = new Vector2(top.x, top.y - 30);
+        listRect.sizeDelta = new Vector2(210, 260);
+        list.GetComponent<Image>().color = new Color(1, 1, 1, 0); // invisible, but catches scroll/drag
+
+        var content = new GameObject("Content", typeof(RectTransform), typeof(VerticalLayoutGroup), typeof(ContentSizeFitter));
+        content.transform.SetParent(list.transform, false);
+        var contentRect = (RectTransform)content.transform;
+        contentRect.anchorMin = new Vector2(0, 1); contentRect.anchorMax = new Vector2(1, 1); contentRect.pivot = new Vector2(0.5f, 1);
+        contentRect.anchoredPosition = Vector2.zero; contentRect.sizeDelta = Vector2.zero;
+        var layout = content.GetComponent<VerticalLayoutGroup>();
+        layout.spacing = 6; layout.padding = new RectOffset(5, 5, 4, 4);
+        layout.childControlWidth = true; layout.childControlHeight = true; layout.childForceExpandHeight = false;
+        content.GetComponent<ContentSizeFitter>().verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        var scroll = list.GetComponent<ScrollRect>();
+        scroll.content = contentRect; scroll.viewport = listRect;
+        scroll.horizontal = false; scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped; scroll.scrollSensitivity = 25;
+
         for (int k = 0; k < routines.Count; k++)
         {
             int index = k;
             var go = DefaultControls.CreateButton(new DefaultControls.Resources());
             go.name = "Routine " + routines[k].Name;
-            go.transform.SetParent(card, false);
-            var rect = (RectTransform)go.transform;
-            rect.anchorMin = rect.anchorMax = rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(top.x, top.y - Step * k);
-            rect.sizeDelta = new Vector2(200, 38);
+            go.transform.SetParent(content.transform, false);
+            go.AddComponent<LayoutElement>().preferredHeight = 38;
             var image = go.GetComponent<Image>();
             image.sprite = null; image.color = Color.white;
             go.AddComponent<Outline>().effectColor = Accent;
@@ -55,11 +80,8 @@ public class RoutineRunner : MonoBehaviour
             routineButtons.Add(image);
         }
 
-        // Stop button and status below the list
-        var stopRect = (RectTransform)playImage.transform;
-        stopRect.anchoredPosition = new Vector2(top.x, top.y - Step * routines.Count - 8);
         var statusRect = (RectTransform)status.transform;
-        statusRect.anchoredPosition = new Vector2(top.x, stopRect.anchoredPosition.y - 60);
+        statusRect.anchoredPosition = new Vector2(top.x, listRect.anchoredPosition.y - listRect.sizeDelta.y - 30);
         if (routines.Count == 0) { status.text = "Add a routine file under Assets/Routines"; }
         SetPlaying(false);
     }
@@ -83,10 +105,15 @@ public class RoutineRunner : MonoBehaviour
         return found.OrderBy(r => r.Name).ToList();
     }
 
-    // Wired to the Stop button (shown only while a routine runs)
+    // Wired to the Stop robots button (always visible): ends the routine, turns off the
+    // built-in interactions and halts every connected robot
     public void TogglePlay()
     {
         if (running != null) { StopRoutine("Stopped"); }
+        app.StopInteractions();
+        var cubes = app.ConnectedRobots;
+        if (cubes != null) { foreach (var cube in cubes) { cube.Move(0, 0, 0, toio.Cube.ORDER_TYPE.Strong); } }
+        status.text = "All robots stopped";
     }
 
     void PlayRoutine(int index)
@@ -128,8 +155,7 @@ public class RoutineRunner : MonoBehaviour
 
     void SetPlaying(bool playing)
     {
-        playImage.gameObject.SetActive(playing);
-        playLabel.text = "Stop";
+        playLabel.text = "Stop robots";
         playImage.color = new Color(0.95f, 0.79f, 0.30f);
         playLabel.color = Ink;
         for (int k = 0; k < routineButtons.Count; k++)

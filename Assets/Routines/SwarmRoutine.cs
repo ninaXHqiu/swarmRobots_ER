@@ -22,6 +22,14 @@ public class RoutineContext
     public Cube[] Cubes;
     public CubeNavigator[] Navigators;   // same order as Cubes
     public CubeManager CubeManager;
+    // Where each robot stood when the routine was started (used by Closing to send them back)
+    public Dictionary<Cube, Vector2Int> Home = new Dictionary<Cube, Vector2Int>();
+
+    public void RecordHome()
+    {
+        Home.Clear();
+        foreach (var cube in Cubes) { Home[cube] = new Vector2Int(cube.x, cube.y); }
+    }
 
     public int Count { get { return Cubes.Length; } }
 }
@@ -99,6 +107,38 @@ public static class Swarm
                     }
                     all = false;
                     ctx.Navigators[i].handle.Move2Target(t.x, t.y, maxSpd: maxSpeed).Exec();
+                }
+                if (all) { break; }
+            }
+            yield return null;
+        }
+        StopAll(ctx);
+    }
+
+    // Like MoveTo, but robots steer around each other. Slower to settle; use it when robots'
+    // paths may cross (e.g. going back to their own start spots).
+    public static IEnumerator MoveToAvoiding(RoutineContext ctx, Vector2Int[] targets, int maxSpeed = 60, int timeoutMs = 15000)
+    {
+        foreach (var navigator in ctx.Navigators)
+        {
+            navigator.ClearOther();
+            foreach (var other in ctx.Navigators) { if (other != navigator) { navigator.AddOther(other); } }
+        }
+        float end = Time.time + timeoutMs / 1000f;
+        var arrived = new bool[ctx.Count];
+        while (Time.time < end)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                bool all = true;
+                for (int i = 0; i < ctx.Count && i < targets.Length; i++)
+                {
+                    if (arrived[i]) { continue; }
+                    var t = Clamp(targets[i]);
+                    int dx = ctx.Cubes[i].x - t.x; int dy = ctx.Cubes[i].y - t.y;
+                    if (dx * dx + dy * dy <= ArriveTolerance * ArriveTolerance) { arrived[i] = true; ctx.Cubes[i].Move(0, 0, 0); continue; }
+                    all = false;
+                    ctx.Navigators[i].Navi2Target(t.x, t.y, maxSpd: maxSpeed).Exec();
                 }
                 if (all) { break; }
             }

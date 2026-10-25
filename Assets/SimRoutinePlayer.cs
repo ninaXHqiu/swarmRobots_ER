@@ -66,6 +66,7 @@ public class SimRoutinePlayer : MonoBehaviour
     void Play(SwarmRoutine routine)
     {
         if (running != null) { StopCoroutine(running); Swarm.StopAll(ctx); }
+        else { ctx.RecordHome(); } // positions before this routine, for the closing
         activeRoutine = routine.Name;
         running = StartCoroutine(Run(routine));
     }

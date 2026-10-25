@@ -33,6 +33,8 @@ public class WaveFlower : SwarmRoutine
 
         float total = SettleSecs + GrowSecs + HoldSecs;
         yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 110);
+
+        yield return Closing.Play(ctx);
     }
 
     static float RowX(int i, int n)

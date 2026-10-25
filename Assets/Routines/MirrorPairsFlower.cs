@@ -60,6 +60,8 @@ public class MirrorPairsFlower : SwarmRoutine
             float upDown = Mathf.Pow(e, 3f);
             return new Vector2(Mathf.Lerp(from[i].x, wave.x, sideways), Mathf.Lerp(from[i].y, wave.y, upDown));
         }, (int)(total * 1000), maxSpeed: 110);
+
+        yield return Closing.Play(ctx);
     }
 
     // Robot in row slot s at time t (t from the start of the easing)

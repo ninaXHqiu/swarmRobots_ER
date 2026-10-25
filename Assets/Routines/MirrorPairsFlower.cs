@@ -17,9 +17,9 @@ public class MirrorPairsFlower : SwarmRoutine
     const float HoldSecs = 18f;     // big waves keep going
 
     // Pairs (sizes for up to 8 robots; shrunk automatically for more)
-    const float BaseGap = 55f;      // distance between partners
-    const float PushGap = 55f;      // extra distance at the strongest push
-    const float Wander = 25f;       // how far a pair drifts around its spot
+    const float BaseGap = 75f;      // distance between partners (wide enough that they never catch each other)
+    const float PushGap = 45f;      // extra distance at the strongest push
+    const float Wander = 20f;       // how far a pair drifts around its spot
     const float AreaMin = 90f, AreaMax = 410f;
 
     // Waves (same rhythm as the Wave routine)
@@ -88,7 +88,7 @@ public class MirrorPairsFlower : SwarmRoutine
         if (pair * 2 + 1 >= n) { return centre; }
 
         float startAngle = 180f * Shapes.Hash(pair, 5);
-        float spin = (Shapes.Hash(pair, 6) - 0.5f) * 70f; // deg per second, either direction
+        float spin = (Shapes.Hash(pair, 6) - 0.5f) * 30f; // deg per second, either direction (slow enough to follow)
         float angle = (startAngle + spin * t) * Mathf.Deg2Rad;
 
         float period = 1.4f + 1.4f * Shapes.Hash(pair, 7);

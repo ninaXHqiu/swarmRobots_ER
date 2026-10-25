@@ -29,7 +29,7 @@ public class WaveFlower : SwarmRoutine
         var row = new Vector2Int[n];
         for (int i = 0; i < n; i++) { row[i] = new Vector2Int(Mathf.RoundToInt(RowX(i, n)), Swarm.Centre); }
         Swarm.AssignNearest(ctx, row);
-        yield return Swarm.MoveTo(ctx, row, maxSpeed: 90, timeoutMs: 10000);
+        yield return Swarm.GlideTo(ctx, row, maxSpeed: 90);
 
         float total = SettleSecs + GrowSecs + HoldSecs;
         yield return Swarm.Follow(ctx, (i, t) => new Vector2(RowX(i, n), Swarm.Centre + Height(i, t)), (int)(total * 1000), maxSpeed: 110);

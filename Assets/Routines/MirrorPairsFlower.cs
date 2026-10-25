@@ -35,7 +35,7 @@ public class MirrorPairsFlower : SwarmRoutine
         var start = new Vector2Int[n];
         for (int i = 0; i < n; i++) { start[i] = Vector2Int.RoundToInt(Chaos(i, n, 0)); }
         Swarm.AssignNearest(ctx, start);
-        yield return Swarm.MoveTo(ctx, start, maxSpeed: 90, timeoutMs: 10000);
+        yield return Swarm.GlideTo(ctx, start, maxSpeed: 90);
 
         // Unorganized: pairs repel, drift and turn
         yield return Swarm.Follow(ctx, (i, t) => Chaos(i, n, t), (int)(ChaosSecs * 1000), maxSpeed: 110);

@@ -115,6 +115,23 @@ public static class Swarm
         StopAll(ctx);
     }
 
+    // Ease every robot from where it is to its target over a fixed time (longest trip at about
+    // `unitsPerSec`, at least 2 s), then carry straight on - no waiting for stragglers, so the
+    // routine never pauses.
+    public static IEnumerator GlideTo(RoutineContext ctx, Vector2Int[] targets, float unitsPerSec = 100f, int maxSpeed = 100)
+    {
+        int n = ctx.Count;
+        var from = new Vector2[n];
+        float longest = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            from[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
+            longest = Mathf.Max(longest, Vector2.Distance(from[i], targets[i]));
+        }
+        float secs = Mathf.Max(2f, longest / unitsPerSec);
+        yield return Follow(ctx, (i, t) => Vector2.Lerp(from[i], targets[i], Mathf.SmoothStep(0, 1, t / secs)), (int)(secs * 1000), maxSpeed);
+    }
+
     // Like MoveTo, but robots steer around each other. Slower to settle; use it when robots'
     // paths may cross (e.g. going back to their own start spots).
     public static IEnumerator MoveToAvoiding(RoutineContext ctx, Vector2Int[] targets, int maxSpeed = 60, int timeoutMs = 15000)

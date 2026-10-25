@@ -26,7 +26,7 @@ public class Approach : SwarmRoutine
             Vector2 offset = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y) - centre;
             targets[i] = Vector2Int.RoundToInt(goal + offset * Tighten);
         }
-        yield return Swarm.MoveTo(ctx, targets, maxSpeed: Speed, timeoutMs: 20000);
+        yield return Swarm.GlideTo(ctx, targets, unitsPerSec: 40f, maxSpeed: Speed);
         yield return Swarm.FacePoint(ctx, Swarm.Participant, timeoutMs: 4000);
     }
 }

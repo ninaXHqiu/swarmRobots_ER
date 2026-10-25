@@ -177,13 +177,35 @@ public static class Swarm
                 float t = Time.time - start;
                 for (int i = 0; i < ctx.Count; i++)
                 {
-                    var p = Clamp(Vector2Int.RoundToInt(targetAt(i, t)));
+                    var target = targetAt(i, t) + Repel(ctx, i);
+                    var p = Clamp(Vector2Int.RoundToInt(target));
                     ctx.Navigators[i].handle.Move2Target(p.x, p.y, maxSpd: maxSpeed).Exec();
                 }
             }
             yield return null;
         }
         StopAll(ctx);
+    }
+
+    // Keeps robots from touching: when another robot is closer than RepelDistance (measured on
+    // the mat, not planned), push this robot's target straight away from it - the closer, the
+    // harder. Added to every Follow/GlideTo target, so robots that drift into each other separate.
+    const float RepelDistance = 50f;
+    const float RepelStrength = 2f;
+    static Vector2 Repel(RoutineContext ctx, int i)
+    {
+        Vector2 me = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
+        Vector2 push = Vector2.zero;
+        for (int j = 0; j < ctx.Count; j++)
+        {
+            if (j == i) { continue; }
+            Vector2 away = me - new Vector2(ctx.Cubes[j].x, ctx.Cubes[j].y);
+            float d = away.magnitude;
+            if (d >= RepelDistance) { continue; }
+            if (d < 0.01f) { away = new Vector2(i < j ? -1f : 1f, 0f); d = 0.01f; } // exactly on top: split sideways
+            push += away / d * (RepelDistance - d) * RepelStrength;
+        }
+        return push;
     }
 
     // Re-number the robots so robot i is the nearest free robot to targets[i]. Call before a

@@ -2,77 +2,73 @@ using System.Collections;
 using System.Linq;
 using UnityEngine;
 
-// Mirroring: unorganized at first - robots scattered in pairs, partners pushing apart and back
-// like mirror images while each pair drifts and turns at its own pace. Then the robots ease
-// into a row moving in a small wave, and the wave grows into big waves.
+// Mirroring: unorganized pairs in the middle of the mat - partners push apart and back like
+// mirror images while each pair drifts and turns at its own pace (the "panic"). Then the robots
+// ease gradually into a circle, the circle turns, and it opens into a flower that turns as one
+// smooth shape, the robots flowing along its outline. Ends with the Closing.
 public class MirrorPairsFlower : SwarmRoutine
 {
-    public override string Name { get { return "Mirror pairs -> waves"; } }
+    public override string Name { get { return "Mirror pairs -> flower"; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)
     const float ChaosSecs = 12f;    // unorganized pairs
-    const float BlendSecs = 10f;    // pairs ease into a row moving in a small wave
-    const float GrowSecs = 8f;      // small wave grows into big waves
-    const float HoldSecs = 18f;     // big waves keep going
+    const float GatherSecs = 10f;   // gradual move into the circle
+    const float TurnSecs = 8f;      // circle turning
+    const float BloomSecs = 6f;     // circle opening into the flower
+    const float FlowerSecs = 18f;   // flower turning (includes the bloom)
 
-    // Pairs (sizes for up to 8 robots; shrunk automatically for more)
-    const float BaseGap = 75f;      // distance between partners (wide enough that they never catch each other)
-    const float PushGap = 45f;      // extra distance at the strongest push
-    const float Wander = 20f;       // how far a pair drifts around its spot
-    const float AreaMin = 90f, AreaMax = 410f;
+    // Pairs, kept in the middle of the mat
+    const float BaseGap = 60f;      // distance between partners
+    const float PushGap = 35f;      // extra distance at the strongest push
+    const float Wander = 12f;       // how far a pair drifts around its spot
+    const float AreaMin = 120f, AreaMax = 380f;
 
-    // Waves (same rhythm as the Wave routine)
-    const float WaveHz = 0.25f;     // wave speed, steady throughout
-    const float SmallHeight = 35f, BigHeight = 110f;
-    const float SmallStep = 0.9f, BigStep = 0.45f; // phase step between neighbours
+    // Circle and flower
+    const float Radius = 90f;
+    const float DegPerSec = 18f;    // turning speed of circle and flower
 
     public override IEnumerator Run(RoutineContext ctx)
     {
         int n = ctx.Count;
 
-        // Scattered pairs
+        // Unorganized pairs
         var start = new Vector2Int[n];
         for (int i = 0; i < n; i++) { start[i] = Vector2Int.RoundToInt(Chaos(i, n, 0)); }
         Swarm.AssignNearest(ctx, start);
         yield return Swarm.GlideTo(ctx, start, maxSpeed: 90);
-
-        // Unorganized: pairs repel, drift and turn
         yield return Swarm.Follow(ctx, (i, t) => Chaos(i, n, t), (int)(ChaosSecs * 1000), maxSpeed: 110);
 
-        // Row slots in left-to-right order of where robots are, so nobody crosses the mat
-        var order = Enumerable.Range(0, n).OrderBy(i => Chaos(i, n, ChaosSecs).x).ToArray();
-        var slot = new int[n];
-        for (int rank = 0; rank < n; rank++) { slot[order[rank]] = rank; }
-
-        // Ease from the pairs into a row moving in a small wave, then grow into big waves.
-        // Robots spread sideways into their row places first and settle up/down later, so
-        // partners standing one above the other never meet.
-        var from = new Vector2[n];
-        for (int i = 0; i < n; i++) { from[i] = Chaos(i, n, ChaosSecs); }
-        float total = BlendSecs + GrowSecs + HoldSecs;
+        // Gradual move into a slowly turning circle: each robot spirals to the slot in its own
+        // direction from the centre, so nobody crosses
+        var fromR = new float[n]; var fromA = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 p = Chaos(i, n, ChaosSecs) - Shapes.Centre;
+            fromR[i] = p.magnitude;
+            fromA[i] = Mathf.Atan2(p.y, p.x) * Mathf.Rad2Deg;
+        }
+        var order = Enumerable.Range(0, n).OrderBy(i => fromA[i]).ToArray();
+        var slot = new float[n];
+        for (int rank = 0; rank < n; rank++) { slot[order[rank]] = fromA[order[0]] + 360f * rank / n; }
         yield return Swarm.Follow(ctx, (i, t) =>
         {
-            Vector2 wave = Wave(slot[i], n, t);
-            float e = Mathf.Clamp01(t / BlendSecs);
-            if (e >= 1f) { return wave; }
-            float sideways = 1f - Mathf.Pow(1f - e, 3f);
-            float upDown = Mathf.Pow(e, 3f);
-            return new Vector2(Mathf.Lerp(from[i].x, wave.x, sideways), Mathf.Lerp(from[i].y, wave.y, upDown));
-        }, (int)(total * 1000), maxSpeed: 110);
+            float e = Mathf.SmoothStep(0, 1, t / GatherSecs);
+            float a = fromA[i] + Mathf.DeltaAngle(fromA[i], slot[i] + DegPerSec * t) * e;
+            return Shapes.OnCircle(a, Mathf.Lerp(fromR[i], Radius, e));
+        }, (int)(GatherSecs * 1000), maxSpeed: 90);
+
+        // Circle turns
+        float angle = DegPerSec * GatherSecs;
+        yield return Swarm.Follow(ctx, (i, t) => Shapes.OnCircle(slot[i] + angle + DegPerSec * t, Radius), (int)(TurnSecs * 1000), maxSpeed: 90);
+
+        // Flower: one petal per two robots, so neighbours sit in and out alternately and the
+        // whole shape turns smoothly while each robot flows along the outline
+        angle += DegPerSec * TurnSecs;
+        int petals = Mathf.Max(2, n / 2);
+        yield return Swarm.Follow(ctx, (i, t) => Shapes.OnFlower(slot[i] + angle + DegPerSec * t, Radius, Mathf.SmoothStep(0, 1, t / BloomSecs), petals), (int)(FlowerSecs * 1000), maxSpeed: 100);
 
         yield return Closing.Play(ctx);
-    }
-
-    // Robot in row slot s at time t (t from the start of the easing)
-    static Vector2 Wave(int s, int n, float t)
-    {
-        float grow = Mathf.SmoothStep(0, 1, (t - BlendSecs) / GrowSecs);
-        float height = Mathf.Lerp(SmallHeight, BigHeight, grow);
-        float step = Mathf.Lerp(SmallStep, BigStep, grow);
-        float x = n == 1 ? Swarm.Centre : Mathf.Lerp(100, 400, s / (float)(n - 1));
-        float y = Swarm.Centre + height * Mathf.Sin(2 * Mathf.PI * WaveHz * t - step * s);
-        return new Vector2(x, y);
     }
 
     // Unorganized pairs: partners (0+1, 2+3, ...) mirror each other across their pair's centre
@@ -90,7 +86,7 @@ public class MirrorPairsFlower : SwarmRoutine
         if (pair * 2 + 1 >= n) { return centre; }
 
         float startAngle = 180f * Shapes.Hash(pair, 5);
-        float spin = (Shapes.Hash(pair, 6) - 0.5f) * 30f; // deg per second, either direction (slow enough to follow)
+        float spin = (Shapes.Hash(pair, 6) - 0.5f) * 30f; // deg per second, either direction
         float angle = (startAngle + spin * t) * Mathf.Deg2Rad;
 
         float period = 1.4f + 1.4f * Shapes.Hash(pair, 7);
@@ -102,13 +98,14 @@ public class MirrorPairsFlower : SwarmRoutine
         return centre + side * axis * gap / 2f;
     }
 
-    // Scattered spots for the pairs: one per grid cell, cells in shuffled order, jittered
+    // Scattered spots for the pairs within the middle area: one per grid cell, cells in
+    // shuffled order, jittered; `scale` shrinks pairs a little when cells are small
     static Vector2[] PairCentres(int count, out float scale)
     {
         int cols = Mathf.CeilToInt(Mathf.Sqrt(count));
         int rows = Mathf.CeilToInt(count / (float)cols);
         float cellW = (AreaMax - AreaMin) / cols, cellH = (AreaMax - AreaMin) / rows;
-        scale = Mathf.Min(1f, Mathf.Min(cellW, cellH) / 160f);
+        scale = Mathf.Min(1f, Mathf.Min(cellW, cellH) / 150f);
         var cells = Enumerable.Range(0, cols * rows).OrderBy(k => Shapes.Hash(k, 90)).ToArray();
         var centres = new Vector2[count];
         for (int p = 0; p < count; p++)

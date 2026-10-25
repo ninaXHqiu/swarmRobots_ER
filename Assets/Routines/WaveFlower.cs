@@ -1,7 +1,7 @@
 using System.Collections;
 using UnityEngine;
 
-// Wave: robots stand in a row and move up and down, each at its own speed and distance.
+// Wave: robots stand in a compact row in the middle and move up and down, each at its own speed and distance.
 // Gradually they fall into step as one travelling wave, then the wave grows into larger,
 // longer waves that keep a steady speed.
 public class WaveFlower : SwarmRoutine
@@ -16,8 +16,8 @@ public class WaveFlower : SwarmRoutine
 
     // Wave shape
     const float WaveHz = 0.3f;      // wave speed (cycles per second), the same throughout
-    const float SmallHeight = 50f;  // up/down distance of the first, small wave
-    const float LargeHeight = 120f; // up/down distance of the large waves
+    const float SmallHeight = 25f;  // up/down distance of the first, small wave
+    const float LargeHeight = 75f;  // up/down distance of the large waves (stays in the middle of the mat)
     const float SmallStep = 0.8f;   // phase step between neighbours: small, tight waves
     const float LargeStep = 0.45f;  // phase step between neighbours: longer, larger waves
 
@@ -25,7 +25,7 @@ public class WaveFlower : SwarmRoutine
     {
         int n = ctx.Count;
 
-        // Start: a row across the middle of the mat
+        // Start: a compact row in the middle of the mat
         var row = new Vector2Int[n];
         for (int i = 0; i < n; i++) { row[i] = new Vector2Int(Mathf.RoundToInt(RowX(i, n)), Swarm.Centre); }
         Swarm.AssignNearest(ctx, row);
@@ -39,7 +39,7 @@ public class WaveFlower : SwarmRoutine
 
     static float RowX(int i, int n)
     {
-        return n == 1 ? Swarm.Centre : Mathf.Lerp(100, 400, i / (float)(n - 1));
+        return Swarm.Centre + (i - (n - 1) / 2f) * 35f; // robots 35 apart, centred
     }
 
     // Up/down offset of robot i at time t
@@ -47,7 +47,7 @@ public class WaveFlower : SwarmRoutine
     {
         // Each robot's own rhythm (fixed per robot, varied across robots)
         float ownHz = 0.15f + 0.3f * Shapes.Hash(i, 1);
-        float ownHeight = 25f + 60f * Shapes.Hash(i, 2);
+        float ownHeight = 15f + 40f * Shapes.Hash(i, 2);
         float own = ownHeight * Mathf.Sin(2 * Mathf.PI * ownHz * t + 6.28f * Shapes.Hash(i, 3));
 
         // The shared wave: same speed throughout, growing larger and longer after settling

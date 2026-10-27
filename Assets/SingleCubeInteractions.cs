@@ -20,8 +20,7 @@ public class SingleCubeInteractions : MonoBehaviour
     bool initialized = false; bool connected = false;
     int ledColour = 1; bool r = true; bool b = false; bool g = false;
     bool haptic = true; bool sound = false;
-    bool flick = false; int fx1 = 0; int fy1 = 0; int fx2 = 0; int fy2 = 0; int fx3 = 0; int fy3 = 0; int fx4 = 0; int fy4 = 0; int fx5 = 0; int fy5 = 0; 
-    int phase1 = 0; int phase2 = 0; int phase3 = 0; int phase4 = 0; int phase5 = 0;
+    bool flick = false; int[] fx = new int[0]; int[] fy = new int[0]; int[] flickPhase = new int[0];
     bool magnet = false; int moveCube1 = 0; int moveCube2 = 0; int xc1 = 0; int xc2 = 0; int yc1 = 0; int yc2 = 0; int radius = 30; bool mc1 = false; bool mc2 = false; bool mc3 = false; bool mc4 = false; bool mc5 = false;
     bool multiFlick = false;
     bool repel = false;
@@ -30,8 +29,8 @@ public class SingleCubeInteractions : MonoBehaviour
     int numOfCubes = 2;
     bool circle = false; int circleRadius = 70; int circleNumOfCubes = 5;
     
-    // Any number of robots can connect. Interactions written for exactly 5 robots
-    // (magnet, repel, flick, multi-flick, remote) only start when at least 5 are connected.
+    // Any number of robots can connect, and every interaction starts with 2 (flick and circle with 1).
+    // Samira's interactions were written for 5: robots beyond the 5th sit them out where noted.
     const int LEGACY_ROBOTS = 5;
     static readonly Color32[] LedColours = {
         new Color32(0, 255, 0, 255), new Color32(255, 255, 0, 255), new Color32(0, 255, 255, 255),
@@ -112,6 +111,8 @@ public class SingleCubeInteractions : MonoBehaviour
         radius = val;
         RadiusValue.text = val.ToString();
     }
+    // Robots taking part in remote (the remote included): the slider, but never more than are connected
+    int Following { get { return Mathf.Min(numOfCubes, RobotCount); } }
     public void HandleNumOfCubes(int val){ // Remote
         numOfCubes = val;
         numOfCubesValue.text = val.ToString();
@@ -124,7 +125,7 @@ public class SingleCubeInteractions : MonoBehaviour
             // cubeManager.navigators[1].AddOther(cubeManager.navigators[0]);
             magnetButton.text = "Magnet Off";
         } else {
-            if (!HasRobots(LEGACY_ROBOTS)){ return; }
+            if (!HasRobots(2)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
@@ -133,10 +134,12 @@ public class SingleCubeInteractions : MonoBehaviour
             magnet = true;
             cubeManager.navigators[0].RemoveOther(cubeManager.navigators[1]);
             cubeManager.navigators[1].RemoveOther(cubeManager.navigators[0]);
-            mc3 = true; mc4 = true; mc5 = true;
+            ParkOthers();
             magnetButton.text = "Magnet On";
         }
     }
+    // Magnet and repel use robots 1 and 2; robots 3-5, when connected, move to their start spots
+    void ParkOthers(){ mc3 = RobotCount > 2; mc4 = RobotCount > 3; mc5 = RobotCount > 4; }
     public void RepelToggle(){
         if (repel){
             repel = false;
@@ -144,7 +147,7 @@ public class SingleCubeInteractions : MonoBehaviour
             //cubeManager.navigators[1].ClearOther();
             repelButton.text = "Repel Off";
         } else {
-            if (!HasRobots(LEGACY_ROBOTS)){ return; }
+            if (!HasRobots(2)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
@@ -153,7 +156,7 @@ public class SingleCubeInteractions : MonoBehaviour
             repel = true;
                 // cubeManager.navigators[0].AddOther(cubeManager.navigators[1]);
                 // cubeManager.navigators[1].AddOther(cubeManager.navigators[0]);
-            mc3 = true; mc4 = true; mc5 = true;
+            ParkOthers();
             repelButton.text = "Repel On";
         }
     }
@@ -162,13 +165,13 @@ public class SingleCubeInteractions : MonoBehaviour
             multiFlick = false;
             multiFlickButton.text = "MultiFlick Off";
         } else {
-            if (!HasRobots(LEGACY_ROBOTS)){ return; }
+            if (!HasRobots(2)){ return; }
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (circle){CircleToggle();}
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
-            ph = 0;
+            ph = 0; mvCube = 0;
             multiFlick = true;
             multiFlickButton.text = "MultiFlick On";
         }
@@ -249,12 +252,12 @@ public class SingleCubeInteractions : MonoBehaviour
             flick = false;
         }
         if (val == 4){
-            // Flick is written for exactly 5 robots
-            if (!HasRobots(LEGACY_ROBOTS)){ GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0; return; }
+            // Flick: every connected robot returns to where it is now when pushed away
+            if (!HasRobots(1)){ GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0; return; }
             ClearSingleListeners();
             flick = true;
-            fx1 = cubes[0].x; fy1 = cubes[0].y; fx2 = cubes[1].x; fy2 = cubes[1].y; fx3 = cubes[2].x;
-            fy3 = cubes[2].y; fx4 = cubes[3].x; fy4 = cubes[3].y; fx5 = cubes[4].x; fy5 = cubes[4].y;
+            fx = new int[RobotCount]; fy = new int[RobotCount]; flickPhase = new int[RobotCount];
+            for (int i = 0; i < RobotCount; i++){ fx[i] = cubes[i].x; fy[i] = cubes[i].y; }
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
             if (repel){RepelToggle();}
@@ -275,32 +278,17 @@ public class SingleCubeInteractions : MonoBehaviour
             if (multiFlick){MultiFlickToggle();}
             if (RobotCount > 0){ cubes[0].poseCallback.RemoveListener("EventScene"); }
         }
-        if (val > 0 && !HasRobots(LEGACY_ROBOTS)){
-            // Remote modes are written for exactly 5 robots
+        if (val > 0 && !HasRobots(2)){
+            // Robot 1 is the remote, so at least one more must follow it
             GameObject.Find("RemoteDropdown").GetComponent<TMP_Dropdown>().value = 0;
             return;
         }
         if (val == 1){ // remote with mat
-            cubeManager.navigators[0].AddOther(cubeManager.navigators[1]);
-            cubeManager.navigators[0].AddOther(cubeManager.navigators[2]);
-            cubeManager.navigators[0].AddOther(cubeManager.navigators[3]);
-            cubeManager.navigators[0].AddOther(cubeManager.navigators[4]);
-            cubeManager.navigators[1].AddOther(cubeManager.navigators[0]);
-            cubeManager.navigators[1].AddOther(cubeManager.navigators[2]);
-            cubeManager.navigators[1].AddOther(cubeManager.navigators[3]);
-            cubeManager.navigators[1].AddOther(cubeManager.navigators[4]);
-            cubeManager.navigators[2].AddOther(cubeManager.navigators[0]);
-            cubeManager.navigators[2].AddOther(cubeManager.navigators[1]);
-            cubeManager.navigators[2].AddOther(cubeManager.navigators[3]);
-            cubeManager.navigators[2].AddOther(cubeManager.navigators[4]);
-            cubeManager.navigators[3].AddOther(cubeManager.navigators[0]);
-            cubeManager.navigators[3].AddOther(cubeManager.navigators[1]);
-            cubeManager.navigators[3].AddOther(cubeManager.navigators[2]);
-            cubeManager.navigators[3].AddOther(cubeManager.navigators[4]);
-            cubeManager.navigators[4].AddOther(cubeManager.navigators[0]);
-            cubeManager.navigators[4].AddOther(cubeManager.navigators[1]);
-            cubeManager.navigators[4].AddOther(cubeManager.navigators[2]);
-            cubeManager.navigators[4].AddOther(cubeManager.navigators[3]);
+            for (int a = 0; a < Mathf.Min(RobotCount, LEGACY_ROBOTS); a++){
+                for (int b = 0; b < Mathf.Min(RobotCount, LEGACY_ROBOTS); b++){
+                    if (a != b){ cubeManager.navigators[a].AddOther(cubeManager.navigators[b]); }
+                }
+            }
             remoteType = 1;
             GameObject.Find("Dropdown").GetComponent<TMP_Dropdown>().value = 0;
             if (magnet){MagnetToggle();}
@@ -385,6 +373,8 @@ public class SingleCubeInteractions : MonoBehaviour
         circleNumOfCubesSlider.maxValue = cubes.Length;
         circleNumOfCubesSlider.value = cubes.Length;
         GetCirclePositions();
+        // Remote can use up to 5 robots, as many as are connected
+        numOfCubesSlider.maxValue = Mathf.Max(numOfCubesSlider.minValue, Mathf.Min(LEGACY_ROBOTS, cubes.Length));
     }
     // The scene's C1-C5 buttons are wired to these; only the first ("+") stays visible.
     public void Connect1(){ AddRobot(); }
@@ -522,32 +512,15 @@ public class SingleCubeInteractions : MonoBehaviour
         if (haptic) {c.Move(speed, speed, duration);}
     }
     void Flick(){
-        if (cubes[0].x != fx1 || cubes[0].y != fy1){phase1 = 1;}
-        if (phase1 == 1) {
-            var mv = cubeManager.navigators[0].Navi2Target(fx1, fy1, maxSpd:speed).Exec();
-            if (mv.reached){phase1 = 0;}
-        }
-        if (cubes[1].x != fx2 || cubes[1].y != fy2){phase2 = 1;}
-        if (phase2 == 1) {
-            var mv = cubeManager.navigators[1].Navi2Target(fx2, fy2, maxSpd:speed).Exec();
-            if (mv.reached){phase2 = 0;}
-        }
-        if (cubes[2].x != fx3 || cubes[2].y != fy3){phase3 = 1;}
-        if (phase3 == 1) {
-            var mv = cubeManager.navigators[2].Navi2Target(fx3, fy3, maxSpd:speed).Exec();
-            if (mv.reached){phase3 = 0;}
-        }
-        if (cubes[3].x != fx4 || cubes[3].y != fy4){phase4 = 1;}
-        if (phase4 == 1) {
-            var mv = cubeManager.navigators[3].Navi2Target(fx4, fy4, maxSpd:speed).Exec();
-            if (mv.reached){phase4 = 0;}
-        }
-        if (cubes[4].x != fx5 || cubes[4].y != fy5){phase5 = 1;}
-        if (phase5 == 1) {
-            var mv = cubeManager.navigators[4].Navi2Target(fx5, fy5, maxSpd:speed).Exec();
-            if (mv.reached){phase5 = 0;}
+        for (int i = 0; i < fx.Length && i < RobotCount; i++){
+            if (cubes[i].x != fx[i] || cubes[i].y != fy[i]){flickPhase[i] = 1;}
+            if (flickPhase[i] == 1) {
+                var mv = cubeManager.navigators[i].Navi2Target(fx[i], fy[i], maxSpd:speed).Exec();
+                if (mv.reached){flickPhase[i] = 0;}
+            }
         }
     }
+
     void Magnet(){
         if (cubeManager.synced){
             //cubes[1].Move(30, 30, 100);
@@ -668,7 +641,7 @@ public class SingleCubeInteractions : MonoBehaviour
                 else if (cubes[0].x - cubes[1].x > 30 && cubes[0].y - cubes[1].y <= 30 && cubes[0].x > 250 && cubes[0].y > 250){moveCube = 4;}
                 else if (cubes[0].y - cubes[1].y > 30 && cubes[0].x - cubes[1].x <= 30 && cubes[0].x > 250 && cubes[0].y > 250){moveCube = 4;}
                 
-                if (numOfCubes == 2){
+                if (Following == 2){
                     if (moveCube == 1){
                         var mv = cubeManager.navigators[1].Navi2Target(cubes[0].x + 25, cubes[0].y + 25, maxSpd:speed).Exec();
                         if (mv.reached){moveCube = 0;} 
@@ -686,7 +659,7 @@ public class SingleCubeInteractions : MonoBehaviour
                         if (mv.reached){moveCube = 0;} 
                     }
                 }
-                if (numOfCubes == 3){
+                if (Following == 3){
                     if (moveCube == 1){
                         var mv = cubeManager.navigators[1].Navi2Target(cubes[0].x + 25, cubes[0].y + 25, maxSpd:speed).Exec();
                         var mv2 = cubeManager.navigators[2].Navi2Target(cubes[0].x + 35, cubes[0].y + 35, maxSpd:speed).Exec();
@@ -708,7 +681,7 @@ public class SingleCubeInteractions : MonoBehaviour
                         if (mv.reached && mv2.reached){moveCube = 0;} 
                     }
                 }
-                if (numOfCubes == 4){
+                if (Following == 4){
                     if (moveCube == 1){
                         var mv = cubeManager.navigators[1].Navi2Target(cubes[0].x + 25, cubes[0].y + 25, maxSpd:speed).Exec();
                         var mv2 = cubeManager.navigators[2].Navi2Target(cubes[0].x + 35, cubes[0].y + 35, maxSpd:speed).Exec();
@@ -734,7 +707,7 @@ public class SingleCubeInteractions : MonoBehaviour
                         if (mv.reached && mv2.reached && mv3.reached){moveCube = 0;} 
                     }
                 }
-                if (numOfCubes == 5){
+                if (Following == 5){
                     if (moveCube == 1){
                         var mv = cubeManager.navigators[1].Navi2Target(cubes[0].x + 25, cubes[0].y + 25, maxSpd:speed).Exec();
                         var mv2 = cubeManager.navigators[2].Navi2Target(cubes[0].x + 35, cubes[0].y + 35, maxSpd:speed).Exec();
@@ -769,25 +742,25 @@ public class SingleCubeInteractions : MonoBehaviour
     }
     void RemoteContinuous(){
         //cubes[0].TurnLedOn(0,255,0,1000);
-        if (numOfCubes == 2){
+        if (Following == 2){
             if (cubes[0].pose.ToString() == front){cubes[1].Move(speed, speed, 100);}
             if (cubes[0].pose.ToString() == back){cubes[1].Move(-speed, -speed, 100);}
             if (cubes[0].pose.ToString() == left){cubes[1].Move(10, -10, 50);}
             if (cubes[0].pose.ToString() == right){cubes[1].Move(-10, 10, 50);}
         }
-        if (numOfCubes == 3){
+        if (Following == 3){
             if (cubes[0].pose.ToString() == front){cubes[1].Move(speed, speed, 100); cubes[2].Move(speed, speed, 100);}
             if (cubes[0].pose.ToString() == back){cubes[1].Move(-speed, -speed, 100); cubes[2].Move(-speed, -speed, 100);}
             if (cubes[0].pose.ToString() == left){cubes[1].Move(10, -10, 50); cubes[2].Move(10, -10, 50);}
             if (cubes[0].pose.ToString() == right){cubes[1].Move(-10, 10, 50); cubes[2].Move(-10, 10, 50);}
         }
-        if (numOfCubes == 4){
+        if (Following == 4){
             if (cubes[0].pose.ToString() == front){cubes[1].Move(speed, speed, 100); cubes[2].Move(speed, speed, 100); cubes[3].Move(speed, speed, 100);}
             if (cubes[0].pose.ToString() == back){cubes[1].Move(-speed, -speed, 100); cubes[2].Move(-speed, -speed, 100); cubes[3].Move(-speed, -speed, 100);}
             if (cubes[0].pose.ToString() == left){cubes[1].Move(10, -10, 50); cubes[2].Move(10, -10, 50); cubes[3].Move(10, -10, 50);}
             if (cubes[0].pose.ToString() == right){cubes[1].Move(-10, 10, 50); cubes[2].Move(-10, 10, 50); cubes[3].Move(-10, 10, 50);}
         }
-        if (numOfCubes == 5){
+        if (Following == 5){
             if (cubes[0].pose.ToString() == front){cubes[1].Move(speed, speed, 100); cubes[2].Move(speed, speed, 100); cubes[3].Move(speed, speed, 100); cubes[4].Move(speed, speed, 100);}
             if (cubes[0].pose.ToString() == back){cubes[1].Move(-speed, -speed, 100); cubes[2].Move(-speed, -speed, 100); cubes[3].Move(-speed, -speed, 100); cubes[4].Move(-speed, -speed, 100);}
             if (cubes[0].pose.ToString() == left){cubes[1].Move(10, -10, 50); cubes[2].Move(10, -10, 50); cubes[3].Move(10, -10, 50); cubes[4].Move(10, -10, 50);}
@@ -797,25 +770,25 @@ public class SingleCubeInteractions : MonoBehaviour
     string front = "Front"; string back = "Back"; string left = "Left"; string right = "Right"; string currPose = "Up";
     void OnPose(Cube c) // remote incremental
     {
-        if (numOfCubes == 2){
+        if (Following == 2){
             if (c.pose.ToString() == front){cubes[1].Move(speed, speed, 1000);}
             if (c.pose.ToString() == back){cubes[1].Move(-speed, -speed, 1000);}
             if (c.pose.ToString() == left){cubes[1].Move(50, -50, 140);}
             if (c.pose.ToString() == right){cubes[1].Move(-50, 50, 140);}
         }
-        if (numOfCubes == 3){
+        if (Following == 3){
             if (c.pose.ToString() == front){cubes[1].Move(speed, speed, 1000); cubes[2].Move(speed, speed, 1000);}
             if (c.pose.ToString() == back){cubes[1].Move(-speed, -speed, 1000); cubes[2].Move(-speed, -speed, 1000);}
             if (c.pose.ToString() == left){cubes[1].Move(50, -50, 140); cubes[2].Move(50, -50, 140);}
             if (c.pose.ToString() == right){cubes[1].Move(-50, 50, 140); cubes[2].Move(-50, 50, 140);}
         }
-        if (numOfCubes == 4) {
+        if (Following == 4) {
             if (c.pose.ToString() == front){cubes[1].Move(speed, speed, 1000); cubes[2].Move(speed, speed, 1000); cubes[3].Move(speed, speed, 1000);}
             if (c.pose.ToString() == back){cubes[1].Move(-speed, -speed, 1000); cubes[2].Move(-speed, -speed, 1000); cubes[3].Move(-speed, -speed, 1000);}
             if (c.pose.ToString() == left){cubes[1].Move(50, -50, 140); cubes[2].Move(50, -50, 140); cubes[3].Move(50, -50, 140);}
             if (c.pose.ToString() == right){cubes[1].Move(-50, 50, 140); cubes[2].Move(-50, 50, 140); cubes[3].Move(-50, 50, 140);}
         }
-        if (numOfCubes == 5){
+        if (Following == 5){
             if (c.pose.ToString() == front){cubes[1].Move(speed, speed, 1000); cubes[2].Move(speed, speed, 1000); cubes[3].Move(speed, speed, 1000); cubes[4].Move(speed, speed, 1000);}
             if (c.pose.ToString() == back){cubes[1].Move(-speed, -speed, 1000); cubes[2].Move(-speed, -speed, 1000); cubes[3].Move(-speed, -speed, 1000); cubes[4].Move(-speed, -speed, 1000);}
             if (c.pose.ToString() == left){cubes[1].Move(50, -50, 140); cubes[2].Move(50, -50, 140); cubes[3].Move(50, -50, 140); cubes[4].Move(50, -50, 140);}
@@ -861,96 +834,38 @@ public class SingleCubeInteractions : MonoBehaviour
     //int checkposY = 295; int checkposX = 314; int range = 10;
     // int px1 = 314; int py1 = 295; int px2 = 236; int py2 = 294; int px3 = 154; int py3 = 299; int px4 = 151; int py4 = 200; int px5 = 239; int py5 = 202;
     int checkposX = 330; int checkposY = 305; int range = 10;
-    int px1 = 330; int py1 = 305; int px2 = 245; int py2 = 305; int px3 = 145; int py3 = 305; int px4 = 145; int py4 = 185; int px5 = 245; int py5 = 185;
+    int[] px = { 330, 245, 145, 145, 245 }; int[] py = { 305, 305, 305, 185, 185 };
    
+    // Robots stand on the first n spots (up to 5). Flicking the robot on spot 1 away moves every
+    // robot one spot along, so the next robot comes up to spot 1.
     void MultiFlick(){
-        int x1 = cubes[0].x;
-        int y1 = cubes[0].y;
-
+        int n = Mathf.Min(RobotCount, LEGACY_ROBOTS);
         if (ph == 0){
-            if (cubes[0].x != px1 && cubes[0].y != py1){
-                var mv0 = cubeManager.navigators[0].Navi2Target(px1, py1, maxSpd:speed).Exec();
-                var mv1 = cubeManager.navigators[1].Navi2Target(px2, py2, maxSpd:speed).Exec();
-                var mv2 = cubeManager.navigators[2].Navi2Target(px3, py3, maxSpd:speed).Exec();
-                var mv3 = cubeManager.navigators[3].Navi2Target(px4, py4, maxSpd:speed).Exec();
-                var mv4 = cubeManager.navigators[4].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-                if (mv0.reached && mv1.reached && mv2.reached && mv3.reached && mv4.reached)
-                {
+            if (cubes[0].x != px[0] && cubes[0].y != py[0]){
+                bool all = true;
+                for (int i = 0; i < n; i++){
+                    if (!cubeManager.navigators[i].Navi2Target(px[i], py[i], maxSpd:speed).Exec().reached){ all = false; }
+                }
+                if (all){
                     ph = 1;
-                    cubeManager.navigators[0].ClearOther();
-                    cubeManager.navigators[1].ClearOther();
-                    cubeManager.navigators[2].ClearOther();
-                    cubeManager.navigators[3].ClearOther();
-                    cubeManager.navigators[4].ClearOther();
+                    for (int i = 0; i < n; i++){ cubeManager.navigators[i].ClearOther(); }
                 }
             }
         }
-        if (ph == 1){
-            if ( cubes[0].y < checkposY - range || cubes[0].y > checkposY + range  || cubes[0].x < checkposX - range || cubes[0].x > checkposX + range){ 
-                mvCube = 1;
+        if (ph >= 1){
+            var c = cubes[ph - 1];
+            if (c.y < checkposY - range || c.y > checkposY + range || c.x < checkposX - range || c.x > checkposX + range){
+                mvCube = ph;
             }
         }
-        if (mvCube == 1){
-            var mv0 = cubeManager.navigators[1].Navi2Target(px1, py1, maxSpd:speed).Exec();
-            var mv1 = cubeManager.navigators[2].Navi2Target(px2, py2, maxSpd:speed).Exec();
-            var mv2 = cubeManager.navigators[3].Navi2Target(px3, py3, maxSpd:speed).Exec();
-            var mv3 = cubeManager.navigators[4].Navi2Target(px4, py4, maxSpd:speed).Exec();
-            var mv4 = cubeManager.navigators[0].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-            if (mv0.reached || mv1.reached || mv2.reached){ph = 2;mvCube = 0;}
-        }
-        if (ph == 2){
-            if (cubes[1].y < checkposY - range || cubes[1].y > checkposY + range  || cubes[1].x < checkposX - range || cubes[1].x > checkposX + range){ 
-                mvCube = 2;
+        if (mvCube >= 1){
+            bool moved = false;
+            for (int j = 0; j < n; j++){
+                var mv = cubeManager.navigators[(mvCube + j) % n].Navi2Target(px[j], py[j], maxSpd:speed).Exec();
+                if (j < 3 && mv.reached){ moved = true; }
             }
+            if (moved){ ph = mvCube % n + 1; mvCube = 0; }
         }
-        if (mvCube == 2){
-            var mv0 = cubeManager.navigators[2].Navi2Target(px1, py1, maxSpd:speed).Exec();
-            var mv1 = cubeManager.navigators[3].Navi2Target(px2, py2, maxSpd:speed).Exec();
-            var mv2 = cubeManager.navigators[4].Navi2Target(px3, py3, maxSpd:speed).Exec();
-            var mv3 = cubeManager.navigators[0].Navi2Target(px4, py4, maxSpd:speed).Exec();
-            var mv4 = cubeManager.navigators[1].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-            if (mv0.reached || mv1.reached || mv2.reached ){ph = 3;mvCube = 0;}
-        }
-        if (ph == 3){
-            if (cubes[2].y < checkposY - range || cubes[2].y > checkposY + range  || cubes[2].x < checkposX - range || cubes[2].x > checkposX + range){
-                mvCube = 3;
-            }
-        }
-        if (mvCube == 3){
-            var mv0 = cubeManager.navigators[3].Navi2Target(px1, py1, maxSpd:speed).Exec();
-            var mv1 = cubeManager.navigators[4].Navi2Target(px2, py2, maxSpd:speed).Exec();
-            var mv2 = cubeManager.navigators[0].Navi2Target(px3, py3, maxSpd:speed).Exec();
-            var mv3 = cubeManager.navigators[1].Navi2Target(px4, py4, maxSpd:speed).Exec();
-            var mv4 = cubeManager.navigators[2].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-            if (mv0.reached || mv1.reached || mv2.reached ){ph = 4;mvCube = 0;}
-        }
-        if (ph == 4){
-            if (cubes[3].y < checkposY - range || cubes[3].y > checkposY + range  || cubes[3].x < checkposX - range || cubes[3].x > checkposX + range){ 
-                mvCube = 4;
-            }
-        }
-        if (mvCube == 4){
-            var mv0 = cubeManager.navigators[4].Navi2Target(px1, py1, maxSpd:speed).Exec();
-            var mv1 = cubeManager.navigators[0].Navi2Target(px2, py2, maxSpd:speed).Exec();
-            var mv2 = cubeManager.navigators[1].Navi2Target(px3, py3, maxSpd:speed).Exec();
-            var mv3 = cubeManager.navigators[2].Navi2Target(px4, py4, maxSpd:speed).Exec();
-            var mv4 = cubeManager.navigators[3].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-            if (mv0.reached || mv1.reached || mv2.reached ){ph = 5;mvCube = 0;}
-        }
-        if (ph == 5){
-            if (cubes[4].y < checkposY - range || cubes[4].y > checkposY + range  || cubes[4].x < checkposX - range || cubes[4].x > checkposX + range){ 
-                mvCube = 5;
-            }
-        }
-        if (mvCube == 5){
-            var mv0 = cubeManager.navigators[0].Navi2Target(px1, py1, maxSpd:speed).Exec();
-            var mv1 = cubeManager.navigators[1].Navi2Target(px2, py2, maxSpd:speed).Exec();
-            var mv2 = cubeManager.navigators[2].Navi2Target(px3, py3, maxSpd:speed).Exec();
-            var mv3 = cubeManager.navigators[3].Navi2Target(px4, py4, maxSpd:speed).Exec();
-            var mv4 = cubeManager.navigators[4].Navi2Target(px5, py5, maxSpd:speed).Exec(); 
-            if (mv0.reached || mv1.reached || mv2.reached ){ph = 1;mvCube = 0;}
-        }
-            
     }
     void Update(){
         if (connected && !initialized && cubeManager.synced){

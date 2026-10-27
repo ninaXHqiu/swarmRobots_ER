@@ -225,6 +225,111 @@ public static class Swarm
         return push;
     }
 
+    // ---------- Smooth path following (used by the v2_motion routines) ----------
+
+    // The closest two robots are ever planned to be: the shared line spacing
+    public const float MinSpacing = LineSpacing;
+
+    // Robot i follows path(i, t), its planned mat position t seconds into the step, for
+    // `seconds`. Unlike Follow it steers with the path's own speed and direction, so motion
+    // carries through smoothly, and it drives in reverse when the path turns back, instead of
+    // spinning on the spot at every reversal. Paths should start where the robots are and end
+    // at rest; robots stop when the step ends.
+    public static IEnumerator Flow(RoutineContext ctx, System.Func<int, float, Vector2> path, float seconds, int maxSpeed = 100)
+    {
+        var reverse = new bool[ctx.Count];
+        float start = Time.time;
+        while (Time.time - start < seconds)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                float t = Time.time - start;
+                for (int i = 0; i < ctx.Count; i++) { Steer(ctx, i, path, t, maxSpeed, ref reverse[i]); }
+            }
+            yield return null;
+        }
+        StopAll(ctx);
+    }
+
+    const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
+    const float FlowTurnSecs = 0.25f; // how quickly robots turn to the wanted direction
+    const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
+
+    static void Steer(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, ref bool reverse)
+    {
+        var handle = ctx.Navigators[i].handle;
+        // Commands take effect after the cube's lag, so aim at where the path will be then,
+        // from where the robot will be then
+        float at = t + (float)CubeHandle.lag;
+        const float h = 0.05f;
+        Vector2 target = path(i, at) + SafetyPush(ctx, i);
+        Vector2 pathVelocity = (path(i, at + h) - path(i, Mathf.Max(0f, at - h))) / (at + h - Mathf.Max(0f, at - h));
+        Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
+        Vector2 want = pathVelocity + FlowGain * (target - here); // mat units per second
+
+        float limit = maxSpeed * (float)CubeHandle.VDotOverU;
+        if (want.magnitude > limit) { want = want.normalized * limit; }
+        if (want.magnitude < 2f) { handle.Move(0, 0, 100, false); return; }
+
+        float wantDeg = Mathf.Atan2(want.y, want.x) * Mathf.Rad2Deg;
+        float facingDeg = (float)handle.radPred * Mathf.Rad2Deg + (reverse ? 180f : 0f);
+        float turnDeg = Mathf.DeltaAngle(facingDeg, wantDeg);
+        if (Mathf.Abs(turnDeg) > FlowFlipDeg)
+        {
+            reverse = !reverse;
+            turnDeg = Mathf.DeltaAngle(facingDeg + 180f, wantDeg);
+        }
+        float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
+        double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
+        double rotate = turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        handle.Move(translate, rotate, 200, false);
+    }
+
+    // Safety net for Flow: planned paths keep robots at least MinSpacing apart, so this only acts
+    // if a robot falls behind and another comes closer than that. It grows gently from zero.
+    const float SafetyStrength = 3f;
+    static Vector2 SafetyPush(RoutineContext ctx, int i)
+    {
+        float reach = MinSpacing - 3f;
+        Vector2 me = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
+        Vector2 push = Vector2.zero;
+        for (int j = 0; j < ctx.Count; j++)
+        {
+            if (j == i) { continue; }
+            Vector2 away = me - new Vector2(ctx.Cubes[j].x, ctx.Cubes[j].y);
+            float d = away.magnitude;
+            if (d >= reach) { continue; }
+            if (d < 0.01f) { away = new Vector2(i < j ? -1f : 1f, 0f); d = 0.01f; }
+            push += away / d * SafetyStrength * (reach - d) * (reach - d) / reach;
+        }
+        return push;
+    }
+
+    // Which target each robot takes: the assignment with the least total squared travel (tries
+    // every assignment, fine for up to 8 robots). Straight, simultaneous trips planned this way
+    // don't cross. Returns slot[i] = the target index for robot i.
+    public static int[] LeastTravel(Vector2[] from, Vector2[] to)
+    {
+        int n = from.Length;
+        var best = new int[n]; var current = new int[n]; var used = new bool[n];
+        float bestCost = float.MaxValue;
+        System.Action<int, float> search = null;
+        search = (i, cost) =>
+        {
+            if (cost >= bestCost) { return; }
+            if (i == n) { bestCost = cost; current.CopyTo(best, 0); return; }
+            for (int j = 0; j < n; j++)
+            {
+                if (used[j]) { continue; }
+                used[j] = true; current[i] = j;
+                search(i + 1, cost + (from[i] - to[j]).sqrMagnitude);
+                used[j] = false;
+            }
+        };
+        search(0, 0f);
+        return best;
+    }
+
     // Re-number the robots so robot i is the nearest free robot to targets[i]. Call before a
     // new formation so robots take short trips instead of crossing the mat.
     public static void AssignNearest(RoutineContext ctx, Vector2Int[] targets)

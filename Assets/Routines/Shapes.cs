@@ -22,6 +22,24 @@ public static class Shapes
         return Centre + r * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
     }
 
+    // Smooth 0 -> 1 as x goes 0 -> 1 (clamped outside), with zero speed and zero acceleration at
+    // both ends, so anything blended with it starts and finishes without a jolt
+    public static float Ease(float x)
+    {
+        x = Mathf.Clamp01(x);
+        return x * x * x * (x * (6f * x - 15f) + 10f);
+    }
+
+    // Area under Ease from 0 to x (keeps growing by 1 per unit after x = 1). For a rate that eases
+    // from r0 to r1 over `secs`, the amount covered after t seconds is
+    // secs * (r0 * u + (r1 - r0) * EaseIntegral(u)) with u = t / secs.
+    public static float EaseIntegral(float x)
+    {
+        if (x <= 0f) { return 0f; }
+        if (x >= 1f) { return 0.5f + (x - 1f); }
+        return x * x * x * x * (x * (x - 3f) + 2.5f);
+    }
+
     // Small repeatable "random" number in [0, 1) for robot/pair i and a salt
     public static float Hash(int i, float salt)
     {

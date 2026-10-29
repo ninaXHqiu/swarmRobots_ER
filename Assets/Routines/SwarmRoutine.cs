@@ -377,8 +377,10 @@ public static class Swarm
         StopAll(ctx);
     }
 
-    // Turn every robot to a mat angle in degrees (0 = right, 90 = down)
-    public static IEnumerator TurnTo(RoutineContext ctx, double degrees, int timeoutMs = 3000)
+    // Turn every robot to a mat angle in degrees (0 = right, 90 = down). rotateTimeMs sets how
+    // slowly they turn (up to 2000): robots slow down as they approach the angle, so a longer
+    // time gives a soft, gentle turn.
+    public static IEnumerator TurnTo(RoutineContext ctx, double degrees, int timeoutMs = 3000, int rotateTimeMs = 400)
     {
         float end = Time.time + timeoutMs / 1000f;
         while (Time.time < end)
@@ -388,7 +390,7 @@ public static class Swarm
                 bool all = true;
                 for (int i = 0; i < ctx.Count; i++)
                 {
-                    var mv = ctx.Navigators[i].handle.Rotate2Deg(degrees).Exec();
+                    var mv = ctx.Navigators[i].handle.Rotate2Deg(degrees, rotateTimeMs).Exec();
                     if (!mv.reached) { all = false; }
                 }
                 if (all) { break; }

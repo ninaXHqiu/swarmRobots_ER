@@ -6,10 +6,8 @@ description: First-time setup for the swarm toio project - installs Unity, gets 
 # Swarm project: first run
 
 Goal: take someone from a fresh clone to watching routines in the simulator at
-http://localhost:8002, with as little effort on their side as possible. The steps below are
-macOS only (the scripts use Homebrew). On Windows, don't run the scripts: walk them through
-`WINDOWS_SETUP.md` instead, adapting where their setup differs. Run commands from the project
-root (the folder with `Assets/`).
+http://localhost:8002, with as little effort on their side as possible. macOS only
+(the scripts use Homebrew). Run commands from the project root (the folder with `Assets/`).
 
 ## Steps
 

@@ -8,7 +8,7 @@ using UnityEngine;
 // while the previous one fades out, and nothing stops until the robots come to rest in the line.
 public class WavesV2 : SwarmRoutine
 {
-    public override string Name { get { return "v2 motion: Busy -> waves -> line"; } }
+    public override string Name { get { return "v1 Busy -> waves -> line"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Timing (seconds), in order ----

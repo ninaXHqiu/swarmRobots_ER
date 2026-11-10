@@ -1,79 +1,76 @@
 using System.Collections;
 using UnityEngine;
 
-// Resonance - Vibration. After the Messenger's introduction the robots form one complete ring
-// around the mat centre that travels briskly while every robot shakes in and out of its place,
-// slightly out of step with its neighbours. The shaking fades and the turning slows to a calm,
-// even pace (same centre, direction and order), the ring turns smoothly with no shaking, and at
-// 30 s it flows into the line.
+// Resonance - Vibration. After the Messenger's introduction the robots swing onto one compact
+// ring around the mat centre. As soon as it reads as a circle, the whole ring surges: quick,
+// synchronised bursts of speed while it keeps turning one way (every robot shares the same
+// rotation, so spacing holds; no robot shakes on its own). The surges keep coming but weaken and
+// spread out, and the turning slows to a calm, even pace; from 20 s the ring circles calmly and
+// at 30 s it flows into the line.
 public class ResonanceVibration : SwarmRoutine
 {
-    public override string Name { get { return "Resonance: vibration"; } }
+    public override string Name { get { return "v2 Resonance: vibration"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Timing (seconds after the introduction; the return to the line starts at 30) ----
-    const float FormSecs = 3f;     // line -> ring, already turning and shaking
-    const float SettleFrom = 5f;   // the shaking starts to fade and the turning to slow...
-    const float SettleTo = 20f;    // ...until the ring turns calmly with no shaking
+    const float FormSecs = 3f;      // line -> ring, already turning
+    const float SurgeFrom = 2.5f;   // first surge, once the ring reads as a circle
+    const float SettleFrom = 5f;    // surges start to weaken and the turning to slow...
+    const float SettleTo = 20f;     // ...until the ring turns calmly with no surges
 
     // ---- Ring ----
-    const float Radius = 95f;
-    const float BriskSpeed = 70f;      // mat units per second along the ring at the start
-    const float CalmSpeed = 16f;       // from 20 s on, easing to a stop during the return
-    const float ShakeSize = 10f;       // in and out of its place (mat units)
-    const float ShakeHz = 2f;          // shakes per second at the start
-    const float ShakeStagger = 0.18f;  // each robot shakes this much of a shake after the one before it
+    const float Radius = 80f;           // compact: neighbours 61 apart with 8 robots
+    const float BriskSpeed = 45f;       // mat units per second along the ring at the start
+    const float CalmSpeed = 14f;        // from 20 s on, easing to a stop during the return
+    const float SurgeBoost = 60f;       // extra speed at the top of a surge, at the start
+    const float SurgeSecs = 1f;         // one surge phrase (burst + coast) at the start...
+    const float CalmSurgeSecs = 2.6f;   // ...stretching to this as the surges fade
+    const float SurgeShare = 0.45f;     // share of the phrase spent in the burst
 
     public override IEnumerator Run(RoutineContext ctx) { return Show.Run(ctx, start => new Plan(start)); }
 
     public class Plan : Show.IPlan
     {
-        readonly int n;
         readonly Vector2[] start, spot;
-        readonly float[] place;   // radians around the ring, fixed per robot
-        readonly float[] fromAngle, fromRadius, swing;   // where each robot starts, around the centre
-        readonly Show.Eased speed = new Show.Eased(0f, BriskSpeed, SettleFrom, BriskSpeed, SettleTo, CalmSpeed, Show.PerformSecs, CalmSpeed, Show.Total, 0f);
-        readonly Show.Eased shakeSize = new Show.Eased(0f, ShakeSize, SettleFrom, ShakeSize, SettleTo, 0f);
-        readonly Show.Eased shakeHz = new Show.Eased(0f, ShakeHz, SettleFrom, ShakeHz, SettleTo, 0f);
+        readonly float[] place, fromAngle, fromRadius, swing;
+        readonly Show.Eased baseSpeed = new Show.Eased(0f, BriskSpeed, SettleFrom, BriskSpeed, SettleTo, CalmSpeed, Show.PerformSecs, CalmSpeed, Show.Total, 0f);
+        readonly Show.Eased boost = new Show.Eased(SurgeFrom, SurgeBoost, SettleFrom, SurgeBoost, SettleTo, 0f);
+        readonly Show.Eased surgeHz = new Show.Eased(SurgeFrom, 1f / SurgeSecs, SettleFrom, 1f / SurgeSecs, SettleTo, 1f / CalmSurgeSecs);
+        readonly Show.Integrated turned;
 
         public Plan(Vector2[] start)
         {
             this.start = start;
-            n = start.Length;
-            place = Show.RingPlaces(start, Radius, Turned(FormSecs));
-            fromAngle = new float[n]; fromRadius = new float[n]; swing = new float[n];
-            for (int i = 0; i < n; i++)
-            {
-                Vector2 d = start[i] - Shapes.Centre;
-                fromAngle[i] = Mathf.Atan2(d.y, d.x);
-                fromRadius[i] = d.magnitude;
-                // A robot (almost) on the centre has no direction of its own: it heads straight out
-                if (fromRadius[i] < 10f) { fromAngle[i] = place[i] + Turned(FormSecs); }
-                swing[i] = Mathf.DeltaAngle(fromAngle[i] * Mathf.Rad2Deg, (place[i] + Turned(FormSecs)) * Mathf.Rad2Deg) * Mathf.Deg2Rad;
-            }
+            int n = start.Length;
+            turned = new Show.Integrated(t => Speed(t) / Radius, Show.Total + 1f);
+            place = Show.RingPlaces(start, Radius, turned.At(FormSecs));
+            var atEnd = new float[n];
+            for (int i = 0; i < n; i++) { atEnd[i] = place[i] + turned.At(FormSecs); }
+            Show.SwingOnto(start, atEnd, out fromAngle, out fromRadius, out swing);
             var leaving = new Vector2[n];
-            for (int i = 0; i < n; i++) { leaving[i] = Ring(i, Show.PerformSecs + Show.ReturnSecs / 2f); }
+            for (int i = 0; i < n; i++) { leaving[i] = Show.OnRing(place[i] + turned.At(Show.PerformSecs + Show.ReturnSecs / 2f), Radius); }
             spot = Show.LineSpots(leaving);
         }
 
-        float Turned(float t) { return speed.Integral(t) / Radius; }
-
-        float Shake(int i, float t)
+        // Speed along the ring: a steady pace plus the shared surges
+        float Speed(float t)
         {
-            float order = place[i] / (2f * Mathf.PI) * n;   // position around the ring, 0..n
-            return shakeSize.At(t) * Mathf.Sin(2f * Mathf.PI * (shakeHz.Integral(t) - order * ShakeStagger));
+            float surge = 0f;
+            if (t > SurgeFrom)
+            {
+                float cycles = surgeHz.Integral(t) - surgeHz.Integral(SurgeFrom);
+                surge = boost.At(t) * Show.Bump((cycles - Mathf.Floor(cycles)) / SurgeShare);
+            }
+            return baseSpeed.At(t) + surge;
         }
-
-        Vector2 Ring(int i, float t) { return Show.OnRing(place[i] + Turned(t), Radius + Shake(i, t)); }
 
         public Vector2 Position(int i, float t)
         {
             t = Mathf.Clamp(t, 0f, Show.Total);
-            // Forming: each robot swings round the centre to its place while moving in or out to the
-            // ring, turning with the ring from the start, so robots keep clear of each other
+            // Forming: swing round the centre onto the ring, turning with it from the start
             float e = Shapes.Ease(t / FormSecs);
-            float angle = fromAngle[i] + e * (swing[i] + Turned(t) - Turned(FormSecs));
-            float radius = Mathf.Lerp(fromRadius[i], Radius + Shake(i, t), e);
+            float angle = fromAngle[i] + e * (swing[i] + turned.At(t) - turned.At(FormSecs));
+            float radius = Mathf.Lerp(fromRadius[i], Radius, e);
             Vector2 p = Shapes.Centre + radius * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
             return Show.Return(p, spot[i], t);
         }

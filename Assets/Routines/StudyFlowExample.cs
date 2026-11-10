@@ -7,7 +7,7 @@ using UnityEngine;
 // Copy this file to make a new routine; change Name and the steps in Run().
 public class StudyFlowExample : SwarmRoutine
 {
-    public override string Name { get { return "Study flow (example)"; } }
+    public override string Name { get { return "v0 Study flow (example)"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

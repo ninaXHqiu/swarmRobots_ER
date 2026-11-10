@@ -9,7 +9,7 @@ using UnityEngine;
 // one fades out, and nothing stops until the circle comes to rest.
 public class MirrorPairsV2 : SwarmRoutine
 {
-    public override string Name { get { return "v2 motion: Mirror pairs -> circle"; } }
+    public override string Name { get { return "v1 Mirror pairs -> circle"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Timing (seconds), in order ----

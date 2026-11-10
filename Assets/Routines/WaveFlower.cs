@@ -6,7 +6,7 @@ using UnityEngine;
 // longer waves that keep a steady speed.
 public class WaveFlower : SwarmRoutine
 {
-    public override string Name { get { return "Wave -> large waves"; } }
+    public override string Name { get { return "v0 Wave -> large waves"; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

@@ -4,7 +4,7 @@ using System.Collections;
 // (who sits at the bottom-centre edge of the mat, see Swarm.Participant).
 public class Attention : SwarmRoutine
 {
-    public override string Name { get { return "Attention: face participant"; } }
+    public override string Name { get { return "v0 Attention: face participant"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

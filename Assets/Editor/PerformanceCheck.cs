@@ -5,8 +5,8 @@ using UnityEngine;
 
 // Checks the planned paths of the performance routines without robots, for 2 to 8 robots and
 // every choice of messenger: closest distance between robots, top speed and acceleration (jumps
-// show up as huge accelerations), distance to the mat edge, and that every robot ends at rest on
-// its line spot.
+// show up as huge accelerations), clearance inside the dance area (Show.DanceMargin; negative =
+// too close to the mat edge), and that every robot ends at rest on its line spot.
 //   Unity -batchmode -quit -projectPath <swarm> -executeMethod PerformanceCheck.Run -logFile <log>
 public static class PerformanceCheck
 {
@@ -68,8 +68,8 @@ public static class PerformanceCheck
                     }
                 }
             }
-            report.AppendFormat("{0}: closest {1:F1} ({2}) | top speed {3:F0} u/s | top accel {4:F0} u/s2 ({5}) | edge {6:F1} ({7}) | start/end error {8:F2}\n",
-                name, minDist, minAt, maxSpeed, maxAcc, accAt, edge, edgeAt, endErr);
+            report.AppendFormat("{0}: closest {1:F1} ({2}) | top speed {3:F0} u/s | top accel {4:F0} u/s2 ({5}) | dance-area clearance {6:F1} ({7}) | start/end error {8:F2}\n",
+                name, minDist, minAt, maxSpeed, maxAcc, accAt, edge - Show.DanceMargin, edgeAt, endErr);
         }
         Debug.Log(report.ToString());
     }

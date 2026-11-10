@@ -13,6 +13,11 @@ public static class Show
     public const float ReturnSecs = 8f;   // performance flows into the line over this long
     public const float Total = PerformSecs + ReturnSecs;
 
+    // Robot centres stay at least this far inside the mat's edge (Swarm.MatMin/MatMax): half of
+    // the space a cube sweeps when it turns (32 mm cube: 16.5 mat units) plus room for tracking
+    // and stopping error. The dance area for the robots' bodies is the mat inset by 18.5.
+    public const float DanceMargin = 35f;
+
     // A performance: robot i's planned mat position t seconds after the introduction (it starts
     // where the robot is, and ends at rest on LineSpot(i) at Total)
     public interface IPlan
@@ -21,9 +26,13 @@ public static class Show
         Vector2 LineSpot(int i);
     }
 
+    // When the current performance started (Time.time), for recordings; -1 before
+    public static float StartedAt = -1f;
+
     public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 100)
     {
         yield return Messenger.Introduction(ctx);
+        StartedAt = Time.time;
         int n = ctx.Count;
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
@@ -42,6 +51,28 @@ public static class Show
         return Enumerable.Range(0, from.Length).Select(i => line[slot[i]]).ToArray();
     }
 
+    // Line spots for robots that are mostly in the line already: each robot standing on a spot
+    // keeps it, and the others (the messenger) take the spots left free
+    public static Vector2[] KeepLineSpots(Vector2[] from)
+    {
+        int n = from.Length;
+        var line = LineUp.Spots(n).Select(s => (Vector2)s).ToArray();
+        var spot = new Vector2[n];
+        var taken = new bool[n]; var placed = new bool[n];
+        for (int i = 0; i < n; i++)
+        {
+            for (int k = 0; k < n; k++)
+            {
+                if (!taken[k] && (from[i] - line[k]).magnitude < 12f) { spot[i] = line[k]; taken[k] = placed[i] = true; break; }
+            }
+        }
+        var rest = Enumerable.Range(0, n).Where(i => !placed[i]).ToArray();
+        var free = Enumerable.Range(0, n).Where(k => !taken[k]).Select(k => line[k]).ToArray();
+        var slot = Swarm.LeastTravel(rest.Select(i => from[i]).ToArray(), free);
+        for (int r = 0; r < rest.Length; r++) { spot[rest[r]] = free[slot[r]]; }
+        return spot;
+    }
+
     // The shared return: the performance keeps going while each robot eases onto its line spot
     public static Vector2 Return(Vector2 performing, Vector2 spot, float t)
     {
@@ -58,8 +89,17 @@ public static class Show
     // assignment with the least total travel, so robots take short, non-crossing paths onto it
     public static float[] RingPlaces(Vector2[] from, float radius, float turned)
     {
+        float first;
+        var slot = RingSlots(from, radius, turned, out first);
+        return slot.Select(k => first + 2f * Mathf.PI * k / from.Length).ToArray();
+    }
+
+    // Same, as the order around the ring: robot i takes place slot[i], at angle
+    // first + 2 pi slot[i] / n (before `turned`)
+    public static int[] RingSlots(Vector2[] from, float radius, float turned, out float first)
+    {
         int n = from.Length;
-        var place = new float[n];
+        int[] best = null; first = 0f;
         float bestCost = float.MaxValue;
         for (int k = 0; k < 36; k++)
         {
@@ -67,13 +107,36 @@ public static class Show
             var spots = Enumerable.Range(0, n).Select(p => OnRing(a0 + 2f * Mathf.PI * p / n + turned, radius)).ToArray();
             var slot = Swarm.LeastTravel(from, spots);
             float cost = Enumerable.Range(0, n).Sum(i => (from[i] - spots[slot[i]]).sqrMagnitude);
-            if (cost < bestCost)
-            {
-                bestCost = cost;
-                for (int i = 0; i < n; i++) { place[i] = a0 + 2f * Mathf.PI * slot[i] / n; }
-            }
+            if (cost < bestCost) { bestCost = cost; best = slot; first = a0; }
         }
-        return place;
+        return best;
+    }
+
+    // Robots at `from` swing round the mat centre onto ring places while moving in or out to the
+    // ring, so they keep clear of each other (used to form a ring from the line). Returns, per
+    // robot, the start angle and the swing to its place at the end of forming.
+    public static void SwingOnto(Vector2[] from, float[] placeAtEnd, out float[] fromAngle, out float[] fromRadius, out float[] swing)
+    {
+        int n = from.Length;
+        fromAngle = new float[n]; fromRadius = new float[n]; swing = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 d = from[i] - Shapes.Centre;
+            fromAngle[i] = Mathf.Atan2(d.y, d.x);
+            fromRadius[i] = d.magnitude;
+            // A robot (almost) on the centre has no direction of its own: it heads straight out
+            if (fromRadius[i] < 10f) { fromAngle[i] = placeAtEnd[i]; }
+            swing[i] = Mathf.DeltaAngle(fromAngle[i] * Mathf.Rad2Deg, placeAtEnd[i] * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+        }
+    }
+
+    // Smooth hump from 0 up to 1 and back to 0 as u goes 0 -> 1 (0 outside), starting and
+    // ending at zero speed: one beat, one surge
+    public static float Bump(float u)
+    {
+        if (u <= 0f || u >= 1f) { return 0f; }
+        float s = Mathf.Sin(Mathf.PI * u);
+        return s * s;
     }
 
     // A value set at keyframes (time, value, time, value, ...), easing from each keyframe's value

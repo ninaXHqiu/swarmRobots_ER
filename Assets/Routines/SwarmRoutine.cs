@@ -254,6 +254,8 @@ public static class Swarm
     const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
     const float FlowTurnSecs = 0.25f; // how quickly robots turn to the wanted direction
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
+    const float FlowTurnSpeed = 40f;  // mat units per second: below this, robots turn more gently,
+                                      // so a robot about to reverse (a beat, a loop) doesn't spin
 
     static void Steer(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, ref bool reverse)
     {
@@ -281,7 +283,10 @@ public static class Swarm
         }
         float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
         double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
-        double rotate = turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        // When the path is nearly still its direction means little: hold the heading instead of
+        // swinging round to it
+        float turnWeight = Mathf.Clamp01(want.magnitude / FlowTurnSpeed);
+        double rotate = turnWeight * turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
         handle.Move(translate, rotate, 200, false);
     }
 

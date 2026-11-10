@@ -7,7 +7,7 @@ using UnityEngine;
 // Runs on its own, and at the end of the mirroring and wave routines.
 public class Closing : SwarmRoutine
 {
-    public override string Name { get { return "Closing: regroup and return"; } }
+    public override string Name { get { return "v0 Closing: regroup and return"; } }
     public override int MinRobots { get { return 2; } }
 
     const float BigScale = 1.5f;    // big circle = 1.5 x the small one (stays in the middle)

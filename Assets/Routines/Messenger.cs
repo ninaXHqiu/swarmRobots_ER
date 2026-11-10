@@ -8,7 +8,7 @@ using UnityEngine;
 // The other robots stay still in the line while the messenger is away.
 public class Messenger : SwarmRoutine
 {
-    public override string Name { get { return "Messenger: visit participant -> turning circle"; } }
+    public override string Name { get { return "v2 Messenger: visit -> turning circle"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Visit ----

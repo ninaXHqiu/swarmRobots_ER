@@ -8,7 +8,7 @@ using UnityEngine;
 // smooth shape, the robots flowing along its outline. Ends with the Closing.
 public class MirrorPairsFlower : SwarmRoutine
 {
-    public override string Name { get { return "Mirror pairs -> flower"; } }
+    public override string Name { get { return "v0 Mirror pairs -> flower"; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

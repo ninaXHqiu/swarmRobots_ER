@@ -4,14 +4,13 @@ using System.Linq;
 using UnityEngine;
 
 // Shared frame of the performance routines (Resonance and Cheering): the Messenger's full
-// introduction, then a 30-second performance planned as one continuous path per robot, then the
-// return to LineUp's line, facing the participant. The performance clock starts only when the
-// introduction has finished, from wherever the robots actually are.
+// introduction, then a performance planned as one continuous path per robot, then the return to
+// LineUp's line, facing the participant. A performance is built from repeated movement phrases
+// (counts set in each routine), so its length follows from the phrases, not from a clock. It
+// starts when the introduction has finished, from wherever the robots actually are.
 public static class Show
 {
-    public const float PerformSecs = 30f;
-    public const float ReturnSecs = 8f;   // performance flows into the line over this long
-    public const float Total = PerformSecs + ReturnSecs;
+    public const float ReturnSecs = 8f;   // the last phrase flows into the line over this long
 
     // Robot centres stay at least this far inside the mat's edge (Swarm.MatMin/MatMax): half of
     // the space a cube sweeps when it turns (32 mm cube: 16.5 mat units) plus room for tracking
@@ -22,6 +21,7 @@ public static class Show
     // where the robot is, and ends at rest on LineSpot(i) at Total)
     public interface IPlan
     {
+        float Total { get; }
         Vector2 Position(int i, float t);
         Vector2 LineSpot(int i);
     }
@@ -29,7 +29,7 @@ public static class Show
     // When the current performance started (Time.time), for recordings; -1 before
     public static float StartedAt = -1f;
 
-    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 100)
+    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 100, float axisDeg = float.NaN)
     {
         yield return Messenger.Introduction(ctx);
         StartedAt = Time.time;
@@ -37,7 +37,7 @@ public static class Show
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var plan = makePlan(start);
-        yield return Swarm.Flow(ctx, plan.Position, Total, maxSpeed);
+        yield return Swarm.Flow(ctx, plan.Position, plan.Total, maxSpeed, axisDeg);
         var spots = new Vector2Int[n];
         for (int i = 0; i < n; i++) { spots[i] = Vector2Int.RoundToInt(plan.LineSpot(i)); }
         yield return LineUp.Finish(ctx, spots);
@@ -73,10 +73,11 @@ public static class Show
         return spot;
     }
 
-    // The shared return: the performance keeps going while each robot eases onto its line spot
-    public static Vector2 Return(Vector2 performing, Vector2 spot, float t)
+    // The shared return, from `from` on: the performance keeps going while each robot eases onto
+    // its line spot
+    public static Vector2 Return(Vector2 performing, Vector2 spot, float t, float from)
     {
-        return Vector2.Lerp(performing, spot, Shapes.Ease((t - PerformSecs) / ReturnSecs));
+        return Vector2.Lerp(performing, spot, Shapes.Ease((t - from) / ReturnSecs));
     }
 
     // Point on a ring around the mat centre (angle in radians, increasing = clockwise on the mat)
@@ -174,6 +175,40 @@ public static class Show
             int last = time.Length - 1;
             if (t > time[last]) { sum += value[last] * (t - time[last]); }
             return sum;
+        }
+    }
+
+    // A phrase counter that sets its own pace: phrases (cycles) run at a speed that depends on how
+    // many have been done, e.g. each heartbeat a little slower than the last. At(t) gives the
+    // phrases done after t seconds; Duration is how long `phrases` take.
+    public class Paced
+    {
+        const float Step = 0.01f;
+        readonly float[] done, rate;
+        public readonly float Duration;
+
+        public Paced(Func<float, float> phrasesPerSec, float phrases)
+        {
+            var d = new System.Collections.Generic.List<float> { 0f };
+            var r = new System.Collections.Generic.List<float> { phrasesPerSec(0f) };
+            while (d[d.Count - 1] < phrases)
+            {
+                float x = d[d.Count - 1];
+                float mid = x + phrasesPerSec(x) * Step / 2f;   // midpoint step
+                d.Add(x + phrasesPerSec(mid) * Step);
+                r.Add(phrasesPerSec(d[d.Count - 1]));
+            }
+            done = d.ToArray(); rate = r.ToArray();
+            Duration = (done.Length - 1) * Step;
+        }
+
+        public float At(float t)
+        {
+            float x = Mathf.Clamp(t / Step, 0f, done.Length - 1.001f);
+            int s = (int)x; float u = x - s;
+            float u2 = u * u, u3 = u2 * u;
+            return (2f * u3 - 3f * u2 + 1f) * done[s] + (u3 - 2f * u2 + u) * rate[s] * Step
+                 + (-2f * u3 + 3f * u2) * done[s + 1] + (u3 - u2) * rate[s + 1] * Step;
         }
     }
 

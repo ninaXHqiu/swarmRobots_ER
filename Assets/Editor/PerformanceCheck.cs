@@ -35,7 +35,7 @@ public static class PerformanceCheck
                     for (int i = 0; i < n; i++) { start[i] = line[i]; }
                     start[m] = Messenger.TalkSpot;
                     var plan = make(start);
-                    int steps = Mathf.RoundToInt(Show.Total / Dt);
+                    int steps = Mathf.RoundToInt(plan.Total / Dt);
                     var prev = new Vector2[n]; var prev2 = new Vector2[n];
                     for (int k = 0; k <= steps; k++)
                     {
@@ -62,8 +62,8 @@ public static class PerformanceCheck
                     }
                     for (int i = 0; i < n; i++)
                     {
-                        endErr = Mathf.Max(endErr, (plan.Position(i, Show.Total) - plan.LineSpot(i)).magnitude);
-                        endErr = Mathf.Max(endErr, (plan.Position(i, Show.Total) - plan.Position(i, Show.Total - Dt)).magnitude / Dt);
+                        endErr = Mathf.Max(endErr, (plan.Position(i, plan.Total) - plan.LineSpot(i)).magnitude);
+                        endErr = Mathf.Max(endErr, (plan.Position(i, plan.Total) - plan.Position(i, plan.Total - Dt)).magnitude / Dt);
                         endErr = Mathf.Max(endErr, (plan.Position(i, 0f) - start[i]).magnitude);
                     }
                 }

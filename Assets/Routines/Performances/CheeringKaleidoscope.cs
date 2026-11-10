@@ -1,33 +1,49 @@
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
-// Cheering - Kaleidoscope. After the Messenger's introduction the robots swing onto a centred
-// circle that eases into a slow, shared turn. Still turning, it grows into a triangle (the three-
-// petal flower of the original Mirror pairs routine, with robots on the three tips), then into a
-// square with four equal sides and robots on its corners. Robots keep their order around the
-// outline, so every change is a short shift to a nearby place, and each finished shape turns for
-// several seconds. The turn ends with the square upright; at 30 s it opens like a book: its left
-// and right halves sweep out from the middle and straighten into the two halves of the line.
+// Cheering - Kaleidoscope. A shape that never stops turning. After the Messenger's introduction
+// the robots swing onto a compact circle that turns as one rigid outline. Twice over it holds as a
+// circle, grows three corners, turns as a triangle, grows a fourth corner, turns as a square and
+// rounds back into the circle; the second time it ends on the square. Every robot keeps its place
+// around the centre (same angle in the turning outline), so a change of shape is only each robot
+// moving in or out a little: nobody crosses the middle or changes order.
+// The triangle is the one from the first Mirror pairs flower (commit ccb858b): robots evenly
+// spaced on the turning ring, every other one moving out to 1.45x the radius and the others in
+// to 0.55x, which with 6 robots gives three points. With 6 robots it is exactly that; with other
+// counts three robots take the same tips (1.45x) and the rest spread along straight sides, each
+// shifting a little along the outline.
+// The exit is a book closing and opening from the middle. The square's turn brings it round to the
+// exit angle and dies away while each half of the square folds into a short column against the
+// spine, in the middle of the line: the closed book. The halves then open from the middle, left
+// half out to the left and right half out to the right, flattening into the two halves of the
+// line. Robots keep their order within each half.
 public class CheeringKaleidoscope : SwarmRoutine
 {
     public override string Name { get { return "v2 Cheering: kaleidoscope"; } }
     public override int MinRobots { get { return 2; } }
 
-    // ---- Timing (seconds after the introduction; the book opens at 30) ----
-    const float FormSecs = 4f;        // line -> circle
-    const float TriangleFrom = 7f;    // circle grows three corners...
-    const float TriangleTo = 10.5f;   // ...a finished triangle until...
-    const float SquareFrom = 17f;     // ...it turns into a square...
-    const float SquareTo = 20.5f;     // ...which turns, finished, until the book opens
-    const float TurnUpSecs = 4f;      // turning eases in...
-    const float TurnDownSecs = 4f;    // ...and out after 30 s, carried into the opening
-    const float AboutDeg = 360f;      // about one full turn, adjusted so the square ends upright
+    // ---- Phrases (change the counts freely; the choreography follows) ----
+    const int Sequences = 2;               // circle, triangle, square, back to circle; the last ends on the square
+    // How far the outline turns in each part of a sequence (degrees)
+    const float CircleDeg = 70f;
+    const float ChangeDeg = 30f;           // each change of shape: short
+    const float TriangleDeg = 100f;
+    const float SquareDeg = 100f;
 
-    // ---- Shapes (compact, centred) ----
-    const float CircleRadius = 85f;
-    const float TriangleRadius = 82f;  // flower radius: tips at 1.4x, between tips down to 0.6x
-    const float Petal = 0.4f;          // how far the flower swells into petals (Shapes.OnFlower)
-    const float SquareHalfSide = 75f;  // corners 106 from the centre
+    // ---- Shapes and turning ----
+    const float TurnDegPerSec = 20f;       // the original flower's turning speed
+    const float FormSecs = 3f;             // line -> circle, turning as it forms
+    const float Radius = 75f;              // compact circle (the original used 100)
+    const float Petal = 0.45f;             // the original flower: tips out 45%, the rest in 45%
+    const float SquareHalfSide = 76f;      // corners 107 from the centre
+    const float SideBulge = 10f;           // side robots sit this far outside the straight side: with so few
+                                           // robots per side, exactly straight reads as curving in
+    const float CloseSecs = 3f;            // square -> closed book, while the turn dies away
+    const float OpenSecs = 3.5f;           // the halves open out into the line...
+    const float OpenOverlap = 0.8f;        // ...starting this long before the book has quite closed
+    const float BookRowGap = 60f;          // robots' spacing up the closed book's columns
 
     public override IEnumerator Run(RoutineContext ctx) { return Show.Run(ctx, start => new Plan(start)); }
 
@@ -35,100 +51,155 @@ public class CheeringKaleidoscope : SwarmRoutine
     {
         readonly int n;
         readonly Vector2[] start, spot;
-        readonly int[] slot;            // order around the outline
-        readonly float first;           // angle of slot 0 (radians)
+        readonly int[] slot;            // place around the outline
+        readonly float first;           // angle of place 0 (radians)
         readonly float[] fromAngle, fromRadius, swing;
         readonly Show.Eased turnRate;   // radians per second
+        readonly float bookFrom, openFrom;
+        readonly Vector2[] closed;      // each robot's place in the closed book
+        // Shape changes in degrees turned since the circle formed: from, to, shape before, shape after
+        readonly List<float[]> parts = new List<float[]>();
+        public float Total { get; private set; }
 
         public Plan(Vector2[] start)
         {
             this.start = start;
             n = start.Length;
-            // The turn eases in, holds and eases out. Places on the circle are picked for where it
-            // will be once formed, then the total turn is set so the square ends with its sides
-            // square to the line (corners at 45 degrees)
-            float turnSecs = TurnUpSecs / 2f + (Show.PerformSecs - TurnUpSecs) + TurnDownSecs / 2f;
-            float guess = AboutDeg / turnSecs * Mathf.Deg2Rad * TurnUpSecs / 2f;
-            slot = Show.RingSlots(start, CircleRadius, guess, out first);
-            float total = AboutDeg - 30f + Mathf.Repeat(45f - first * Mathf.Rad2Deg - (AboutDeg - 30f), 90f);
-            float rate = total / turnSecs * Mathf.Deg2Rad;
-            turnRate = new Show.Eased(0f, 0f, TurnUpSecs, rate, Show.PerformSecs, rate, Show.PerformSecs + TurnDownSecs, 0f);
+            float rate = TurnDegPerSec * Mathf.Deg2Rad;
+            float formed = rate * FormSecs / 2f;   // turned while forming (eases in)
+            slot = Show.RingSlots(start, Radius, formed, out first);
+
+            // The sequences, end to end (0 circle, 1 triangle, 2 square)
+            float d = 0f;
+            for (int s = 0; s < Sequences; s++)
+            {
+                d = Part(d, CircleDeg, 0, 0); d = Part(d, ChangeDeg, 0, 1);
+                d = Part(d, TriangleDeg, 1, 1); d = Part(d, ChangeDeg, 1, 2);
+                d = Part(d, SquareDeg, 2, 2);
+                if (s < Sequences - 1) { d = Part(d, ChangeDeg, 2, 0); }
+            }
+            // Keep the square turning until it reaches the exit angle: its robots on either side of
+            // a vertical spine, evenly (the turn also carries on a little while the book closes)
+            float afterBook = rate * CloseSecs / 2f;
+            float sideways = Mathf.PI / 2f + Mathf.PI / n;
+            float extra = Mathf.Repeat(sideways - (first + formed + d * Mathf.Deg2Rad + afterBook), 2f * Mathf.PI / n);
+            d = Part(d, extra * Mathf.Rad2Deg, 2, 2);
+            bookFrom = FormSecs + d / TurnDegPerSec;
+            openFrom = bookFrom + CloseSecs - OpenOverlap;
+            Total = openFrom + OpenSecs;
+            turnRate = new Show.Eased(0f, 0f, FormSecs, rate, bookFrom, rate, bookFrom + CloseSecs, 0f);
 
             var atEnd = new float[n];
-            for (int i = 0; i < n; i++) { atEnd[i] = first + 2f * Mathf.PI * slot[i] / n + Turned(FormSecs); }
+            for (int i = 0; i < n; i++) { atEnd[i] = Angle(i, FormSecs); }
             Show.SwingOnto(start, atEnd, out fromAngle, out fromRadius, out swing);
 
-            // Line spots for the book: from the upright square, a little further along the turn,
-            // so robots on the spine go the way the turn is already carrying them
+            // The book. Halves: the left robots of the square (at the exit angle) take the left half
+            // of the line, the right ones the right half, a robot on the spine the middle spot.
+            // Within a half the robots keep their order top to bottom in the closed book's column.
+            // Opening, the robots nearest the line take the spots nearest the spine and the column's
+            // two ends the far ones, so each half opens out from the middle, evenly above and below.
             var square = new Vector2[n];
-            for (int i = 0; i < n; i++) { square[i] = Point(slot[i], Shape(2, slot[i]), Turned(Show.Total) + 3f * Mathf.Deg2Rad); }
-            spot = Show.LineSpots(square);
+            for (int i = 0; i < n; i++)
+            {
+                float a = Angle(i, Total);
+                square[i] = Shapes.Centre + RadiusOf(2, Frame(i)) * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            }
+            var line = LineUp.Spots(n);
+            var byX = Enumerable.Range(0, n).OrderBy(i => square[i].x).ToArray();
+            spot = new Vector2[n]; closed = new Vector2[n];
+            int halfCount = n / 2;
+            for (int side = -1; side <= 1; side += 2)
+            {
+                var half = (side < 0 ? byX.Take(halfCount) : byX.Skip(n - halfCount)).OrderBy(i => square[i].y).ToArray();
+                // this half's spots along the line, outermost first
+                var spots = (side < 0 ? line.Take(halfCount) : line.Skip(n - halfCount).Reverse()).ToArray();
+                float columnX = spots[spots.Length - 1].x;   // the spot nearest the spine
+                for (int k = 0; k < half.Length; k++)
+                {
+                    int i = half[k];
+                    float offset = (k - (half.Length - 1) / 2f) * BookRowGap;
+                    closed[i] = new Vector2(columnX, Swarm.Centre + offset);
+                }
+                // nearest the line first (upper one first on a tie) -> spots from the spine outward
+                var outward = Enumerable.Range(0, half.Length).OrderBy(k => Mathf.Abs(k - (half.Length - 1) / 2f)).ThenBy(k => k).ToArray();
+                for (int r = 0; r < outward.Length; r++) { spot[half[outward[r]]] = spots[spots.Length - 1 - r]; }
+            }
+            if (n % 2 == 1) { int i = byX[halfCount]; spot[i] = closed[i] = line[halfCount]; }
         }
 
-        float Turned(float t) { return turnRate.Integral(t); }
-
-        Vector2 Point(int k, Vector2 polar, float turned)
+        float Part(float from, float deg, int before, int after)
         {
-            float a = first + polar.x + turned;
-            return Shapes.Centre + polar.y * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+            parts.Add(new[] { from, from + deg, before, after });
+            return from + deg;
+        }
+
+        float Frame(int i) { return 2f * Mathf.PI * slot[i] / n; }               // angle within the outline
+        float Angle(int i, float t) { return first + Frame(i) + turnRate.Integral(t); }
+
+        // Distance from the centre of the outline at angle a (within the outline)
+        static float RadiusOf(int shape, float a)
+        {
+            if (shape == 1) { return Radius * (1f + Petal * Mathf.Cos(3f * a)); }
+            if (shape == 2) { return SquareHalfSide / Mathf.Max(Mathf.Abs(Mathf.Cos(a)), Mathf.Abs(Mathf.Sin(a))); }
+            return Radius;
         }
 
         static int Round(float v) { return Mathf.FloorToInt(v + 0.5f); }
 
-        // Place k of shape 0 (circle), 1 (triangle) or 2 (square), as (angle from slot 0's
-        // circle place, distance from the centre). Angles grow with k, so robots keep their order.
-        Vector2 Shape(int shape, int k)
+        // Place k of a shape within the turning outline, as (angle, distance from the centre)
+        Vector2 Place(int shape, int k)
         {
-            if (shape == 1 && n >= 3)
-            {
-                // Tips at 0, 120 and 240 degrees, each taken by a robot; the others spread evenly
-                // between them. Radius as the original flower: r = R (1 + 0.4 cos 3a)
-                int[] tip = { 0, Round(n / 3f), Round(2f * n / 3f), n };
-                int j = k >= tip[2] ? 2 : (k >= tip[1] ? 1 : 0);
-                float a = 2f * Mathf.PI / 3f * (j + (k - tip[j]) / (float)(tip[j + 1] - tip[j]));
-                return new Vector2(a, TriangleRadius * (1f + Petal * Mathf.Cos(3f * a)));
-            }
-            if (shape == 2 && n >= 4)
-            {
-                // Corners at 0, 90, 180 and 270 degrees, each taken by a robot; the others spread
-                // evenly along the straight sides between them
-                int[] corner = { 0, Round(n / 4f), Round(n / 2f), Round(3f * n / 4f), n };
-                int j = 0;
-                while (j < 3 && k >= corner[j + 1]) { j++; }
-                float c = SquareHalfSide * Mathf.Sqrt(2f);
-                float a0 = Mathf.PI / 2f * j, a1 = Mathf.PI / 2f * (j + 1);
-                Vector2 p = Vector2.Lerp(c * new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)), c * new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)), (k - corner[j]) / (float)(corner[j + 1] - corner[j]));
-                float a = Mathf.Atan2(p.y, p.x);
-                if (a < a0 - 0.001f) { a += 2f * Mathf.PI; }
-                return new Vector2(a, p.magnitude);
-            }
-            return new Vector2(2f * Mathf.PI * k / n, CircleRadius);
+            float a = 2f * Mathf.PI * k / n;
+            if (shape != 1 || n == 6 || n < 3) { return new Vector2(a, RadiusOf(shape, a)); }
+            // Triangle for counts other than 6: tips taken by three robots, the rest evenly along
+            // the straight sides between them
+            int[] tip = { 0, Round(n / 3f), Round(2f * n / 3f), n };
+            int j = k >= tip[2] ? 2 : (k >= tip[1] ? 1 : 0);
+            float tipR = Radius * (1f + Petal), a0 = 2f * Mathf.PI * j / 3f, a1 = 2f * Mathf.PI * (j + 1) / 3f;
+            float u = (k - tip[j]) / (float)(tip[j + 1] - tip[j]);
+            Vector2 p = Vector2.Lerp(tipR * new Vector2(Mathf.Cos(a0), Mathf.Sin(a0)), tipR * new Vector2(Mathf.Cos(a1), Mathf.Sin(a1)), u);
+            float mid = (a0 + a1) / 2f;
+            p += SideBulge * Mathf.Sin(Mathf.PI * u) * new Vector2(Mathf.Cos(mid), Mathf.Sin(mid));
+            float pa = Mathf.Atan2(p.y, p.x);
+            while (pa < a0 - 0.001f) { pa += 2f * Mathf.PI; }
+            return new Vector2(pa, p.magnitude);
         }
 
-        // The outline at time t, part way through a change if one is under way
-        Vector2 ShapeAt(int k, float t)
+        // Robot i's place within the outline at time t, part way through a change if one is under way
+        Vector2 PlaceAt(int i, float t)
         {
-            if (t < TriangleFrom) { return Shape(0, k); }
-            if (t < SquareFrom) { return Vector2.Lerp(Shape(0, k), Shape(1, k), Shapes.Ease((t - TriangleFrom) / (TriangleTo - TriangleFrom))); }
-            return Vector2.Lerp(Shape(1, k), Shape(2, k), Shapes.Ease((t - SquareFrom) / (SquareTo - SquareFrom)));
+            float turnedDeg = (turnRate.Integral(t) - turnRate.Integral(FormSecs)) * Mathf.Rad2Deg;
+            foreach (var p in parts)
+            {
+                if (turnedDeg < p[1] || p == parts[parts.Count - 1])
+                {
+                    float e = p[2] == p[3] ? 0f : Shapes.Ease((turnedDeg - p[0]) / (p[1] - p[0]));
+                    return Vector2.Lerp(Place((int)p[2], slot[i]), Place((int)p[3], slot[i]), e);
+                }
+            }
+            return Place(0, slot[i]);
         }
 
         public Vector2 Position(int i, float t)
         {
-            t = Mathf.Clamp(t, 0f, Show.Total);
-            Vector2 polar = ShapeAt(slot[i], t);
-            Vector2 p;
+            t = Mathf.Clamp(t, 0f, Total);
+            Vector2 place = PlaceAt(i, t);
+            float angle = first + place.x + turnRate.Integral(t), radius = place.y;
             if (t < FormSecs)
             {
                 // Forming: swing round the centre onto the circle, turning with it from the start
                 float e = Shapes.Ease(t / FormSecs);
-                float angle = fromAngle[i] + e * (swing[i] + Turned(t) - Turned(FormSecs));
-                p = Shapes.Centre + Mathf.Lerp(fromRadius[i], polar.y, e) * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+                angle = fromAngle[i] + e * (swing[i] + turnRate.Integral(t) - turnRate.Integral(FormSecs));
+                radius = Mathf.Lerp(fromRadius[i], Radius, e);
             }
-            else { p = Point(slot[i], polar, Turned(t)); }
-            // The book: each half moves out to its own side of the line while the last of the
-            // turn carries on, so the square sweeps open from the middle and straightens
-            return Show.Return(p, spot[i], t);
+            Vector2 p = Shapes.Centre + radius * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
+            if (t > bookFrom)
+            {
+                // Close into the column against the spine; open out from the middle into the line
+                Vector2 book = Vector2.Lerp(closed[i], spot[i], Shapes.Ease((t - openFrom) / OpenSecs));
+                p = Vector2.Lerp(p, book, Shapes.Ease((t - bookFrom) / CloseSecs));
+            }
+            return p;
         }
 
         public Vector2 LineSpot(int i) { return spot[i]; }

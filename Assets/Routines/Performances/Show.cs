@@ -11,6 +11,7 @@ using UnityEngine;
 public static class Show
 {
     public const float ReturnSecs = 8f;   // the last phrase flows into the line over this long
+    const float HoldSecs = 1f;            // robots hold their line spots this long after the path ends
 
     // Robot centres stay at least this far inside the mat's edge (Swarm.MatMin/MatMax): half of
     // the space a cube sweeps when it turns (32 mm cube: 16.5 mat units) plus room for tracking
@@ -29,7 +30,7 @@ public static class Show
     // When the current performance started (Time.time), for recordings; -1 before
     public static float StartedAt = -1f;
 
-    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 100, float axisDeg = float.NaN)
+    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60, float axisDeg = float.NaN)
     {
         yield return Messenger.Introduction(ctx);
         StartedAt = Time.time;
@@ -37,10 +38,11 @@ public static class Show
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var plan = makePlan(start);
-        yield return Swarm.Flow(ctx, plan.Position, plan.Total, maxSpeed, axisDeg);
-        var spots = new Vector2Int[n];
-        for (int i = 0; i < n; i++) { spots[i] = Vector2Int.RoundToInt(plan.LineSpot(i)); }
-        yield return LineUp.Finish(ctx, spots);
+        // The path ends at rest on the line spots; keep following it a moment longer so every
+        // robot settles onto its spot with the same steering (no separate correction that would
+        // turn robots sideways), then face the participant, as LineUp does
+        yield return Swarm.Flow(ctx, plan.Position, plan.Total + HoldSecs, maxSpeed, axisDeg);
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
     }
 
     // Robots at `from` the least total travel away from LineUp's spots: which spot each takes

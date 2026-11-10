@@ -19,16 +19,16 @@ public class ResonanceVibration : SwarmRoutine
     const float CalmTurns = 0.5f;          // turns of the ring at the calm pace before the exit
 
     // ---- One surge phrase ----
-    const float SurgeSecs = 1.2f;          // agitated: burst + ease back
+    const float SurgeSecs = 0.9f;          // agitated: burst + ease back
     const float SettleLonger = 0.15f;      // each settling surge lasts this share longer than the one before
-    const float SurgeRise = 0.25f;         // share of the phrase spent speeding up (sharp); the rest eases back
+    const float SurgeRise = 0.2f;          // share of the phrase spent speeding up (sharp); the rest eases back
 
     // ---- Ring and pace ----
-    const float FormSecs = 2.5f;           // line -> ring (the ring starts turning as it forms)
-    const float Radius = 75f;              // compact: neighbours 57 apart with 8 robots
-    const float AgitatedSpeed = 50f;       // mat units per second along the ring between bursts
-    const float SurgeBoost = 60f;          // extra speed at the top of an agitated burst
-    const float CalmSpeed = 22f;
+    const float FormSecs = 4.5f;           // line -> ring, gliding (the ring starts turning as it forms)
+    const float Radius = 64f;              // compact: neighbours 49 apart with 8 robots
+    const float AgitatedSpeed = 30f;       // mat units per second along the ring between bursts
+    const float SurgeBoost = 40f;          // extra speed at the top of an agitated burst (peak 70, under a third of top speed)
+    const float CalmSpeed = 16f;
 
     public override IEnumerator Run(RoutineContext ctx) { return Show.Run(ctx, start => new Plan(start)); }
 

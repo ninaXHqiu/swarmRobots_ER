@@ -59,8 +59,9 @@ public class Messenger : SwarmRoutine
         yield return LineUp.Play(ctx);
         yield return Swarm.Wait(1000);
 
-        // 2. Pick the messenger at random; it moves on its own while the rest wait
-        var messenger = Only(ctx, UnityEngine.Random.Range(0, n));
+        // 2. The messenger: always the same robot (the first connected); it moves on its own
+        //    while the rest wait
+        var messenger = Only(ctx, MessengerRobot % n);
 
         // 3. Step straight out of the line toward the participant (so it never brushes a
         //    neighbour), then go to the participant and look at them
@@ -87,6 +88,9 @@ public class Messenger : SwarmRoutine
         }
         yield return Swarm.Wait(AfterTalkMs);
     }
+
+    // Which robot is the messenger, in every routine that uses this introduction
+    public const int MessengerRobot = 0;
 
     // Where the messenger stands to talk to the group
     public static Vector2 TalkSpot { get { return Shapes.Centre - Swarm.Inward * TalkGap; } }

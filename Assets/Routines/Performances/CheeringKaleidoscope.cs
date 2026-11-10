@@ -33,17 +33,17 @@ public class CheeringKaleidoscope : SwarmRoutine
     const float SquareDeg = 100f;
 
     // ---- Shapes and turning ----
-    const float TurnDegPerSec = 20f;       // the original flower's turning speed
-    const float FormSecs = 3f;             // line -> circle, turning as it forms
-    const float Radius = 75f;              // compact circle (the original used 100)
+    const float TurnDegPerSec = 16f;       // a little slower than the original flower's 20
+    const float FormSecs = 4.5f;           // line -> circle, gliding, turning as it forms
+    const float Radius = 58f;              // compact circle (the original used 100)
     const float Petal = 0.45f;             // the original flower: tips out 45%, the rest in 45%
-    const float SquareHalfSide = 76f;      // corners 107 from the centre
-    const float SideBulge = 10f;           // side robots sit this far outside the straight side: with so few
+    const float SquareHalfSide = 58f;      // corners 82 from the centre
+    const float SideBulge = 8f;            // side robots sit this far outside the straight side: with so few
                                            // robots per side, exactly straight reads as curving in
-    const float CloseSecs = 3f;            // square -> closed book, while the turn dies away
-    const float OpenSecs = 3.5f;           // the halves open out into the line...
+    const float CloseSecs = 4f;            // square -> closed book, while the turn dies away
+    const float OpenSecs = 5f;             // the halves open out into the line...
     const float OpenOverlap = 0.8f;        // ...starting this long before the book has quite closed
-    const float BookRowGap = 60f;          // robots' spacing up the closed book's columns
+    const float BookRowGap = 52f;          // robots' spacing up the closed book's columns
 
     public override IEnumerator Run(RoutineContext ctx) { return Show.Run(ctx, start => new Plan(start)); }
 

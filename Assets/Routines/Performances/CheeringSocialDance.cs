@@ -4,11 +4,12 @@ using UnityEngine;
 
 // Cheering - Social dance. Four close partner dances that become one turning group dance.
 // After the Messenger's introduction the robots pair up, each pair in one corner area of the
-// compact performance area, around a shared dance centre. Butterfly: the partners curve toward the
-// centre and pass it on opposite sides, sweep out along mirrored wing curves, turn back toward
-// each other and come close again, over and over. Joining: on its last inward sweep each pair
-// carries on toward the nearest part of a small central ring; the ring starts turning as the
-// first pair arrives and the others slip into it as it turns. Campfire: the whole ring keeps
+// compact performance area, around a shared dance centre. Partner dance: the two partners always
+// move opposite each other around their shared centre: they come close and pass each other on
+// opposite sides of it, swing out wide away from each other, and curve back in to pass again,
+// over and over. Joining: on the last phrase the pair slows as it comes together lined up along
+// the ring and carries on into the nearest part of a small central ring; the ring starts turning
+// as the first pair arrives and the others slip into it as it turns. Campfire: the whole ring keeps
 // turning while it draws in together and opens out again, a little wider each time, turns on at
 // its widest and flows into the line.
 public class CheeringSocialDance : SwarmRoutine
@@ -17,29 +18,29 @@ public class CheeringSocialDance : SwarmRoutine
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----
-    const int ButterflyPhrases = 3;        // the last one's inward sweep becomes the way to the ring
-    static readonly float[] CampfireIn = { 55f, 60f, 66f };    // radius drawn in to, per campfire phrase
-    static readonly float[] CampfireOut = { 88f, 100f, 112f }; // radius opened out to (widest: 60% of the dance area)
+    const int ButterflyPhrases = 3;        // the last one's coming together becomes the way to the ring
+    static readonly float[] CampfireIn = { 52f, 55f, 58f };    // radius drawn in to, per campfire phrase
+    static readonly float[] CampfireOut = { 68f, 76f, 84f };   // radius opened out to (compact; under 60% of the dance area)
 
-    // ---- Butterfly ----
-    const float ArriveSecs = 3f;           // from the line to the dance centres, arriving in the first sweep
-    const float PhraseSecs = 2.6f;         // one butterfly phrase
+    // ---- Partner dance ----
+    const float ArriveSecs = 4.5f;         // from the line to the dance centres, gliding, arriving as they pass
+    const float PhraseSecs = 3f;           // one phrase: pass, swing out, curve back (half a turn round each other)
     const float JoinStagger = 0.5f;        // each pair dances this far behind the one before, so pairs join in turn
-    // Corner dance centres, in the order pairs use them (2-3 robots use the first one or two)
-    static readonly Vector2[] Corners = { new Vector2(-1, -1), new Vector2(1, 1), new Vector2(1, -1), new Vector2(-1, 1) };
-    const float CornerOffset = 68f;        // dance centre from the mat centre, along x and along y:
+    // Partners are neighbours in the line, pairs numbered left to right. Each pair takes the
+    // corner that, together with the others, makes the shortest walk in from where the robots are
+    // (so nobody crosses anybody on the way).
+    static readonly Vector2[] AllCorners = { new Vector2(-1, -1), new Vector2(1, -1), new Vector2(1, 1), new Vector2(-1, 1) };
+    const float CornerOffset = 54f;        // dance centre from the mat centre, along x and along y:
                                            // the corners of the compact central area, not of the mat
-    const float PassGap = 44f;             // partners' distance as they pass the centre
-    const float WingOpen = 10f;            // each partner sweeps this much further out to the side...
-    const float WingReach = 24f;           // ...and this far along the diagonal and back
-                                           // (partners stay nearer each other than to the next pair)
+    const float PassGap = 44f;             // partners' distance as they pass each other
+    const float SwingGap = 64f;            // partners' distance at the widest part of the swing
 
     // ---- Ring ----
     const float JoinSecs = 3f;             // last inward sweep -> place in the turning ring
-    const float JoinRadius = 70f;
+    const float JoinRadius = 60f;
     const float InSecs = 1.6f, OutSecs = 1.8f, WideSecs = 2f;  // one campfire phrase
     const float FinalSecs = 1f;            // turning at the final size before the line
-    const float RingSpeed = 22f;           // mat units per second along the ring, whatever its size
+    const float RingSpeed = 16f;           // mat units per second along the ring, whatever its size
 
     public override IEnumerator Run(RoutineContext ctx) { return Show.Run(ctx, start => new Plan(start)); }
 
@@ -49,6 +50,8 @@ public class CheeringSocialDance : SwarmRoutine
         readonly Vector2[] start, spot;
         readonly int[] pair, side;   // side +1/-1 for partners, 0 for a robot dancing alone
         readonly float[] place;      // radians around the ring
+        Vector2[] corner;            // each pair's corner
+        readonly Vector2[] meet;     // where each robot first meets its partner
         readonly float exitFrom;
         readonly Show.Eased radius;
         readonly Show.Integrated turned;
@@ -59,6 +62,7 @@ public class CheeringSocialDance : SwarmRoutine
             this.start = start;
             n = start.Length;
             int pairs = (n + 1) / 2;
+            corner = new Vector2[pairs];
 
             // Campfire: draw in, open out, turn wide; repeat a little wider; then the line
             float allJoined = JoinFrom(pairs - 1) + JoinSecs;
@@ -77,17 +81,22 @@ public class CheeringSocialDance : SwarmRoutine
             turned = new Show.Integrated(s => Shapes.Ease((s - firstJoin) / JoinSecs) * RingSpeed / radius.At(s)
                                              * (1f - Shapes.Ease((s - exitFrom) / Show.ReturnSecs)), Total + 1f);
 
-            // Partners and corners: the dance places with the least total travel from the line
-            var slotPair = new int[n]; var slotSide = new int[n];
-            for (int s = 0; s < n; s++)
+            // Partners: neighbours in the line, left to right; within a pair, whichever way round
+            // is the shorter walk. With an odd number the rightmost robot dances alone.
+            // (the messenger counts at its own spot in the line, not where it stands to talk)
+            var inLine = Show.KeepLineSpots(start);
+            var byX = Enumerable.Range(0, n).OrderBy(i => inLine[i].x).ToArray();
+            pair = new int[n]; side = new int[n]; meet = new Vector2[n];
+            float best = float.MaxValue;
+            foreach (var choice in Arrangements(pairs))
             {
-                slotPair[s] = s / 2;
-                slotSide[s] = (n % 2 == 1 && s == n - 1) ? 0 : (s % 2 == 0 ? 1 : -1);
+                corner = choice.Select(c => AllCorners[c]).ToArray();
+                float cost = 0f;
+                for (int k = 0; k < pairs; k++) { cost += PlacePair(k, byX, false); }
+                if (cost < best) { best = cost; bestCorners = (Vector2[])corner.Clone(); }
             }
-            var meet = Enumerable.Range(0, n).Select(s => Wing(slotPair[s], slotSide[s], Arrive(slotPair[s]))).ToArray();
-            var slot = Swarm.LeastTravel(start, meet);
-            pair = new int[n]; side = new int[n];
-            for (int i = 0; i < n; i++) { pair[i] = slotPair[slot[i]]; side[i] = slotSide[slot[i]]; }
+            corner = bestCorners;
+            for (int k = 0; k < pairs; k++) { PlacePair(k, byX, true); }
 
             // Ring places: evenly spaced, each robot in the turning ring's place nearest to where
             // its last inward sweep brings it
@@ -109,30 +118,85 @@ public class CheeringSocialDance : SwarmRoutine
             spot = Show.LineSpots(leaving);
         }
 
-        static float Arrive(int p) { return ArriveSecs + p * JoinStagger; }
-        // When pair p's last inward sweep starts: partners at their widest, after the full phrases
-        static float JoinFrom(int p) { return Arrive(p) + PhraseSecs * (ButterflyPhrases - 0.5f); }
+        Vector2[] bestCorners;
 
-        // A partner's place in its pair's butterfly. Partners mirror each other across the line
-        // from the corner to the mat centre: passing the dance centre side by side, out along a
-        // wing toward the corner and apart, round and back toward the mat centre and each other.
-        // The last inward sweep slows to a finish as the pair heads into the ring.
-        static Vector2 Wing(int p, int s, float t)
+        // Every way of giving the pairs different corners
+        static System.Collections.Generic.IEnumerable<int[]> Arrangements(int pairs)
+        {
+            foreach (var p in Permutations(new[] { 0, 1, 2, 3 })) { yield return p.Take(pairs).ToArray(); }
+        }
+
+        static System.Collections.Generic.IEnumerable<int[]> Permutations(int[] items)
+        {
+            if (items.Length <= 1) { yield return items; yield break; }
+            for (int i = 0; i < items.Length; i++)
+            {
+                var rest = items.Where((_, j) => j != i).ToArray();
+                foreach (var tail in Permutations(rest)) { yield return new[] { items[i] }.Concat(tail).ToArray(); }
+            }
+        }
+
+        // Pair k (robots byX[2k], byX[2k+1]) at its corner, whichever way round is the shorter walk;
+        // returns that walk (squared). With an odd number the last robot dances alone.
+        float PlacePair(int k, int[] byX, bool keep)
+        {
+            int a = byX[2 * k];
+            if (2 * k + 1 >= n)
+            {
+                Vector2 alone = Wing(k, 0, ArriveSecs);
+                if (keep) { pair[a] = k; side[a] = 0; meet[a] = alone; }
+                return (start[a] - alone).sqrMagnitude;
+            }
+            int b = byX[2 * k + 1];
+            Vector2 plus = Wing(k, 1, ArriveSecs), minus = Wing(k, -1, ArriveSecs);
+            float straight = (start[a] - plus).sqrMagnitude + (start[b] - minus).sqrMagnitude;
+            float swapped = (start[a] - minus).sqrMagnitude + (start[b] - plus).sqrMagnitude;
+            if (keep)
+            {
+                pair[a] = pair[b] = k;
+                side[a] = straight <= swapped ? 1 : -1; side[b] = -side[a];
+                meet[a] = side[a] > 0 ? plus : minus; meet[b] = side[a] > 0 ? minus : plus;
+            }
+            return Mathf.Min(straight, swapped);
+        }
+
+        // The partner dance's clock: still for most of the walk in, then easing up to full pace
+        // over the last part of the walk and the first second after arriving
+        const float RampFrom = ArriveSecs * 0.75f, RampTo = ArriveSecs + 1f;
+        static float Clock(float t)
+        {
+            return (RampTo - RampFrom) * Shapes.EaseIntegral((t - RampFrom) / (RampTo - RampFrom));
+        }
+        // Phrases' worth of time pair p has danced at t (each pair a little behind the one before)
+        static float Danced(int p, float t) { return Clock(t) - Clock(ArriveSecs) - p * JoinStagger; }
+        // When pair p's last phrase starts slowing: partners at their widest, after the full phrases
+        static float JoinFrom(int p)
+        {
+            return PhraseSecs * (ButterflyPhrases - 0.5f) + p * JoinStagger + Clock(ArriveSecs) + RampTo - (RampTo - RampFrom) / 2f;
+        }
+
+        // A partner's place in its pair's dance: the two partners on opposite sides of their
+        // shared centre, going round it together (so always moving opposite each other), coming
+        // close to pass and swinging out wide in turn. The last phrase slows to a finish with the
+        // pair lined up along the ring, ready to step into it.
+        Vector2 Wing(int p, int s, float t)
         {
             float end = JoinFrom(p);
-            float done = Mathf.Min(t, end) - Arrive(p);
+            // Pairs are offset in their rhythm (not in when they arrive), so they join the ring in turn
+            float done = Danced(p, Mathf.Min(t, end));
             if (t > end)
             {
                 float u = Mathf.Min(1f, (t - end) / PhraseSecs);
                 done += PhraseSecs * (u - Shapes.EaseIntegral(u));   // speed eases from full to zero
             }
-            float a = 2f * Mathf.PI * done / PhraseSecs;
-            Vector2 toCorner = Corners[p].normalized;
-            Vector2 across = new Vector2(-toCorner.y, toCorner.x);
-            float apart = Mathf.Sin(a / 2f);
-            return Shapes.Centre + Corners[p] * CornerOffset
-                 + toCorner * WingReach * Mathf.Sin(a)
-                 + across * s * (PassGap / 2f + WingOpen * apart * apart);
+            float phrases = done / PhraseSecs;                       // half a turn per phrase
+            // Lined up along the ring (tangent at this corner) when the last phrase ends
+            float cornerAngle = Mathf.Atan2(corner[p].y, corner[p].x);
+            float a = cornerAngle + Mathf.PI / 2f + Mathf.PI * (phrases - ButterflyPhrases);
+            float swing = Mathf.Sin(Mathf.PI * phrases);
+            float r = (PassGap + (SwingGap - PassGap) * swing * swing) / 2f;
+            float sideSign = s == 0 ? 1f : s;
+            return Shapes.Centre + corner[p] * CornerOffset + sideSign * r * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
         }
 
         Vector2 Ring(int i, float t) { return Show.OnRing(place[i] + turned.At(t), radius.At(t)); }
@@ -141,7 +205,9 @@ public class CheeringSocialDance : SwarmRoutine
         {
             t = Mathf.Clamp(t, 0f, Total);
             int p = pair[i];
-            Vector2 q = Vector2.Lerp(start[i], Wing(p, side[i], t), Shapes.Ease(t / Arrive(p)));
+            // Walk in to the meeting place; the dance round each other starts on the way
+            float e = Shapes.Ease(t / ArriveSecs);
+            Vector2 q = Vector2.Lerp(start[i], meet[i], e) + e * (Wing(p, side[i], t) - meet[i]);
             q = Vector2.Lerp(q, Ring(i, t), Shapes.Ease((t - JoinFrom(p)) / JoinSecs));
             return Show.Return(q, spot[i], t, exitFrom);
         }

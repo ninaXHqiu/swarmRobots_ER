@@ -289,7 +289,7 @@ public static class Swarm
     }
 
     const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
-    const float FlowTurnSecs = 0.25f; // how quickly robots turn to the wanted direction
+    const float FlowTurnSecs = 0.45f; // how quickly robots turn to the wanted direction (gentle, no twitching)
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
     const float FlowTurnSpeed = 40f;  // mat units per second: below this, robots turn more gently,
                                       // so a robot about to reverse (a beat, a loop) doesn't spin

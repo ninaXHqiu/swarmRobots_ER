@@ -10,7 +10,7 @@ using UnityEngine;
 // peel out of the turning ring into the line.
 public class ResonanceVibration : SwarmRoutine
 {
-    public override string Name { get { return "v2 Resonance: vibration"; } }
+    public override string Name { get { return "v2 - bad Resonance: vibration"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

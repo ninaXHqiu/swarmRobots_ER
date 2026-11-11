@@ -12,7 +12,7 @@ using UnityEngine;
 // broad wave travelling through the row; during the last one it flattens into the line.
 public class ResonanceHeartbeat : SwarmRoutine
 {
-    public override string Name { get { return "v2 Resonance: heartbeat"; } }
+    public override string Name { get { return "v2 - bad Resonance: heartbeat"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

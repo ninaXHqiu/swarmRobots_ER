@@ -14,7 +14,7 @@ using UnityEngine;
 // its widest and flows into the line.
 public class CheeringSocialDance : SwarmRoutine
 {
-    public override string Name { get { return "v2 Cheering: social dance"; } }
+    public override string Name { get { return "v2 - bad Cheering: social dance"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

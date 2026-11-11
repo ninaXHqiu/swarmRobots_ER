@@ -12,7 +12,7 @@ public class LineUp : SwarmRoutine
 
     // Wider than the shared line (Swarm.LineSpacing, 35): at 48 apart the robots are outside the
     // range where the helpers push neighbours apart, so the line ends up straight and evenly spaced
-    public const float Spacing = 48f;
+    const float Spacing = 48f;
     const float LineY = Swarm.Centre;   // across the middle of the mat
     const float GlideUnitsPerSec = 70f; // calm pace: the longest trip sets how long the glide takes
     const int GlideMaxSpeed = 90;

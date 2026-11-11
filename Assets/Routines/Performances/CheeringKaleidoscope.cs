@@ -21,7 +21,7 @@ using UnityEngine;
 // line. Robots keep their order within each half.
 public class CheeringKaleidoscope : SwarmRoutine
 {
-    public override string Name { get { return "v2 Cheering: kaleidoscope"; } }
+    public override string Name { get { return "v2 - bad Cheering: kaleidoscope"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

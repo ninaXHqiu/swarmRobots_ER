@@ -37,31 +37,13 @@ public class Messenger : SwarmRoutine
     public override IEnumerator Run(RoutineContext ctx)
     {
         int n = ctx.Count;
-        yield return Introduction(ctx);
-
-        // 6. Everyone glides smoothly into a circle (spots chosen so nobody's path crosses)...
-        var slotAngle = CircleSlots(ctx);
-        var targets = new Vector2Int[n];
-        for (int i = 0; i < n; i++) { targets[i] = Vector2Int.RoundToInt(Shapes.OnCircle(slotAngle[i], Radius)); }
-        yield return Swarm.GlideTo(ctx, targets, unitsPerSec: GatherUnitsPerSec, maxSpeed: GatherMaxSpeed);
-
-        // 7. ...and the circle turns, easing in and out so it starts and stops gently
-        yield return Swarm.Follow(ctx, (i, t) => Shapes.OnCircle(slotAngle[i] + Turned(t), Radius), (int)(CircleSecs * 1000), maxSpeed: 90);
-    }
-
-    // Steps 1-5: line up, the messenger visits the participant, comes back and tells the group,
-    // which listens from the line. Also the introduction of the Resonance and Cheering routines.
-    public static IEnumerator Introduction(RoutineContext ctx)
-    {
-        int n = ctx.Count;
 
         // 1. Everyone in line, facing the participant
         yield return LineUp.Play(ctx);
         yield return Swarm.Wait(1000);
 
-        // 2. The messenger: always the same robot (the first connected); it moves on its own
-        //    while the rest wait
-        var messenger = Only(ctx, MessengerRobot % n);
+        // 2. Pick the messenger at random; it moves on its own while the rest wait
+        var messenger = Only(ctx, UnityEngine.Random.Range(0, n));
 
         // 3. Step straight out of the line toward the participant (so it never brushes a
         //    neighbour), then go to the participant and look at them
@@ -76,7 +58,7 @@ public class Messenger : SwarmRoutine
         // 4. Turn slowly around and go back to just in front of the group, facing it
         double facingGroup = Swarm.FacingParticipant + 180;
         yield return Swarm.TurnTo(messenger, facingGroup, timeoutMs: 5000, rotateTimeMs: TurnMs);
-        var talkSpot = Vector2Int.RoundToInt(TalkSpot);
+        var talkSpot = Vector2Int.RoundToInt(Shapes.Centre - Swarm.Inward * TalkGap);
         yield return Swarm.GlideTo(messenger, new[] { talkSpot }, unitsPerSec: WalkUnitsPerSec, maxSpeed: WalkMaxSpeed);
         yield return Swarm.TurnTo(messenger, facingGroup, timeoutMs: 3000, rotateTimeMs: 800);
 
@@ -87,13 +69,16 @@ public class Messenger : SwarmRoutine
             yield return Swarm.Wheels(messenger, -ShakeSpeed, ShakeSpeed, ShakeMs);
         }
         yield return Swarm.Wait(AfterTalkMs);
+
+        // 6. Everyone glides smoothly into a circle (spots chosen so nobody's path crosses)...
+        var slotAngle = CircleSlots(ctx);
+        var targets = new Vector2Int[n];
+        for (int i = 0; i < n; i++) { targets[i] = Vector2Int.RoundToInt(Shapes.OnCircle(slotAngle[i], Radius)); }
+        yield return Swarm.GlideTo(ctx, targets, unitsPerSec: GatherUnitsPerSec, maxSpeed: GatherMaxSpeed);
+
+        // 7. ...and the circle turns, easing in and out so it starts and stops gently
+        yield return Swarm.Follow(ctx, (i, t) => Shapes.OnCircle(slotAngle[i] + Turned(t), Radius), (int)(CircleSecs * 1000), maxSpeed: 90);
     }
-
-    // Which robot is the messenger, in every routine that uses this introduction
-    public const int MessengerRobot = 0;
-
-    // Where the messenger stands to talk to the group
-    public static Vector2 TalkSpot { get { return Shapes.Centre - Swarm.Inward * TalkGap; } }
 
     // A context holding just robot i, so the shared helpers move it alone
     static RoutineContext Only(RoutineContext ctx, int i)

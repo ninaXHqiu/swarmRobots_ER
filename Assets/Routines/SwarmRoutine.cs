@@ -235,10 +235,7 @@ public static class Swarm
     // carries through smoothly, and it drives in reverse when the path turns back, instead of
     // spinning on the spot at every reversal. Paths should start where the robots are and end
     // at rest; robots stop when the step ends.
-    // axisDeg (optional): for paths that move along one line only, such as a row beating up and
-    // down. While a robot's path runs along that line it keeps its heading on it and only drives
-    // forward and back, so quick reversals can't twist it.
-    public static IEnumerator Flow(RoutineContext ctx, System.Func<int, float, Vector2> path, float seconds, int maxSpeed = 100, float axisDeg = float.NaN)
+    public static IEnumerator Flow(RoutineContext ctx, System.Func<int, float, Vector2> path, float seconds, int maxSpeed = 100)
     {
         var reverse = new bool[ctx.Count];
         float start = Time.time;
@@ -247,52 +244,16 @@ public static class Swarm
             if (ctx.CubeManager.synced)
             {
                 float t = Time.time - start;
-                for (int i = 0; i < ctx.Count; i++)
-                {
-                    if (!float.IsNaN(axisDeg) && OnAxis(path, i, t, axisDeg)) { SteerOnAxis(ctx, i, path, t, maxSpeed, axisDeg); }
-                    else { Steer(ctx, i, path, t, maxSpeed, ref reverse[i]); }
-                }
+                for (int i = 0; i < ctx.Count; i++) { Steer(ctx, i, path, t, maxSpeed, ref reverse[i]); }
             }
             yield return null;
         }
         StopAll(ctx);
     }
 
-    // Whether robot i's path, around time t, moves (if at all) only along the axis
-    static bool OnAxis(System.Func<int, float, Vector2> path, int i, float t, float axisDeg)
-    {
-        float a = axisDeg * Mathf.Deg2Rad;
-        var across = new Vector2(-Mathf.Sin(a), Mathf.Cos(a));
-        float at = t + (float)CubeHandle.lag;
-        return Mathf.Abs(Vector2.Dot(path(i, at + 0.3f) - path(i, Mathf.Max(0f, at - 0.3f)), across)) < 3f;
-    }
-
-    static void SteerOnAxis(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, float axisDeg)
-    {
-        var handle = ctx.Navigators[i].handle;
-        float at = t + (float)CubeHandle.lag;
-        const float h = 0.05f;
-        Vector2 target = path(i, at);
-        Vector2 pathVelocity = (path(i, at + h) - path(i, Mathf.Max(0f, at - h))) / (at + h - Mathf.Max(0f, at - h));
-        Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
-        Vector2 want = pathVelocity + FlowGain * (target - here);
-        // Face along the axis, whichever way round is nearer, and drive along it
-        float facingDeg = (float)handle.radPred * Mathf.Rad2Deg;
-        float alongDeg = Mathf.Abs(Mathf.DeltaAngle(facingDeg, axisDeg)) <= 90f ? axisDeg : axisDeg + 180f;
-        float a = alongDeg * Mathf.Deg2Rad;
-        float drive = Vector2.Dot(want, new Vector2(Mathf.Cos(a), Mathf.Sin(a)));
-        float limit = maxSpeed * (float)CubeHandle.VDotOverU;
-        drive = Mathf.Clamp(drive, -limit, limit);
-        float turnDeg = Mathf.DeltaAngle(facingDeg, alongDeg);
-        double rotate = turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
-        handle.Move(drive / CubeHandle.VDotOverU, rotate, 200, false);
-    }
-
     const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
-    const float FlowTurnSecs = 0.45f; // how quickly robots turn to the wanted direction (gentle, no twitching)
+    const float FlowTurnSecs = 0.25f; // how quickly robots turn to the wanted direction
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
-    const float FlowTurnSpeed = 40f;  // mat units per second: below this, robots turn more gently,
-                                      // so a robot about to reverse (a beat, a loop) doesn't spin
 
     static void Steer(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, ref bool reverse)
     {
@@ -320,18 +281,7 @@ public static class Swarm
         }
         float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
         double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
-        // When the path is nearly still its direction means little: hold the heading instead of
-        // swinging round to it
-        float turnWeight = Mathf.Clamp01(want.magnitude / FlowTurnSpeed);
-        // On a curve, turn with it as it comes instead of only correcting after drifting off it
-        // (keeps fast rings from swelling)
-        Vector2 aheadVelocity = (path(i, at + 2f * h) - path(i, at)) / (2f * h);
-        float pathTurn = 0f;
-        if (pathVelocity.magnitude > FlowTurnSpeed && aheadVelocity.magnitude > FlowTurnSpeed)
-        {
-            pathTurn = Mathf.DeltaAngle(Mathf.Atan2(pathVelocity.y, pathVelocity.x) * Mathf.Rad2Deg, Mathf.Atan2(aheadVelocity.y, aheadVelocity.x) * Mathf.Rad2Deg) * Mathf.Deg2Rad / h;
-        }
-        double rotate = (turnWeight * turnDeg * Mathf.Deg2Rad / FlowTurnSecs + pathTurn) * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        double rotate = turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
         handle.Move(translate, rotate, 200, false);
     }
 

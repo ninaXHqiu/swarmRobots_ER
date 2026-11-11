@@ -33,7 +33,7 @@ public static class PerformanceCheck
                     var start = new Vector2[n];
                     var line = LineUp.Spots(n);
                     for (int i = 0; i < n; i++) { start[i] = line[i]; }
-                    start[m] = Messenger.TalkSpot;
+                    start[m] = Show.TalkSpot;
                     var plan = make(start);
                     int steps = Mathf.RoundToInt(plan.Total / Dt);
                     var prev = new Vector2[n]; var prev2 = new Vector2[n];

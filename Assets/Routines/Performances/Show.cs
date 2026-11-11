@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Linq;
 using UnityEngine;
+using toio;
 
 // Shared frame of the performance routines (Resonance and Cheering): the Messenger's full
 // introduction, then a performance planned as one continuous path per robot, then the return to
@@ -32,7 +33,7 @@ public static class Show
 
     public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60, float axisDeg = float.NaN)
     {
-        yield return Messenger.Introduction(ctx);
+        yield return Introduction(ctx);
         StartedAt = Time.time;
         int n = ctx.Count;
         var start = new Vector2[n];
@@ -41,8 +42,65 @@ public static class Show
         // The path ends at rest on the line spots; keep following it a moment longer so every
         // robot settles onto its spot with the same steering (no separate correction that would
         // turn robots sideways), then face the participant, as LineUp does
-        yield return Swarm.Flow(ctx, plan.Position, plan.Total + HoldSecs, maxSpeed, axisDeg);
+        yield return Flow(ctx, plan.Position, plan.Total + HoldSecs, maxSpeed, axisDeg);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
+    }
+
+    // ---- The introduction: Messenger's steps 1-5 (line up, visit the participant, come back and
+    // tell the group), copied unchanged from Messenger.cs with its constants, except that the
+    // messenger is always the robot in the middle of the line instead of a random one ----
+    const int VisitDistance = 70, LookMs = 3000, TurnMs = 1800, WalkMaxSpeed = 70;
+    const float WalkUnitsPerSec = 60f, StepOut = 50f, TalkGap = 55f;
+    const int Shakes = 3, ShakeSpeed = 25, ShakeMs = 150, AfterTalkMs = 800;
+
+    // Where the messenger stands to talk to the group
+    public static Vector2 TalkSpot { get { return Shapes.Centre - Swarm.Inward * TalkGap; } }
+
+    static IEnumerator Introduction(RoutineContext ctx)
+    {
+        int n = ctx.Count;
+        yield return LineUp.Play(ctx);
+        yield return Swarm.Wait(1000);
+
+        // The robot in the middle of the line (left of middle with an even number)
+        int middle = 0;
+        for (int i = 1; i < n; i++)
+        {
+            float d = ctx.Cubes[i].x - Swarm.Centre, best = ctx.Cubes[middle].x - Swarm.Centre;
+            if (Mathf.Abs(d) < Mathf.Abs(best) - 1f || (Mathf.Abs(Mathf.Abs(d) - Mathf.Abs(best)) <= 1f && d < best)) { middle = i; }
+        }
+        var messenger = Only(ctx, middle);
+
+        var here = new Vector2(messenger.Cubes[0].x, messenger.Cubes[0].y);
+        var stepOut = Vector2Int.RoundToInt(here - Swarm.Inward * StepOut);
+        yield return Swarm.GlideTo(messenger, new[] { stepOut }, unitsPerSec: WalkUnitsPerSec, maxSpeed: WalkMaxSpeed);
+        var visit = Vector2Int.RoundToInt(Swarm.InFrontOfParticipant(VisitDistance));
+        yield return Swarm.GlideTo(messenger, new[] { visit }, unitsPerSec: WalkUnitsPerSec, maxSpeed: WalkMaxSpeed);
+        yield return Swarm.TurnTo(messenger, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: TurnMs);
+        yield return Swarm.Wait(LookMs);
+
+        double facingGroup = Swarm.FacingParticipant + 180;
+        yield return Swarm.TurnTo(messenger, facingGroup, timeoutMs: 5000, rotateTimeMs: TurnMs);
+        var talkSpot = Vector2Int.RoundToInt(TalkSpot);
+        yield return Swarm.GlideTo(messenger, new[] { talkSpot }, unitsPerSec: WalkUnitsPerSec, maxSpeed: WalkMaxSpeed);
+        yield return Swarm.TurnTo(messenger, facingGroup, timeoutMs: 3000, rotateTimeMs: 800);
+
+        for (int k = 0; k < Shakes; k++)
+        {
+            yield return Swarm.Wheels(messenger, ShakeSpeed, -ShakeSpeed, ShakeMs);
+            yield return Swarm.Wheels(messenger, -ShakeSpeed, ShakeSpeed, ShakeMs);
+        }
+        yield return Swarm.Wait(AfterTalkMs);
+    }
+
+    // A context holding just robot i, so the shared helpers move it alone
+    static RoutineContext Only(RoutineContext ctx, int i)
+    {
+        var one = new RoutineContext();
+        one.Cubes = new[] { ctx.Cubes[i] };
+        one.Navigators = new[] { ctx.Navigators[i] };
+        one.CubeManager = ctx.CubeManager;
+        return one;
     }
 
     // Robots at `from` the least total travel away from LineUp's spots: which spot each takes
@@ -178,6 +236,127 @@ public static class Show
             if (t > time[last]) { sum += value[last] * (t - time[last]); }
             return sum;
         }
+    }
+
+    // ---- Steering for the performances: follow each robot's planned path. Started from
+    // Swarm.Flow and kept here so the routines that use Swarm.Flow are not changed: it also turns
+    // with a curve as it comes, turns gently when the path is nearly still, and can hold robots on
+    // one line (axisDeg) so straight up-and-down motion never twists them. ----
+    static IEnumerator Flow(RoutineContext ctx, System.Func<int, float, Vector2> path, float seconds, int maxSpeed = 100, float axisDeg = float.NaN)
+    {
+        var reverse = new bool[ctx.Count];
+        float start = Time.time;
+        while (Time.time - start < seconds)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                float t = Time.time - start;
+                for (int i = 0; i < ctx.Count; i++)
+                {
+                    if (!float.IsNaN(axisDeg) && OnAxis(path, i, t, axisDeg)) { SteerOnAxis(ctx, i, path, t, maxSpeed, axisDeg); }
+                    else { Steer(ctx, i, path, t, maxSpeed, ref reverse[i]); }
+                }
+            }
+            yield return null;
+        }
+        Swarm.StopAll(ctx);
+    }
+
+    // Whether robot i's path, around time t, moves (if at all) only along the axis
+    static bool OnAxis(System.Func<int, float, Vector2> path, int i, float t, float axisDeg)
+    {
+        float a = axisDeg * Mathf.Deg2Rad;
+        var across = new Vector2(-Mathf.Sin(a), Mathf.Cos(a));
+        float at = t + (float)CubeHandle.lag;
+        return Mathf.Abs(Vector2.Dot(path(i, at + 0.3f) - path(i, Mathf.Max(0f, at - 0.3f)), across)) < 3f;
+    }
+
+    static void SteerOnAxis(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, float axisDeg)
+    {
+        var handle = ctx.Navigators[i].handle;
+        float at = t + (float)CubeHandle.lag;
+        const float h = 0.05f;
+        Vector2 target = path(i, at);
+        Vector2 pathVelocity = (path(i, at + h) - path(i, Mathf.Max(0f, at - h))) / (at + h - Mathf.Max(0f, at - h));
+        Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
+        Vector2 want = pathVelocity + FlowGain * (target - here);
+        // Face along the axis, whichever way round is nearer, and drive along it
+        float facingDeg = (float)handle.radPred * Mathf.Rad2Deg;
+        float alongDeg = Mathf.Abs(Mathf.DeltaAngle(facingDeg, axisDeg)) <= 90f ? axisDeg : axisDeg + 180f;
+        float a = alongDeg * Mathf.Deg2Rad;
+        float drive = Vector2.Dot(want, new Vector2(Mathf.Cos(a), Mathf.Sin(a)));
+        float limit = maxSpeed * (float)CubeHandle.VDotOverU;
+        drive = Mathf.Clamp(drive, -limit, limit);
+        float turnDeg = Mathf.DeltaAngle(facingDeg, alongDeg);
+        double rotate = turnDeg * Mathf.Deg2Rad / FlowTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        handle.Move(drive / CubeHandle.VDotOverU, rotate, 200, false);
+    }
+
+    const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
+    const float FlowTurnSecs = 0.45f; // how quickly robots turn to the wanted direction (gentle, no twitching)
+    const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
+    const float FlowTurnSpeed = 40f;  // mat units per second: below this, robots turn more gently,
+                                      // so a robot about to reverse (a beat, a loop) doesn't spin
+
+    static void Steer(RoutineContext ctx, int i, System.Func<int, float, Vector2> path, float t, int maxSpeed, ref bool reverse)
+    {
+        var handle = ctx.Navigators[i].handle;
+        // Commands take effect after the cube's lag, so aim at where the path will be then,
+        // from where the robot will be then
+        float at = t + (float)CubeHandle.lag;
+        const float h = 0.05f;
+        Vector2 target = path(i, at) + SafetyPush(ctx, i);
+        Vector2 pathVelocity = (path(i, at + h) - path(i, Mathf.Max(0f, at - h))) / (at + h - Mathf.Max(0f, at - h));
+        Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
+        Vector2 want = pathVelocity + FlowGain * (target - here); // mat units per second
+
+        float limit = maxSpeed * (float)CubeHandle.VDotOverU;
+        if (want.magnitude > limit) { want = want.normalized * limit; }
+        if (want.magnitude < 2f) { handle.Move(0, 0, 100, false); return; }
+
+        float wantDeg = Mathf.Atan2(want.y, want.x) * Mathf.Rad2Deg;
+        float facingDeg = (float)handle.radPred * Mathf.Rad2Deg + (reverse ? 180f : 0f);
+        float turnDeg = Mathf.DeltaAngle(facingDeg, wantDeg);
+        if (Mathf.Abs(turnDeg) > FlowFlipDeg)
+        {
+            reverse = !reverse;
+            turnDeg = Mathf.DeltaAngle(facingDeg + 180f, wantDeg);
+        }
+        float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
+        double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
+        // When the path is nearly still its direction means little: hold the heading instead of
+        // swinging round to it
+        float turnWeight = Mathf.Clamp01(want.magnitude / FlowTurnSpeed);
+        // On a curve, turn with it as it comes instead of only correcting after drifting off it
+        // (keeps fast rings from swelling)
+        Vector2 aheadVelocity = (path(i, at + 2f * h) - path(i, at)) / (2f * h);
+        float pathTurn = 0f;
+        if (pathVelocity.magnitude > FlowTurnSpeed && aheadVelocity.magnitude > FlowTurnSpeed)
+        {
+            pathTurn = Mathf.DeltaAngle(Mathf.Atan2(pathVelocity.y, pathVelocity.x) * Mathf.Rad2Deg, Mathf.Atan2(aheadVelocity.y, aheadVelocity.x) * Mathf.Rad2Deg) * Mathf.Deg2Rad / h;
+        }
+        double rotate = (turnWeight * turnDeg * Mathf.Deg2Rad / FlowTurnSecs + pathTurn) * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        handle.Move(translate, rotate, 200, false);
+    }
+
+    // Safety net for Flow: planned paths keep robots at least Swarm.MinSpacing apart, so this only acts
+    // if a robot falls behind and another comes closer than that. It grows gently from zero.
+    const float SafetyStrength = 3f;
+    static Vector2 SafetyPush(RoutineContext ctx, int i)
+    {
+        float reach = Swarm.MinSpacing - 3f;
+        Vector2 me = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
+        Vector2 push = Vector2.zero;
+        for (int j = 0; j < ctx.Count; j++)
+        {
+            if (j == i) { continue; }
+            Vector2 away = me - new Vector2(ctx.Cubes[j].x, ctx.Cubes[j].y);
+            float d = away.magnitude;
+            if (d >= reach) { continue; }
+            if (d < 0.01f) { away = new Vector2(i < j ? -1f : 1f, 0f); d = 0.01f; }
+            push += away / d * SafetyStrength * (reach - d) * (reach - d) / reach;
+        }
+        return push;
     }
 
     // A phrase counter that sets its own pace: phrases (cycles) run at a speed that depends on how

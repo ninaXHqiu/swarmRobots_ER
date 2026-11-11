@@ -12,7 +12,7 @@ using UnityEngine;
 //   Calm:    the ring turns on at a slow, steady pace (in longer versions it also breathes in
 //            and out slowly), then the robots peel out of the turning ring into the line.
 // Recovered: the ring forming from the line, the surge shape and the return to the line are the
-// ones from ResonanceVibration; the draw in - open - draw back phrase is the shared-radius
+// ones from ResonanceVibration (the return now takes every robot to its own slot); the draw in - open - draw back phrase is the shared-radius
 // phrase of the Social Dance campfire (commit 0349aea). New: surges during the radius phrase,
 // the calm breathing phrase and the timed versions.
 public abstract class V2VibrationBase : SwarmRoutine
@@ -41,12 +41,13 @@ public static class V2Vibration
 
     // ---- Radius: compact, drawn in, wide ----
     const float Compact = 72f, DrawnIn = 56f, Wide = 112f;
+    const float ExitRadius = 106f;         // the ring opens to this as it flattens into the line, so neighbours have room
     const int SurgesBeforePhrase = 4;      // surges at the compact size before each radius phrase
     const float InSecs = 2.4f, OutSecs = 3.6f, WideSecs = 2.4f, BackSecs = 3.6f;   // 8 surges long
     const float CalmInSecs = 3f, CalmOutSecs = 4.5f, CalmWideSecs = 3f, CalmBackSecs = 4.5f;
     const float CalmWide = 104f, CalmIn = 60f;
     const float CalmQuarterSecs = 7f;      // calm turn before each calm breathing phrase
-    const float CalmTurnSecs = 10f;        // the final calm turn before the line
+    const float CalmTurnSecs = 5f;         // the final calm turn before the line, at least
 
     const float BlockSecs = SurgesBeforePhrase * SurgeSecs + InSecs + OutSecs + WideSecs + BackSecs;
     const float CalmPhraseSecs = CalmQuarterSecs + CalmInSecs + CalmOutSecs + CalmWideSecs + CalmBackSecs;
@@ -68,7 +69,7 @@ public static class V2Vibration
     public static Plan For(Vector2[] start, float minutes)
     {
         int blocks = 1, settle = 5, calm = 0;
-        if (minutes <= 0f) { return new Plan(start, blocks, settle, calm, 0f); }
+        if (minutes <= 0f) { return Aligned(start, blocks, settle, calm, -1f); }
         float budget = V2Show.Budget(minutes);
         bool added = true;
         while (added)
@@ -79,7 +80,25 @@ public static class V2Vibration
             if (settle < 8 && blocks % 2 == 0 && Duration(blocks, settle + 1, calm) <= budget) { settle++; added = true; }
         }
         // What is left (less than one phrase) goes to the final calm turn
-        return new Plan(start, blocks, settle, calm, Mathf.Max(0f, budget - Duration(blocks, settle, calm)));
+        return Aligned(start, blocks, settle, calm, Mathf.Max(0f, budget - Duration(blocks, settle, calm)));
+    }
+
+    // The ring has to come round to one particular angle to open into the line with every robot
+    // on its own slot. The final calm turn is made as long as that takes (turning either way,
+    // whichever needs less), or, in a timed version, as near to the time left as a whole number
+    // of turns allows.
+    static Plan Aligned(Vector2[] start, int blocks, int settle, int calm, float leftover)
+    {
+        float turnSecs = 2f * Mathf.PI * Compact / CalmSpeed;
+        float bestSecs = 0f, bestDir = 1f, bestScore = float.MaxValue;
+        foreach (float dir in new[] { 1f, -1f })
+        {
+            float secs = new Plan(start, blocks, settle, calm, 0f, dir).NeedTurn / (2f * Mathf.PI) * turnSecs;
+            if (leftover >= 0f) { secs += turnSecs * Mathf.Max(0f, Mathf.Round((leftover - secs) / turnSecs)); }
+            float score = leftover >= 0f ? Mathf.Abs(leftover - secs) : secs;
+            if (score < bestScore) { bestScore = score; bestSecs = secs; bestDir = dir; }
+        }
+        return new Plan(start, blocks, settle, calm, bestSecs, bestDir);
     }
 
     public class Plan : V2Show.IPlan
@@ -87,14 +106,15 @@ public static class V2Vibration
         readonly Vector2[] start, spot;
         readonly float[] place, fromAngle, fromRadius, swing;
         readonly List<float> surgeStart = new List<float>(), surgeLength = new List<float>(), surgeStrength = new List<float>();
-        readonly float exitFrom;
+        readonly float exitFrom, dir;       // dir: which way the ring turns (+1 / -1)
+        public readonly float NeedTurn;     // how much further the ring must turn to open onto the robots' own slots
         readonly Show.Eased pace, radius;
         readonly Show.Integrated turned;
         public float Total { get; private set; }
 
-        public Plan(Vector2[] start, int blocks, int settle, int calmPhrases, float extraCalmSecs)
+        public Plan(Vector2[] start, int blocks, int settle, int calmPhrases, float extraCalmSecs, float dir)
         {
-            this.start = start;
+            this.start = start; this.dir = dir;
             int n = start.Length;
             var keys = new List<float> { 0f, Compact };
             float t = FormSecs;
@@ -130,13 +150,25 @@ public static class V2Vibration
             // One shared rotation: speed along the ring / the shared radius
             turned = new Show.Integrated(s => Speed(s) / radius.At(s), Total + 1f);
 
-            place = Show.RingPlaces(start, Compact, turned.At(FormSecs));
+            // Places round the ring in the order that opens back into each robot's own slot; the
+            // ring forms turned to wherever the robots have the least to travel
+            var order = V2Show.RingOrder(n);
+            int sense = 1; float formedAt = 0f, bestCost = float.MaxValue;
+            foreach (int s in new[] { 1, -1 })
+            {
+                float cost; float a = V2Show.BestAngle(order, s, Compact, start, out cost);
+                if (cost < bestCost) { bestCost = cost; sense = s; formedAt = a; }
+            }
+            float first = formedAt - dir * turned.At(FormSecs);
+            place = new float[n];
             var atEnd = new float[n];
-            for (int i = 0; i < n; i++) { atEnd[i] = place[i] + turned.At(FormSecs); }
+            for (int i = 0; i < n; i++) { place[i] = first + sense * 2f * Mathf.PI * order[i] / n; atEnd[i] = place[i] + dir * turned.At(FormSecs); }
             Show.SwingOnto(start, atEnd, out fromAngle, out fromRadius, out swing);
-            var leaving = new Vector2[n];
-            for (int i = 0; i < n; i++) { leaving[i] = Show.OnRing(place[i] + turned.At(exitFrom + Show.ReturnSecs / 2f), Compact); }
-            spot = Show.LineSpots(leaving);
+            // Every robot ends on its own slot: the ring has to be at this angle half way out
+            spot = V2Show.OwnSpots(n);
+            float unused; float opensAt = V2Show.BestAngle(order, sense, ExitRadius, spot, out unused);
+            NeedTurn = Mathf.Repeat(dir * (opensAt - (first + dir * turned.At(exitFrom + Show.ReturnSecs / 2f))), 2f * Mathf.PI);
+            if (NeedTurn > 2f * Mathf.PI - 0.02f) { NeedTurn = 0f; }
         }
 
         // Speed along the ring: the steady pace plus the current surge
@@ -166,8 +198,8 @@ public static class V2Vibration
             t = Mathf.Clamp(t, 0f, Total);
             // Forming: swing round the centre onto the ring, turning with it from the start
             float e = Shapes.Ease(t / FormSecs);
-            float angle = fromAngle[i] + e * (swing[i] + turned.At(t) - turned.At(FormSecs));
-            float r = Mathf.Lerp(fromRadius[i], radius.At(t), e);
+            float angle = fromAngle[i] + e * (swing[i] + dir * (turned.At(t) - turned.At(FormSecs)));
+            float r = Mathf.Lerp(fromRadius[i], radius.At(t), e) + (ExitRadius - Compact) * Shapes.Ease((t - exitFrom) / (Show.ReturnSecs * 0.6f));
             Vector2 p = Shapes.Centre + r * new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
             return Show.Return(p, spot[i], t, exitFrom);
         }

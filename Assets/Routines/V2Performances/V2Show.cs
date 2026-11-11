@@ -8,10 +8,10 @@ using toio;
 // Shared frame of the v2 performances (Vibration, Heartbeat, Kaleidoscope, Social Dance):
 //   1. the Messenger introduction (same steps, constants and pauses as Messenger.cs / Show.cs),
 //      with every physical robot always in the same line slot, so the same robot visits the
-//      participant in every routine and every replay;
+//      participant in every routine and every replay; robots go straight to their own slots;
 //   2. the performance, one continuous planned path per robot, starting from where the
 //      introduction actually leaves the robots;
-//   3. the robots end on LineUp's line and face the participant.
+//   3. the robots end on LineUp's line, each back on its own slot, and face the participant.
 // Every routine comes in a natural length and in 3 and 5 minute versions. Longer versions add
 // whole phrases at the same tempo; the introduction and ending are the same in all of them.
 public static class V2Show
@@ -69,10 +69,8 @@ public static class V2Show
     static IEnumerator Introduction(RoutineContext ctx)
     {
         int n = ctx.Count;
-        // 1. Everyone in line (the working line-up: shortest trips, nobody crosses), each robot
-        //    then in its own slot, facing the participant
-        yield return LineUp.Form(ctx);
-        yield return TakeOwnSlots(ctx);
+        // 1. Everyone straight to its own slot in the line, facing the participant
+        yield return ToOwnSlots(ctx);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
         yield return Swarm.Wait(1000);
 
@@ -107,19 +105,20 @@ public static class V2Show
     // Which line slot each physical robot owns, kept for as long as the app runs
     static readonly Dictionary<string, int> slotOf = new Dictionary<string, int>();
 
-    // After the line-up: put every robot in its own slot and number the robots by slot
-    // (ctx.Cubes[k] = the robot of slot k). Real robots own slots in the order of their
-    // Bluetooth addresses, the same in every session. Simulated robots have no lasting identity,
-    // so they keep the slots of their first line-up. Robots standing in the wrong slot (after a
-    // routine that ended in another order) swap without crossing: each steps out to its own row,
-    // slides along it to its own column, and steps back into the line.
-    static IEnumerator TakeOwnSlots(RoutineContext ctx)
+    // Every robot goes straight to its own slot in the line, and the robots are numbered by slot
+    // (ctx.Cubes[k] = the robot of slot k). Real robots own slots in the order of their Bluetooth
+    // addresses, the same in every session. Simulated robots have no lasting identity, so they
+    // keep the slots of their first line-up. Every v2 routine ends with each robot back on its
+    // own slot, so a replay starts in place. After a routine was stopped part way the robots
+    // may be anywhere: each then drives directly to its own slot along a planned path
+    // (WayToLine), all at once where their paths are clear of each other.
+    static IEnumerator ToOwnSlots(RoutineContext ctx)
     {
         int n = ctx.Count;
-        var line = LineUp.Spots(n).Select(s => (Vector2)s).ToArray();
+        var line = LineUp.Spots(n);
         var at = new Vector2[n];
         for (int i = 0; i < n; i++) { at[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
-        var standing = Swarm.LeastTravel(at, line);   // the slot each robot stands in now
+        var nearest = Swarm.LeastTravel(at, line.Select(s => (Vector2)s).ToArray());   // shortest trips: slot per robot
 
         var id = ctx.Cubes.Select(c => c.addr ?? c.id).ToArray();
         bool known = id.All(k => slotOf.ContainsKey(k)) && id.Select(k => slotOf[k]).OrderBy(s => s).SequenceEqual(Enumerable.Range(0, n));
@@ -128,36 +127,178 @@ public static class V2Show
             slotOf.Clear();
             bool simulated = ctx.Cubes.All(c => c is CubeUnity);
             var byAddress = Enumerable.Range(0, n).OrderBy(i => id[i], StringComparer.Ordinal).ToArray();
-            for (int i = 0; i < n; i++) { slotOf[id[i]] = simulated ? standing[i] : Array.IndexOf(byAddress, i); }
+            for (int i = 0; i < n; i++) { slotOf[id[i]] = simulated ? nearest[i] : Array.IndexOf(byAddress, i); }
         }
         var own = id.Select(k => slotOf[k]).ToArray();
 
         // Number the robots by slot
-        var cubes = new Cube[n]; var navigators = new toio.Navigation.CubeNavigator[n]; var nowIn = new int[n];
-        for (int i = 0; i < n; i++) { cubes[own[i]] = ctx.Cubes[i]; navigators[own[i]] = ctx.Navigators[i]; nowIn[own[i]] = standing[i]; }
+        var cubes = new Cube[n]; var navigators = new toio.Navigation.CubeNavigator[n];
+        for (int i = 0; i < n; i++) { cubes[own[i]] = ctx.Cubes[i]; navigators[own[i]] = ctx.Navigators[i]; }
         ctx.Cubes = cubes; ctx.Navigators = navigators;
-        if (Enumerable.Range(0, n).All(k => nowIn[k] == k)) { yield break; }
 
-        const float RowGap = 40f;
-        Func<int, float> row = k => Swarm.Centre + (k - (n - 1) / 2f) * RowGap;
-        var step = new Vector2Int[n];
-        for (int k = 0; k < n; k++) { step[k] = Vector2Int.RoundToInt(new Vector2(line[nowIn[k]].x, row(k))); }
-        yield return Swarm.GlideTo(ctx, step, unitsPerSec: 70f, maxSpeed: 90);
-        for (int k = 0; k < n; k++) { step[k] = Vector2Int.RoundToInt(new Vector2(line[k].x, row(k))); }
-        yield return Swarm.GlideTo(ctx, step, unitsPerSec: 70f, maxSpeed: 90);
-        for (int k = 0; k < n; k++) { step[k] = Vector2Int.RoundToInt(line[k]); }
-        yield return Swarm.GlideTo(ctx, step, unitsPerSec: 70f, maxSpeed: 90);
+        for (int i = 0; i < n; i++) { at[own[i]] = new Vector2(ctx.Cubes[own[i]].x, ctx.Cubes[own[i]].y); }
+        var way = new WayToLine(at, line.Select(s => (Vector2)s).ToArray());
+        if (way.Clear) { yield return Flow(ctx, way, way.Total + 0.3f, 70); }
+        else { yield return Swarm.MoveToAvoiding(ctx, line, maxSpeed: 70, timeoutMs: 15000); }
+        // Settle onto the exact spots, as LineUp does
         float end = Time.time + 1.5f;
         while (Time.time < end)
         {
             if (ctx.CubeManager.synced)
             {
-                for (int k = 0; k < n; k++) { ctx.Navigators[k].handle.Move2Target(step[k].x, step[k].y, maxSpd: 30, tolerance: 4).Exec(); }
+                for (int k = 0; k < n; k++) { ctx.Navigators[k].handle.Move2Target(line[k].x, line[k].y, maxSpd: 30, tolerance: 4).Exec(); }
             }
             yield return null;
         }
         Swarm.StopAll(ctx);
     }
+
+    // Direct paths from wherever the robots stand to their own line spots, planned so that no
+    // two robots come close. Each robot goes straight to its spot if that is clear; where two
+    // straight trips would meet, one of them bows out to the side or sets off a moment later.
+    // Robots are planned one after another, each keeping clear of the paths already planned;
+    // if some order of planning leaves a robot without a clear path, another order is tried.
+    public class WayToLine : IPlan
+    {
+        const float UnitsPerSec = 70f, MinSecs = 1.5f, Keep = 42f, Step = 0.1f;
+        static readonly float[] Bows = { 0f, 45f, -45f, 85f, -85f, 125f, -125f };
+        static readonly float[] Waits = { 0f, 0.6f, 1.2f, 1.8f, 2.4f, 3.2f, 4f };
+
+        readonly int n;
+        readonly Vector2[] from, to, via;
+        readonly float[] wait, secs;
+        public readonly bool Clear;
+        public float Total { get; private set; }
+
+        public WayToLine(Vector2[] from, Vector2[] to)
+        {
+            this.from = from; this.to = to;
+            n = from.Length;
+            via = new Vector2[n]; wait = new float[n]; secs = new float[n];
+            var random = new System.Random(7);
+            var order = Enumerable.Range(0, n).OrderByDescending(i => (to[i] - from[i]).magnitude).ToArray();   // longest trips first
+            for (int attempt = 0; attempt < 200 && !Clear; attempt++)
+            {
+                if (attempt > 0) { order = order.OrderBy(_ => random.Next()).ToArray(); }
+                Clear = PlanIn(order);
+            }
+            Total = 0f;
+            for (int i = 0; i < n; i++) { Total = Mathf.Max(Total, wait[i] + secs[i]); }
+        }
+
+        bool PlanIn(int[] order)
+        {
+            for (int k = 0; k < n; k++)
+            {
+                int i = order[k];
+                Vector2 trip = to[i] - from[i];
+                Vector2 sideways = trip.magnitude < 1f ? Vector2.zero : new Vector2(-trip.y, trip.x).normalized;
+                bool found = false;
+                foreach (float w in Waits)
+                {
+                    foreach (float bow in Bows)
+                    {
+                        via[i] = (from[i] + to[i]) / 2f + sideways * bow;
+                        // a bowed path is longer
+                        secs[i] = Mathf.Max(MinSecs, (trip.magnitude + 1.2f * Mathf.Abs(bow)) / UnitsPerSec);
+                        wait[i] = w;
+                        if (OnMat(i) && ClearOf(i, order, k)) { found = true; break; }
+                    }
+                    if (found) { break; }
+                }
+                if (!found) { return false; }
+            }
+            return true;
+        }
+
+        bool OnMat(int i)
+        {
+            for (float u = 0f; u <= 1f; u += 0.1f)
+            {
+                Vector2 p = At(i, wait[i] + u * secs[i]);
+                if (p.x < Swarm.MatMin + 30f || p.x > Swarm.MatMax - 30f || p.y < Swarm.MatMin + 30f || p.y > Swarm.MatMax - 30f) { return false; }
+            }
+            return true;
+        }
+
+        // Robot i against the robots planned before it, over the whole time either is moving
+        bool ClearOf(int i, int[] order, int planned)
+        {
+            for (int k = 0; k < planned; k++)
+            {
+                int j = order[k];
+                // never asked to be further apart than they stand at the start or will at the end
+                float keep = Mathf.Min(Keep, Mathf.Min((from[i] - from[j]).magnitude, (to[i] - to[j]).magnitude) - 1f);
+                float until = Mathf.Max(wait[i] + secs[i], wait[j] + secs[j]);
+                for (float t = 0f; t <= until + Step; t += Step)
+                {
+                    if ((At(i, t) - At(j, t)).magnitude < keep) { return false; }
+                }
+            }
+            return true;
+        }
+
+        Vector2 At(int i, float t)
+        {
+            float u = Shapes.Ease((t - wait[i]) / secs[i]);
+            // a curve from `from` through near `via` to `to` (straight when via is the midpoint)
+            Vector2 a = Vector2.Lerp(from[i], 2f * via[i] - (from[i] + to[i]) / 2f, u);
+            Vector2 b = Vector2.Lerp(2f * via[i] - (from[i] + to[i]) / 2f, to[i], u);
+            return Vector2.Lerp(a, b, u);
+        }
+
+        public Vector2 Position(int i, float t) { return At(i, Mathf.Clamp(t, 0f, Total)); }
+        public Vector2 LineSpot(int i) { return to[i]; }
+        public bool InLane(int i, float t) { return false; }
+    }
+
+    // ---------------- Rings that open back into each robot's own slot ----------------
+
+    // The order of the robots round a ring that flattens into the line with nobody crossing and
+    // every robot on its own slot: going round, 1, 0, then the even slots left to right along
+    // one side, then the odd slots right to left along the other. Returns each robot's place
+    // number round the ring.
+    public static int[] RingOrder(int n)
+    {
+        var round = new List<int>();
+        if (n > 1) { round.Add(1); }
+        round.Add(0);
+        for (int k = 2; k < n; k += 2) { round.Add(k); }
+        for (int k = n - 1 - (n % 2); k >= 3; k -= 2) { round.Add(k); }
+        var place = new int[n];
+        for (int c = 0; c < n; c++) { place[round[c]] = c; }
+        return place;
+    }
+
+    // The robots in ring order (the inverse of RingOrder)
+    public static int[] RoundTheRing(int n)
+    {
+        var place = RingOrder(n); var round = new int[n];
+        for (int i = 0; i < n; i++) { round[place[i]] = i; }
+        return round;
+    }
+
+    // The ring turned to where its robots are nearest the points `to` (robot i at angle
+    // a + sense * 2 pi place[i] / n, radius r, round the mat centre). Returns a.
+    public static float BestAngle(int[] place, int sense, float r, Vector2[] to, out float cost)
+    {
+        int n = place.Length;
+        float sx = 0f, sy = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float b = sense * 2f * Mathf.PI * place[i] / n;
+            Vector2 d = to[i] - Shapes.Centre;
+            sx += d.x * Mathf.Cos(b) + d.y * Mathf.Sin(b);
+            sy += d.y * Mathf.Cos(b) - d.x * Mathf.Sin(b);
+        }
+        float a = Mathf.Atan2(sy, sx);
+        cost = 0f;
+        for (int i = 0; i < n; i++) { cost += (Show.OnRing(a + sense * 2f * Mathf.PI * place[i] / n, r) - to[i]).sqrMagnitude; }
+        return a;
+    }
+
+    // Each robot's own line spot (robot i owns slot i)
+    public static Vector2[] OwnSpots(int n) { return LineUp.Spots(n).Select(s => (Vector2)s).ToArray(); }
 
     static RoutineContext Only(RoutineContext ctx, int i)
     {

@@ -117,7 +117,7 @@ public static class V2Heartbeat
         {
             this.start = start;
             int n = start.Length;
-            spot = Show.KeepLineSpots(start);   // the row is the line: robots in it keep their spot
+            spot = V2Show.OwnSpots(n);   // the row is the line: every robot in its own slot
             rank = new int[n]; entering = new bool[n];
             for (int i = 0; i < n; i++)
             {

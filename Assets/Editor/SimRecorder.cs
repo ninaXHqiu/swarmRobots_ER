@@ -59,7 +59,7 @@ public static class SimRecorder
             string name = EditorPrefs.GetString(Key + "Routine");
             var routines = (IList)type.GetField("routines", flags).GetValue(player);
             var routine = routines.Cast<SwarmRoutine>().FirstOrDefault(r => r.Name == name);
-            if (routine == null) { Finish(1, "no routine named " + name); return; }
+            if (routine == null) { Finish(1, "no routine named " + name + " among: " + string.Join(" | ", routines.Cast<SwarmRoutine>().Select(r => r.Name).ToArray())); return; }
             csv = new StringBuilder("time,performance," + string.Join(",", Enumerable.Range(0, ctx.Count).Select(i => "x" + i + ",y" + i + ",a" + i)) + "\n");
             type.GetMethod("Play", flags).Invoke(player, new object[] { routine });
             Show.StartedAt = -1f;

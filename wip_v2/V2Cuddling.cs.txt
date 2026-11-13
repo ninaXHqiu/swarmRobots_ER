@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEngine;
 using toio;
 
-// v2 Cuddling (Test).
+// v2 Cuddling.
 //   1. The conductor (the Messenger's robot, slot 4 of 8) walks to the top of the mat and keeps
 //      turning gently in place, its centre fixed, while the first robot approaches slowly from
 //      the left. When that robot reaches the greeting position the conductor eases out of the
@@ -25,20 +25,19 @@ using toio;
 // arrival slot 2.
 public class V2Cuddling : SwarmRoutine
 {
-    public override string Name { get { return "v2 Cuddling (Test)"; } }
+    public override string Name { get { return "v2 Cuddling"; } }
     public override int MinRobots { get { return 8; } }
 
     public override IEnumerator Run(RoutineContext ctx)
     {
-        yield return V2Show.ToLine(ctx);
-        yield return null;
-        Show.StartedAt = Time.time;   // read by the simulator recorder
-        var plan = new Plan(V2Show.OwnSpots(ctx.Count));
-        yield return V2Show.Flow(ctx, plan, plan.Total + 0.5f, 80,
-            skip: (i, t) => i == Plan.Conductor && plan.Spinning(t),
+        // the fixed opening (the Messenger's introduction, the conductor being its messenger) and
+        // ending (all in the line, facing the participant)
+        Plan plan = null;
+        yield return V2Show.Run(ctx, start => { plan = new Plan(start); return plan; }, 80,
+            skip: (i, t) => plan != null && i == Plan.Conductor && plan.Spinning(t),
             extra: t =>
             {
-                if (!plan.Spinning(t)) { return; }
+                if (plan == null || !plan.Spinning(t)) { return; }
                 int sp = Mathf.RoundToInt(plan.SpinSpeed(t));
                 ctx.Cubes[Plan.Conductor].Move(sp, -sp, 300, Cube.ORDER_TYPE.Strong);
             });
@@ -48,23 +47,23 @@ public class V2Cuddling : SwarmRoutine
     {
         // ---- Who is where ----
         public const int Conductor = 3, First = 2;
-        static readonly Vector2 FirstSpot = new Vector2(250f, 165f);   // the first arrival: the middle of the group
+        static readonly Vector2 FirstSpot = new Vector2(250f, 180f);   // the first arrival: the middle of the group
         const float R = 44f;                                           // the loose circle round it
         const float TouchR = 33f;                                      // ...as the whole group touches
         // arrival order: slot, angle on the circle round the first arrival (degrees, clockwise from east), start (s)
-        struct Arrival { public int slot; public float angle, start; }
+        struct Arrival { public int slot; public float angle, start; public Vector2 lift; }
         static readonly Arrival[] Arrivals =
         {
-            new Arrival { slot = 4, angle = 51.4f,  start = 15f },   // from the right
-            new Arrival { slot = 1, angle = 154.3f, start = 24f },   // from the left
-            new Arrival { slot = 5, angle = 308.6f, start = 33f },   // right
-            new Arrival { slot = 0, angle = 205.7f, start = 42f },   // left
-            new Arrival { slot = 6, angle = 257.1f, start = 50f },   // right, round to the top
-            new Arrival { slot = 7, angle = 102.9f, start = 58f },   // right: the last, into the open place at the bottom
+            new Arrival { slot = 4, angle = 308.6f, start = 15f, lift = new Vector2(130f, -110f) },    // right, round the outside to the top right
+            new Arrival { slot = 1, angle = 154.3f, start = 24f, lift = new Vector2(0f, -40f) },     // left, lower left
+            new Arrival { slot = 5, angle = 51.4f,  start = 33f, lift = new Vector2(0f, -40f) },     // right, lower right
+            new Arrival { slot = 0, angle = 205.7f, start = 42f, lift = new Vector2(-20f, -60f) },   // left, upper left
+            new Arrival { slot = 6, angle = 257.1f, start = 50f, lift = new Vector2(110f, -150f) },   // right, round the outside to the top
+            new Arrival { slot = 7, angle = 102.9f, start = 58f, lift = new Vector2(-60f, -20f) },   // right: the last, into the open place at the bottom
         };
         const float ArriveSecs = 8f;           // slow
         const float FirstStart = 4f, FirstSecs = 8.5f;
-        const float WalkSecs = 3f;             // the conductor to its place
+        const float WalkSecs = 5f;             // the conductor to its place
         static readonly Vector2 ConductorSpot = FirstSpot + new Vector2(R, 0f);
 
         // ---- Spinning, touching ----
@@ -91,40 +90,45 @@ public class V2Cuddling : SwarmRoutine
         readonly float[] groupTouch = new float[3];   // the whole group's three touches
 
         // ---- Heart and circle ----
-        const float Scale = 5.6f;
-        static readonly Vector2 HeartCentre = new Vector2(250f, 305f);
-        static readonly Vector2 CircleCentre = new Vector2(250f, 305f);
-        const float CircleR = 78f;
-        const float LapSecs = 9f, CircleLapSecs = 12f;
-        const float JoinSecs = 4f, JoinBow = 0f;
-        const float StartU = 0.02f;            // where on the heart the robots join: just after the dip at its top, straight below the group
-        const float HeartLaps = 3f;
-        const float MorphU = 0.2f;             // lap fraction a robot takes to round from heart to circle
+        const float Scale = 5.0f;
+        static readonly Vector2 HeartCentre = new Vector2(250f, 335f);
+        static readonly Vector2 CircleCentre = new Vector2(250f, 335f);
+        const float CircleR = 70f;
+        const float LapSecs = 16f, CircleLapSecs = 20f;
+        const float JoinSecs = 4.8f;         // every robot takes the same time from the group to the route
+        const float LandU = 0.09f;             // where on the heart the robots join, all at the same place: the dip at its top, straight below the group
+        const float HeartLaps = 2.5f;
+        const float MorphSecs = 15f;           // the outline rounds into the circle this slowly
         const float CircleLaps = 2.2f;
         const float SlowSecs = 4f;
 
         readonly Vector2[] heart; readonly float[] cum; readonly float perimeter;
         readonly int n;
         readonly Vector2[] baseSpot = new Vector2[8];     // each slot's place in the group
-        readonly Vector2[] line;
+        readonly Vector2[] line, start;
         readonly float[] arriveAt = new float[8];
         readonly int[] peelOrder;                         // slots, leader first
         readonly float[] peelAt = new float[8];
-        readonly Show.Integrated phase;                   // laps done by the route (unwrapped)
-        readonly float peelFrom, endCircle, stop;
-        readonly V2Show.WayToLine home;
+        readonly bool[] planned = new bool[8];
+        readonly float[] peelDur = new float[8], peelBow = new float[8], peelEnd = new float[8];
+        Show.Integrated phase;                            // laps done by the route (unwrapped)
+        readonly float peelFrom, morphStart, morphEnd;
+        float endCircle, stop;
+        V2Show.WayToLine home;
         public float Total { get; private set; }
         public float PeelFrom { get { return peelFrom; } }
         public float TouchFrom { get { return groupTouch[0]; } }
         public float StopAt { get { return stop; } }
+        public string HomeInfo { get { return (home.Clear ? "clear" : "NOT clear") + " in " + home.Total.ToString("F1") + " s"; } }
         public float ArrivalOf(int k) { return arriveAt[Arrivals[k].slot]; }
         public float FirstTouch { get { return FirstTouchAt; } }
         public float CuddleAt(int k) { return cuddles[k].at; }
         public int CuddleCount { get { return cuddles.Count; } }
 
-        public Plan(Vector2[] line)
+        public Plan(Vector2[] start)
         {
-            this.line = line;
+            this.start = start;
+            this.line = V2Show.OwnSpots(start.Length);
             n = line.Length;
             baseSpot[Conductor] = ConductorSpot;
             baseSpot[First] = FirstSpot;
@@ -133,11 +137,11 @@ public class V2Cuddling : SwarmRoutine
 
             // the lean-ins: while the next robot is on its way, neighbours in the group; ring
             // neighbours of the circle round the first arrival (the conductor sits at 0 degrees)
-            Cuddle(First, 4, 24f, 7.5f);                    // first arrival and the robot from the right
+            Cuddle(First, 4, 24f, 7.5f);                    // first arrival and the first newcomer
             Cuddle(First, 1, 33f, 7.5f);
             Cuddle(Conductor, 5, 42f, 5.5f); Cuddle(4, Conductor, 42f, 5.5f);
             Cuddle(1, 0, 51f, 5.5f); Cuddle(First, Conductor, 51f, 7.5f);
-            Cuddle(0, 6, 59f, 5.5f); Cuddle(6, 5, 59f, 5.5f);
+            Cuddle(0, 6, 59f, 5.5f); Cuddle(6, 4, 59f, 5.5f);
             groupTouch[0] = 67f; groupTouch[1] = 67f + PhraseSecs; groupTouch[2] = 67f + 2f * PhraseSecs;
             peelFrom = groupTouch[2] + PhraseSecs + 1f;
 
@@ -171,20 +175,28 @@ public class V2Cuddling : SwarmRoutine
 
             // peeling: the last arrival first (it sits at the bottom, nearest the heart), then the others in the order
             // that keeps each one's way down clear of those still in the group
-            peelOrder = new[] { 7, 4, 1, Conductor, First, 0, 5, 6 };
+            peelOrder = new[] { 7, 5, Conductor, 1, 0, First, 4, 6 };   // the order round the ring that opens back into the line
             float interval = LapSecs / n;
             for (int k = 0; k < n; k++) { peelAt[peelOrder[k]] = peelFrom + k * interval; }
             float lastJoined = peelAt[peelOrder[n - 1]] + JoinSecs;
-            float morphLeader = peelFrom + JoinSecs + HeartLaps * LapSecs;
-            float lastMorphed = morphLeader + (n - 1) * interval + MorphU * LapSecs;
-            endCircle = lastMorphed + CircleLaps * CircleLapSecs;
-            stop = endCircle + SlowSecs;
-            var rate = new Show.Eased(0f, 1f / LapSecs, morphLeader, 1f / LapSecs, morphLeader + 10f, 1f / CircleLapSecs, endCircle, 1f / CircleLapSecs, stop, 0f);
-            phase = new Show.Integrated(s => rate.At(s), stop + 1f);
+            // the heart is traced for a few laps by all eight, then its outline slowly rounds into the circle
+            morphStart = lastJoined + HeartLaps * LapSecs;
+            morphEnd = morphStart + MorphSecs;
+            float endCircle0 = morphEnd + CircleLaps * CircleLapSecs;
+            // the circle turns on until the robots stand where the way back to the line is clear
+            for (float more = 0f; more <= CircleLapSecs + 0.01f; more += 1f)
+            {
+                endCircle = endCircle0 + more;
+                stop = endCircle + SlowSecs;
+                var rate = new Show.Eased(0f, 1f / LapSecs, morphStart, 1f / LapSecs, morphEnd, 1f / CircleLapSecs, endCircle, 1f / CircleLapSecs, stop, 0f);
+                phase = new Show.Integrated(s => rate.At(s), stop + 1f);
+                PlanPeeling();
+                var atStop0 = new Vector2[n];
+                for (int i = 0; i < n; i++) { atStop0[i] = RouteOrCircle(i, stop); }
+                home = new V2Show.WayToLine(atStop0, line, 28f);
+                if (home.Clear) { break; }
+            }
 
-            var atStop = new Vector2[n];
-            for (int i = 0; i < n; i++) { atStop[i] = RouteOrCircle(i, stop); }
-            home = new V2Show.WayToLine(atStop, line, 45f);
             Total = stop + home.Total + 0.5f;
         }
 
@@ -209,13 +221,12 @@ public class V2Cuddling : SwarmRoutine
         }
 
         // Robot i's lap fraction on the route (unwrapped), once it has joined
-        float U(int i, float t) { return StartU + phase.At(t) - phase.At(peelAt[i]); }
+        float U(int i, float t) { return LandU + phase.At(t) - phase.At(peelAt[i] + JoinSecs); }
 
         Vector2 RouteOrCircle(int i, float t)
         {
             float u = U(i, t);
-            float morphStart = StartU + HeartLaps;   // laps since joining; the leader reaches it first
-            float e = Shapes.Ease((u - morphStart) / MorphU);
+            float e = Shapes.Ease((t - morphStart) / MorphSecs);   // one shared rounding, the same for everyone
             return Vector2.Lerp(HeartAt(u), CircleAt(u), e);
         }
 
@@ -231,13 +242,14 @@ public class V2Cuddling : SwarmRoutine
             if (i == Conductor)
             {
                 float w = Shapes.Ease(t / WalkSecs);
-                var p0 = line[i]; var p3 = ConductorSpot;
-                return Bezier(p0, p0 + new Vector2(0f, -40f), p3 + new Vector2(40f, 40f), p3, w);
+                var p0 = start[i]; var p3 = ConductorSpot;
+                // back up through its own gap in the line, then across to its place
+                return Bezier(p0, new Vector2(line[i].x - 4f, line[i].y + 20f), new Vector2(line[i].x + 30f, line[i].y - 90f), p3, w);
             }
             if (i == First)
             {
                 float w = Shapes.Ease((t - FirstStart) / FirstSecs);
-                var p0 = line[i]; var p3 = FirstSpot;
+                var p0 = start[i]; var p3 = FirstSpot;
                 Vector2 p = Bezier(p0, p0 + new Vector2(-30f, -50f), p3 + new Vector2(-70f, 0f), p3, w);
                 // the one gentle touch: a little closer to the conductor, then back
                 float touch = Shapes.Ease((t - FirstTouchAt) / 1.5f) - Shapes.Ease((t - FirstTouchAt - 2f) / 1.6f);
@@ -245,10 +257,14 @@ public class V2Cuddling : SwarmRoutine
             }
             int k = System.Array.FindIndex(Arrivals, a => a.slot == i);
             var arr = Arrivals[k];
-            Vector2 target = baseSpot[i], outward = (target - FirstSpot).normalized;
+            Vector2 target = baseSpot[i];
+            // up the outside of the group, then in toward the open place from outside it
+            float side = start[i].x < FirstSpot.x ? -1f : 1f;
+            Vector2 outward = (target - FirstSpot).normalized;
+            if (target.y < FirstSpot.y - 10f) { outward = (outward + side * new Vector2(0.5f, 0f)).normalized; }   // reach the top from above
             float u = Shapes.Ease((t - arr.start) / ArriveSecs);
-            Vector2 from = line[i];
-            return Bezier(from, from + new Vector2(0f, -70f), target + outward * 80f, target, u);
+            Vector2 from = start[i];
+            return Bezier(from, from + arr.lift, target + outward * 45f, target, u);
         }
 
         // Where the group has pulled in or leaned: base plus the lean-ins
@@ -275,13 +291,75 @@ public class V2Cuddling : SwarmRoutine
             t = Mathf.Clamp(t, 0f, Total);
             if (t >= stop) { return home.Position(i, t - stop); }
             if (t < peelAt[i]) { return Leaned(i, t); }
-            // leaving the group for the route: out and round, onto the moving route
-            float w = Shapes.Ease((t - peelAt[i]) / JoinSecs);
-            Vector2 from = Leaned(i, peelAt[i]);
-            Vector2 outward = i == First ? Vector2.zero : (baseSpot[i] - FirstSpot).normalized;
-            Vector2 p = Vector2.Lerp(from, RouteOrCircle(i, t), w) + outward * JoinBow * Mathf.Sin(Mathf.PI * w);
-            return p;
+            if (t < peelAt[i] + JoinSecs) { return Peeling(i, t, Leaned(i, peelAt[i])); }
+            return RouteOrCircle(i, t);   // on the outline: the place of the robot in the queue
         }
+
+        // From the group onto the moving route: along a path that starts where the robot stands and
+        // ends on its place on the route, bowed to one side by peelBow (planned below)
+        // Everyone leaves the group the same way: first to a common gate just below the group, then
+        // down one shared path onto the outline, arriving moving along it at its pace. The robots
+        // are 1/8 of a lap apart in time, so on the shared path they follow each other evenly.
+        const float GateSecs = 3.2f, DropSecs = JoinSecs - GateSecs, GateSpeed = 30f;
+        Vector2 Gate { get { return HeartAt(LandU) + new Vector2(-26f, -26f); } }
+
+        Vector2 Peeling(int i, float t, Vector2 from)
+        {
+            if (!planned[i]) { return from; }
+            Vector2 landing = HeartAt(LandU);
+            Vector2 gate = Gate, down = (landing - gate).normalized;
+            float tGate = peelAt[i] + GateSecs;
+            if (t < tGate)
+            {
+                // from the group to the gate: leave from rest, reach the gate already moving down the shared path
+                float tau = Mathf.Clamp01((t - peelAt[i]) / GateSecs);
+                Vector2 across = new Vector2(-(gate - from).y, (gate - from).x).normalized;
+                Vector2 c1 = from + (gate - from) * 0.35f + across * peelBow[i];
+                Vector2 c2 = gate - down * GateSpeed * GateSecs / 4.95f;
+                return Bezier(from, c1, c2, gate, 0.35f * tau + 0.65f * tau * tau);
+            }
+            // the shared path: from the gate onto the outline (a Hermite curve, speeds matched at both ends)
+            float sig = Mathf.Clamp01((t - tGate) / DropSecs);
+            Vector2 tangent = (HeartAt(LandU + 0.002f) - HeartAt(LandU - 0.002f)).normalized;
+            Vector2 v0 = down * GateSpeed * DropSecs, v1 = tangent * (perimeter / LapSecs) * DropSecs;
+            float s2 = sig * sig, s3 = s2 * sig;
+            return (2f * s3 - 3f * s2 + 1f) * gate + (s3 - 2f * s2 + sig) * v0 + (-2f * s3 + 3f * s2) * landing + (s3 - s2) * v1;
+        }
+
+        // Plan the leaving one robot at a time, the leader first: for each, the bow and the pace
+        // that keep it clearest of everyone, with the robots planned before it on their paths
+        // and those still in the group where they stand
+        void PlanPeeling()
+        {
+            foreach (int i in peelOrder)
+            {
+                float bestRoom = -1f, bestDur = JoinSecs, bestBow = 0f, bestEnd = 1f;
+                foreach (float dur in new[] { JoinSecs })
+                {
+                    foreach (float end in new[] { 1f, 0.5f, 0.15f })
+                    foreach (float bow in new[] { 0f, 20f, -20f, 40f, -40f, 65f, -65f, 90f, -90f, 125f, -125f, 160f, -160f })
+                    {
+                        peelDur[i] = dur; peelBow[i] = bow; peelEnd[i] = end; planned[i] = true;
+                        float room = float.MaxValue;
+                        for (float t = peelAt[i]; t < peelAt[i] + dur + 2f && room > bestRoom; t += 0.1f)
+                        {
+                            Vector2 p = Position(i, t);
+                            for (int j = 0; j < n; j++)
+                            {
+                                if (j == i) { continue; }
+                                room = Mathf.Min(room, (p - Position(j, t)).magnitude);
+                            }
+                        }
+                        if (room > bestRoom) { bestRoom = room; bestDurFound = dur; bestBowFound = bow; bestEnd = end; }
+                        if (bestRoom >= ClearEnough) { break; }
+                    }
+                    if (bestRoom >= ClearEnough) { break; }
+                }
+                peelDur[i] = bestDurFound; peelBow[i] = bestBowFound; peelEnd[i] = bestEnd; planned[i] = true;
+            }
+        }
+        float bestDurFound, bestBowFound;
+        const float ClearEnough = 40f;
 
         public Vector2 LineSpot(int i) { return line[i]; }
         public bool InLane(int i, float t) { return false; }

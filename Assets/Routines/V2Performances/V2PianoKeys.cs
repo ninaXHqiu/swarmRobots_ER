@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-// v2 Piano Keys (Test). Eight robots are eight piano keys playing "Twinkle, Twinkle, Little Star".
+// v2 Piano Keys. Eight robots are eight piano keys playing "Twinkle, Twinkle, Little Star".
 // They stand in the line, left to right C D E F G A B high-C, all facing the participant, and
 // keep those places. A key only ever moves along its own lane, straight out of the line away
 // from the participant and back, with its heading held on the lane (V2Show's lane steering),
@@ -19,7 +19,7 @@ using UnityEngine;
 // It runs on its own: no Messenger introduction.
 public class V2PianoKeys : SwarmRoutine
 {
-    public override string Name { get { return "v2 Piano Keys (Test)"; } }
+    public override string Name { get { return "v2 Piano Keys"; } }
     public override int MinRobots { get { return 8; } }
 
     const float BeatsPerMinute = 96f;
@@ -59,27 +59,28 @@ public class V2PianoKeys : SwarmRoutine
 
     public override IEnumerator Run(RoutineContext ctx)
     {
-        yield return V2Show.ToLine(ctx);
-        Show.StartedAt = Time.time;   // read by the simulator recorder
-        var plan = new Plan(ctx.Count);
-        yield return V2Show.Flow(ctx, plan, plan.Total, 110);
+        // the fixed opening (the Messenger's introduction) and ending (all in the line, facing the participant)
+        yield return V2Show.Run(ctx, start => new Plan(start), 110);
     }
 
-    public class Plan : V2Show.IPlan
+    public class Plan : V2Show.IPlan, V2Show.IHeading
     {
-        readonly Vector2[] spot;
+        const float EnterSecs = 2.5f;     // the messenger back into its place in the line
+        readonly Vector2[] start, spot;
         readonly List<Stroke>[] strokes;
         readonly List<Swell>[] swells;
         public float Total { get; private set; }
 
-        public Plan(int n)
+        public Plan(Vector2[] start)
         {
+            int n = start.Length;
+            this.start = start;
             spot = V2Show.OwnSpots(n);
             strokes = new List<Stroke>[n];
             swells = new List<Swell>[n];
             for (int i = 0; i < n; i++) { strokes[i] = new List<Stroke>(); swells[i] = new List<Swell>(); }
             float beat = 60f / BeatsPerMinute;
-            float t = LeadInSecs, lastEnd = t;
+            float t = EnterSecs + LeadInSecs, lastEnd = t;
             for (int line = 0; line < Melody.Length; line++)
             {
                 for (int k = 0; k < Melody[line].Length; k++)
@@ -147,10 +148,16 @@ public class V2PianoKeys : SwarmRoutine
 
         public Vector2 Position(int i, float t)
         {
-            return spot[i] + Swarm.Inward * Pressed(i, Mathf.Clamp(t, 0f, Total));
+            t = Mathf.Clamp(t, 0f, Total);
+            Vector2 inLine = spot[i] + Swarm.Inward * Pressed(i, t);
+            return t < EnterSecs ? Vector2.Lerp(start[i], inLine, Shapes.Ease(t / EnterSecs)) : inLine;
         }
 
+        // every key faces the participant, whichever way it is driving
+        public float Heading(int i, float t) { return (float)Swarm.FacingParticipant; }
+
         public Vector2 LineSpot(int i) { return spot[i]; }
-        public bool InLane(int i, float t) { return true; }
+        // the messenger comes back to its place steering freely, and only then keeps to its lane
+        public bool InLane(int i, float t) { return t >= EnterSecs || Mathf.Abs(start[i].x - spot[i].x) < 3f; }
     }
 }

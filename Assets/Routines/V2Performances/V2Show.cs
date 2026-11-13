@@ -47,7 +47,8 @@ public static class V2Show
     // Performance seconds available in a version that should last `minutes` in all
     public static float Budget(float minutes) { return minutes * 60f - IntroSecs - EndSecs; }
 
-    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60)
+    public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60,
+                                  Func<int, float, bool> skip = null, Action<float> extra = null)
     {
         yield return Introduction(ctx);
         Show.StartedAt = Time.time;   // read by the simulator recorder
@@ -55,7 +56,7 @@ public static class V2Show
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var plan = makePlan(start);
-        yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed);
+        yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
     }
 

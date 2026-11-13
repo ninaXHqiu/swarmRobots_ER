@@ -2,7 +2,7 @@ using System.Collections;
 using System.Linq;
 using UnityEngine;
 
-// v2 Maze to Breathing Circle (Test).
+// v2 Maze to Breathing Circle.
 //   1. One shared winding route. A closed loop round the mat centre: a broad outer sweep, a tight
 //      turn in toward the centre, an inner sweep back the other way, and a curved return to the
 //      outside (the outline of a thick letter C; it never crosses itself). Each robot joins at
@@ -22,18 +22,13 @@ using UnityEngine;
 // It runs on its own: no line-up and no Messenger introduction.
 public class V2MazeBreathing : SwarmRoutine
 {
-    public override string Name { get { return "v2 Maze to Breathing Circle (Test)"; } }
+    public override string Name { get { return "v2 Maze to Breathing Circle"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)
     {
-        yield return null;            // (lets the simulator recorder note the start first)
-        Show.StartedAt = Time.time;   // read by the simulator recorder
-        int n = ctx.Count;
-        var start = new Vector2[n];
-        for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
-        var plan = new Plan(start);
-        yield return V2Show.Flow(ctx, plan, plan.Total + 0.5f, 80);
+        // the fixed opening (the Messenger's introduction) and ending (all in the line, facing the participant)
+        yield return V2Show.Run(ctx, start => new Plan(start), 80);
     }
 
     // ---- The route ----
@@ -53,6 +48,8 @@ public class V2MazeBreathing : SwarmRoutine
     static readonly float[] PaceShare = { 0.8f, 1.2f, 1.08f, 0.86f, 1.22f, 0.95f, 0.82f, 1.15f };   // by order along the route
     const float CloseGap = 58f;            // a robot this near the one ahead goes no faster than it
     const float FreeGap = 115f;            // further back than this it travels at its own pace
+    const float Wobble = 0.30f;            // how far a robot's pace swings round its own pace
+    static readonly float[] WobbleSecs = { 7.5f, 11f, 9f, 13f, 8.2f, 10.4f, 12.3f, 6.8f };
     const float MazeSecs = 30f;            // travelling the route before the switch, at least
     const float SwitchWithinSecs = 12f;    // ...and at most this much longer, waiting for a clear moment to switch
     const float MergeRoom = 46f;           // closest two robots may come while the ring forms
@@ -61,13 +58,13 @@ public class V2MazeBreathing : SwarmRoutine
     const float RingPace = 48f;            // along the ring as it forms
     const float MatchSecs = 10f;           // drifting onto ring places
     const float SettleSecs = 2f;           // the complete ring turns on before it opens
-    const float WidenSecs = 8f;
-    const float WideRadius = 140f;         // 65 inside the mat edge
-    const float SmallRadius = 62f;         // 8 robots 47 apart
-    const float BreathSecs = 11f;          // wide -> small -> wide
-    const int Breaths = 3;
-    const float CalmDegPerSec = 16f;       // turning while breathing
-    const float StopSecs = 4f;
+    const float WidenSecs = 12f;
+    const float WideRadius = 128f;         // 77 inside the mat edge
+    const float SmallRadius = 52f;         // 8 robots 40 apart
+    const float BreathSecs = 20f;         // wide -> small -> wide: slow, about 12 units a second at most, so the wheels stay quiet
+    const int Breaths = 4;
+    const float CalmDegPerSec = 6f;        // turning while breathing: very gentle (about 13 units a second at the widest)
+    const float StopSecs = 6f;
 
     const float Step = 0.02f;
 
@@ -84,6 +81,7 @@ public class V2MazeBreathing : SwarmRoutine
         readonly Show.Eased turnRate;       // radians per second, from ringAt
         readonly float breatheFrom;
         public float Total { get; private set; }
+        float ringStop; V2Show.WayToLine home;
         public float SwitchAt { get { return switchAt; } }
         public string Approach { get { return (way.Clear ? "clear" : "NOT clear") + " in " + way.Total.ToString("F1") + " s"; } }
         public float RingAt { get { return ringAt; } }
@@ -147,7 +145,12 @@ public class V2MazeBreathing : SwarmRoutine
                 for (int i = 0; i < n; i++)
                 {
                     float room = n > 1 ? Mathf.Repeat(route[ahead[i]][k] - route[i][k], length) : float.MaxValue;
-                    speed[i][k] = pace[i] * Shapes.Ease((t - (way.ArrivesAt(i) - SetOffEarly)) / SetOffSecs) * Shapes.Ease((room - CloseGap) / (FreeGap - CloseGap));
+                    // each robot's pace drifts up and down at its own rhythm (some fast, some slow, now
+                    // and then a quick adjustment), and settles to the one shared ring pace by the end
+                    float settle = Shapes.Ease((t - (approach + MazeSecs)) / SwitchWithinSecs);
+                    float drift = 1f + Wobble * (1f - settle) * (Mathf.Sin(2f * Mathf.PI * t / WobbleSecs[i % WobbleSecs.Length] + 1.9f * i)
+                                                               + 0.45f * Mathf.Sin(2f * Mathf.PI * t / (WobbleSecs[(i + 3) % WobbleSecs.Length] * 0.37f) + 0.8f * i));
+                    speed[i][k] = pace[i] * drift * Shapes.Ease((t - (way.ArrivesAt(i) - SetOffEarly)) / SetOffSecs) * Shapes.Ease((room - CloseGap) / (FreeGap - CloseGap));
                     route[i][k + 1] = route[i][k] + speed[i][k] * Step;
                 }
             }
@@ -167,8 +170,14 @@ public class V2MazeBreathing : SwarmRoutine
             float calm = CalmDegPerSec * Mathf.Deg2Rad;
             breatheFrom = ringAt + WidenSecs;
             float stopFrom = breatheFrom + Breaths * BreathSecs;
-            Total = stopFrom + StopSecs;
-            turnRate = new Show.Eased(ringAt, RingPace / InnerRadius, breatheFrom, calm, stopFrom, calm, Total, 0f);
+            ringStop = stopFrom + StopSecs;
+            turnRate = new Show.Eased(ringAt, RingPace / InnerRadius, breatheFrom, calm, stopFrom, calm, ringStop, 0f);
+            // the fixed ending: the ring slows to a stop, then each robot returns to its own place in the line
+            var atStop = new Vector2[n];
+            Total = ringStop;
+            for (int i = 0; i < n; i++) { atStop[i] = Position(i, ringStop); }
+            home = new V2Show.WayToLine(atStop, V2Show.OwnSpots(n), 28f);
+            Total = ringStop + home.Total + 0.5f;
         }
 
         // From the switch each robot is measured by its distance past the start of the ring
@@ -281,6 +290,7 @@ public class V2MazeBreathing : SwarmRoutine
         public Vector2 Position(int i, float t)
         {
             t = Mathf.Clamp(t, 0f, Total);
+            if (home != null && t >= ringStop) { return home.Position(i, t - ringStop); }
             if (t >= ringAt) { return Shapes.Centre + Radius(t) * Unit(ringAngle[i] - (turnRate.Integral(t) - turnRate.Integral(ringAt))); }
             if (t >= switchAt) { return RingOrRoute(At(ring[i], t - switchAt)); }
             Vector2 onRoute = RouteAt(At(route[i], t));
@@ -296,7 +306,7 @@ public class V2MazeBreathing : SwarmRoutine
             return Mathf.Lerp(every[k], every[k + 1], x - k);
         }
 
-        public Vector2 LineSpot(int i) { return Position(i, Total); }
+        public Vector2 LineSpot(int i) { return V2Show.OwnSpots(n)[i]; }
         public bool InLane(int i, float t) { return false; }
     }
 }

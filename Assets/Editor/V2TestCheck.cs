@@ -19,13 +19,17 @@ public static class V2TestCheck
         int at = Array.IndexOf(args, "-out");
         string outDir = at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
         var report = new StringBuilder("\nV2TESTCHECK results\n");
-        foreach (bool wideLine in new[] { true, false })
+        var line = LineUp.Spots(8).Select(s => (Vector2)s).ToArray();
+        var spawn = Swarm.Line(8).Select(s => (Vector2)s).ToArray();
+        var plans = new (string, V2Show.IPlan, string)[]
         {
-            var start = (wideLine ? LineUp.Spots(8) : Swarm.Line(8)).Select(s => (Vector2)s).ToArray();
-            var plan = new V2MazeBreathing.Plan(start);
-            string name = "Maze_" + (wideLine ? "fromLineUp" : "fromSpawnLine");
-            report.AppendFormat("{0}: {1} | approach {5} | switch {2:F1} ring complete {3:F1} breathing from {4:F1}\n", name, Check(plan, start.Length), plan.SwitchAt, plan.RingAt, plan.BreatheFrom, plan.Approach);
-            if (outDir != null) { File.WriteAllText(Path.Combine(outDir, name + ".csv"), Csv(plan, start.Length)); }
+            ("Maze_fromLineUp", new V2MazeBreathing.Plan(line), ""),
+            ("Maze_fromSpawnLine", new V2MazeBreathing.Plan(spawn), ""),
+        };
+        foreach (var (name, plan, extra) in plans)
+        {
+            report.AppendFormat("{0}: {1}\n", name, Check(plan, 8));
+            if (outDir != null) { File.WriteAllText(Path.Combine(outDir, name + ".csv"), Csv(plan, 8)); }
         }
         Debug.Log(report.ToString());
     }

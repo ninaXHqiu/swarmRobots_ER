@@ -34,6 +34,11 @@ public static class V2Show
         bool InLane(int i, float t);
     }
 
+    // A plan that also says which way a robot in a lane faces (mat degrees: 0 right, 90 down,
+    // toward the participant), whichever way it is driving: NaN = keep the way it faces along the
+    // lane. A robot facing its heading backs up when the path goes the other way.
+    public interface IHeading { float Heading(int i, float t); }
+
     public static string Label(float minutes)
     {
         return minutes <= 0f ? "natural" : minutes.ToString("0.#") + " min";
@@ -167,7 +172,8 @@ public static class V2Show
     // if some order of planning leaves a robot without a clear path, another order is tried.
     public class WayToLine : IPlan
     {
-        const float UnitsPerSec = 70f, MinSecs = 1.5f, Keep = 42f, Step = 0.1f;
+        readonly float UnitsPerSec = 70f;
+        const float MinSecs = 1.5f, Keep = 42f, Step = 0.1f;
         static readonly float[] Bows = { 0f, 45f, -45f, 85f, -85f, 125f, -125f };
         static readonly float[] Waits = { 0f, 0.6f, 1.2f, 1.8f, 2.4f, 3.2f, 4f, 5f, 6f };
 
@@ -177,9 +183,9 @@ public static class V2Show
         public readonly bool Clear;
         public float Total { get; private set; }
 
-        public WayToLine(Vector2[] from, Vector2[] to)
+        public WayToLine(Vector2[] from, Vector2[] to, float unitsPerSec = 70f)
         {
-            this.from = from; this.to = to;
+            this.from = from; this.to = to; UnitsPerSec = unitsPerSec;
             n = from.Length;
             via = new Vector2[n]; wait = new float[n]; secs = new float[n];
             var random = new System.Random(7);
@@ -322,7 +328,10 @@ public static class V2Show
     // Robot i follows plan.Position(i, t). Free robots steer as Swarm.Flow does (the path's own
     // speed and direction, forward or reverse, turning with the curve). Robots in a lane hold
     // their heading on the lane and only drive forward and backward along it.
-    public static IEnumerator Flow(RoutineContext ctx, IPlan plan, float seconds, int maxSpeed)
+    // skip(i, t): robot i is driven by `extra` instead (e.g. turning in place); extra(t) runs
+    // every frame after the steering.
+    public static IEnumerator Flow(RoutineContext ctx, IPlan plan, float seconds, int maxSpeed,
+                                   System.Func<int, float, bool> skip = null, System.Action<float> extra = null)
     {
         var reverse = new bool[ctx.Count];
         float start = Time.time;
@@ -333,9 +342,11 @@ public static class V2Show
                 float t = Time.time - start;
                 for (int i = 0; i < ctx.Count; i++)
                 {
+                    if (skip != null && skip(i, t)) { continue; }
                     if (plan.InLane(i, t + (float)CubeHandle.lag)) { SteerLane(ctx, i, plan, t, maxSpeed); }
                     else { Steer(ctx, i, plan, t, maxSpeed, ref reverse[i]); }
                 }
+                if (extra != null) { extra(t); }
             }
             yield return null;
         }
@@ -366,6 +377,8 @@ public static class V2Show
 
         float facingDeg = (float)handle.radPred * Mathf.Rad2Deg;
         float alongDeg = Mathf.Abs(Mathf.DeltaAngle(facingDeg, LaneDeg)) <= 90f ? LaneDeg : LaneDeg + 180f;
+        var heading = plan as IHeading;
+        if (heading != null) { float want0 = heading.Heading(i, at); if (!float.IsNaN(want0)) { alongDeg = want0; } }
         float a = alongDeg * Mathf.Deg2Rad;
         var along = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
         var across = new Vector2(-along.y, along.x);

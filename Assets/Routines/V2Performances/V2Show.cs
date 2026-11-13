@@ -169,7 +169,7 @@ public static class V2Show
     {
         const float UnitsPerSec = 70f, MinSecs = 1.5f, Keep = 42f, Step = 0.1f;
         static readonly float[] Bows = { 0f, 45f, -45f, 85f, -85f, 125f, -125f };
-        static readonly float[] Waits = { 0f, 0.6f, 1.2f, 1.8f, 2.4f, 3.2f, 4f };
+        static readonly float[] Waits = { 0f, 0.6f, 1.2f, 1.8f, 2.4f, 3.2f, 4f, 5f, 6f };
 
         readonly int n;
         readonly Vector2[] from, to, via;
@@ -256,6 +256,7 @@ public static class V2Show
 
         public Vector2 Position(int i, float t) { return At(i, Mathf.Clamp(t, 0f, Total)); }
         public Vector2 LineSpot(int i) { return to[i]; }
+        public float ArrivesAt(int i) { return wait[i] + secs[i]; }   // when robot i reaches its spot
         public bool InLane(int i, float t) { return false; }
     }
 

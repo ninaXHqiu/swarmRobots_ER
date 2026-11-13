@@ -102,6 +102,13 @@ public static class V2Show
         yield return Swarm.Wait(AfterTalkMs);
     }
 
+    // The line on its own: every robot to its own slot, facing the participant
+    public static IEnumerator ToLine(RoutineContext ctx)
+    {
+        yield return ToOwnSlots(ctx);
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
+    }
+
     // Which line slot each physical robot owns, kept for as long as the app runs
     static readonly Dictionary<string, int> slotOf = new Dictionary<string, int>();
 

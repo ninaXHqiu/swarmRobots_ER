@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
@@ -64,7 +65,8 @@ public class V2MazeBreathing : SwarmRoutine
     const float BreathSecs = 20f;         // wide -> small -> wide: slow, about 12 units a second at most, so the wheels stay quiet
     const int Breaths = 4;
     const float CalmDegPerSec = 6f;        // turning while breathing: very gentle (about 13 units a second at the widest)
-    const float StopSecs = 6f;
+    const float ReturnSecs = 12f;          // the ring flattens into the line over this long
+    const float ExitRadius = 106f;         // ...opening out to this, so neighbours have room
 
     const float Step = 0.02f;
 
@@ -81,7 +83,7 @@ public class V2MazeBreathing : SwarmRoutine
         readonly Show.Eased turnRate;       // radians per second, from ringAt
         readonly float breatheFrom;
         public float Total { get; private set; }
-        float ringStop; V2Show.WayToLine home;
+        float ringStop, returnFrom; Vector2[] ownSpot;
         public float SwitchAt { get { return switchAt; } }
         public string Approach { get { return (way.Clear ? "clear" : "NOT clear") + " in " + way.Total.ToString("F1") + " s"; } }
         public float RingAt { get { return ringAt; } }
@@ -119,12 +121,32 @@ public class V2MazeBreathing : SwarmRoutine
                 }
                 chosen[i] = true;
             }
-            var takes = Swarm.LeastTravel(start, points.Select(s => RouteAt(s)).ToArray());
+            // Which robot takes which point: the robots follow each other along the route in the
+            // order that opens back into the line without crossing (V2Show.RingOrder), so the
+            // ending is a clean flattening. Of the ways to do that, the one with the least travel.
+            var seq = V2Show.RoundTheRing(n);
+            var byS = Enumerable.Range(0, n).OrderBy(k => points[k]).ToArray();   // points, in order along the route
             entry = new float[n];
-            for (int i = 0; i < n; i++) { entry[i] = points[takes[i]]; }
-            // The approaches: direct, planned clear of each other (a robot bows aside or leaves a
-            // moment later where two would meet)
-            way = new V2Show.WayToLine(start, entry.Select(s => RouteAt(s)).ToArray());
+            var options = new List<KeyValuePair<float, int[]>>();
+            foreach (int dir in new[] { 1, -1 })
+            {
+                for (int k = 0; k < n; k++)
+                {
+                    var slotAt = new int[n];   // slotAt[r]: the robot taking the r-th point along the route
+                    float cost = 0f;
+                    for (int r = 0; r < n; r++) { slotAt[r] = seq[((dir * r + k) % n + n) % n]; cost += (start[slotAt[r]] - RouteAt(points[byS[r]])).sqrMagnitude; }
+                    options.Add(new KeyValuePair<float, int[]>(cost, slotAt));
+                }
+            }
+            // the shortest trips first; the first whose approaches can all be planned clear of each other
+            foreach (var option in options.OrderBy(o => o.Key))
+            {
+                for (int r = 0; r < n; r++) { entry[option.Value[r]] = points[byS[r]]; }
+                // The approaches: direct, planned clear of each other (a robot bows aside or leaves a
+                // moment later where two would meet)
+                way = new V2Show.WayToLine(start, entry.Select(s => RouteAt(s)).ToArray(), 45f);
+                if (way.Clear) { break; }
+            }
             approach = Mathf.Max(ApproachSecs, way.Total);
 
             // 2. Travelling with different paces, easing off behind the robot ahead. Each robot
@@ -170,14 +192,37 @@ public class V2MazeBreathing : SwarmRoutine
             float calm = CalmDegPerSec * Mathf.Deg2Rad;
             breatheFrom = ringAt + WidenSecs;
             float stopFrom = breatheFrom + Breaths * BreathSecs;
-            ringStop = stopFrom + StopSecs;
-            turnRate = new Show.Eased(ringAt, RingPace / InnerRadius, breatheFrom, calm, stopFrom, calm, ringStop, 0f);
-            // the fixed ending: the ring slows to a stop, then each robot returns to its own place in the line
-            var atStop = new Vector2[n];
-            Total = ringStop;
-            for (int i = 0; i < n; i++) { atStop[i] = Position(i, ringStop); }
-            home = new V2Show.WayToLine(atStop, V2Show.OwnSpots(n), 28f);
-            Total = ringStop + home.Total + 0.5f;
+            returnFrom = stopFrom;
+            ringStop = stopFrom + ReturnSecs;
+            // The fixed ending: the ring opens out and flattens into the line, each robot onto its
+            // own place, while it is still turning (the robots are in the order that does this
+            // without crossing). The ring has to be at one particular angle half way through, so the
+            // gentle turn is set to the rate that brings it there.
+            Show.Eased RateFor(float c) { return new Show.Eased(ringAt, RingPace / InnerRadius, breatheFrom, c, stopFrom, c, ringStop, 0f); }
+            float tMid = stopFrom + ReturnSecs / 2f;
+            var lineOrder = V2Show.RingOrder(n);
+            int sense = 1; float phi0 = 0f, fitCost = float.MaxValue;
+            foreach (int sg in new[] { 1, -1 })
+            {
+                float sx = 0f, sy = 0f;
+                for (int i = 0; i < n; i++) { float a = ringAngle[i] - sg * 2f * Mathf.PI * lineOrder[i] / n; sx += Mathf.Cos(a); sy += Mathf.Sin(a); }
+                float mean = Mathf.Atan2(sy, sx), cost = 0f;
+                for (int i = 0; i < n; i++) { float d = Mathf.DeltaAngle(0f, (ringAngle[i] - sg * 2f * Mathf.PI * lineOrder[i] / n - mean) * Mathf.Rad2Deg) * Mathf.Deg2Rad; cost += d * d; }
+                if (cost < fitCost) { fitCost = cost; sense = sg; phi0 = mean; }
+            }
+            float unusedCost; float opensAt = V2Show.BestAngle(lineOrder, sense, ExitRadius, V2Show.OwnSpots(n), out unusedCost);
+            float needed = Mathf.Repeat(phi0 - opensAt, 2f * Mathf.PI);
+            float omega0 = RateFor(0f).Integral(tMid) - RateFor(0f).Integral(ringAt);
+            float perUnit = RateFor(1f).Integral(tMid) - RateFor(1f).Integral(ringAt) - omega0;
+            float chosenRate = calm;
+            for (int k = 0; k < 40; k++)
+            {
+                float c = (needed + 2f * Mathf.PI * k - omega0) / perUnit;
+                if (c >= 4f * Mathf.Deg2Rad && c <= 9f * Mathf.Deg2Rad) { chosenRate = c; break; }
+            }
+            turnRate = RateFor(chosenRate);
+            ownSpot = V2Show.OwnSpots(n);
+            Total = ringStop + 0.3f;
         }
 
         // From the switch each robot is measured by its distance past the start of the ring
@@ -198,7 +243,7 @@ public class V2MazeBreathing : SwarmRoutine
                 past[i] = r <= innerLength ? r : r - length;
             }
             // order round the ring, counting a robot still outside by where it will come in
-            var round = Enumerable.Range(0, n).OrderBy(i => Mathf.Repeat(past[i], around)).ToArray();
+            var round = Enumerable.Range(0, n).OrderBy(i => past[i]).ToArray();   // the order of the queue along the route, so the ring keeps it
             float bestCost = float.MaxValue, bestRef = 0f; int bestShift = 0;
             for (int shift = 0; shift < n; shift++)
             {
@@ -284,14 +329,17 @@ public class V2MazeBreathing : SwarmRoutine
         {
             float r = Mathf.Lerp(InnerRadius, WideRadius, Shapes.Ease((t - ringAt) / WidenSecs));
             for (int b = 0; b < Breaths; b++) { r -= (WideRadius - SmallRadius) * Show.Bump((t - breatheFrom - b * BreathSecs) / BreathSecs); }
-            return r;
+            return r + (ExitRadius - WideRadius) * Shapes.Ease((t - returnFrom) / (ReturnSecs * 0.5f));
         }
 
         public Vector2 Position(int i, float t)
         {
             t = Mathf.Clamp(t, 0f, Total);
-            if (home != null && t >= ringStop) { return home.Position(i, t - ringStop); }
-            if (t >= ringAt) { return Shapes.Centre + Radius(t) * Unit(ringAngle[i] - (turnRate.Integral(t) - turnRate.Integral(ringAt))); }
+            if (t >= ringAt)
+            {
+                Vector2 onRing = Shapes.Centre + Radius(t) * Unit(ringAngle[i] - (turnRate.Integral(t) - turnRate.Integral(ringAt)));
+                return ownSpot == null || t <= returnFrom ? onRing : Vector2.Lerp(onRing, ownSpot[i], Shapes.Ease((t - returnFrom) / ReturnSecs));
+            }
             if (t >= switchAt) { return RingOrRoute(At(ring[i], t - switchAt)); }
             Vector2 onRoute = RouteAt(At(route[i], t));
             // the approach: from where the robot stands to its entry point; it starts along the

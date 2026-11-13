@@ -28,7 +28,7 @@ public static class V2TestCheck
         };
         foreach (var (name, plan, extra) in plans)
         {
-            report.AppendFormat("{0}: {1}\n", name, Check(plan, 8));
+            report.AppendFormat("{0}: {1}{2}\n", name, Check(plan, 8), plan is V2MazeBreathing.Plan ? " | approach " + ((V2MazeBreathing.Plan)plan).Approach : "");
             if (outDir != null) { File.WriteAllText(Path.Combine(outDir, name + ".csv"), Csv(plan, 8)); }
         }
         Debug.Log(report.ToString());

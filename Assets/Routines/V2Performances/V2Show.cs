@@ -348,6 +348,7 @@ public static class V2Show
     {
         var reverse = new bool[ctx.Count];
         var holding = new bool[ctx.Count];
+        lowSpeed = PlayerPrefs.GetFloat("V2LowSpeed", LowSpeed); fullTurnSpeed = PlayerPrefs.GetFloat("V2FullTurn", FullTurnSpeed); positionNoise = PlayerPrefs.GetFloat("V2Noise", 0f);
         safetyOn = !(plan is INoSafetyPush);
         var sections = (plan as ISections) != null ? System.Linq.Enumerable.ToList(System.Linq.Enumerable.OrderBy(((ISections)plan).Sections, k => k.Key)) : null;
         int nextSection = 0;
@@ -373,6 +374,8 @@ public static class V2Show
 
     const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
     const float FlowTurnSecs = 0.45f; // how quickly robots in a lane turn to the wanted direction
+    const float LowSpeed = 6f, FullTurnSpeed = 20f;
+    static float lowSpeed = LowSpeed, fullTurnSpeed = FullTurnSpeed, positionNoise;   // (the last three are only changed by the headless tests: PlayerPrefs V2LowSpeed, V2FullTurn, V2Noise)   // below LowSpeed a free robot does not turn, from FullTurnSpeed up it turns fully
     const float SteerTurnSecs = 0.25f; // how quickly free robots turn to the wanted direction (the same as Swarm.Flow)
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
     const float FlowTurnSpeed = 40f;  // below this speed robots turn more gently
@@ -438,6 +441,7 @@ public static class V2Show
         float from = Mathf.Max(0f, at - h);
         Vector2 pathVelocity = (plan.Position(i, at + h) - plan.Position(i, from)) / (at + h - from);
         Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
+        if (positionNoise > 0f) { here += positionNoise * new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f)); }
         Vector2 want = pathVelocity + FlowGain * (target - here);
         if (Holds(ref holding, pathVelocity, target, here)) { handle.Move(0, 0, 100, false); return; }
 
@@ -455,9 +459,12 @@ public static class V2Show
         }
         float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
         double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
-        // exactly the turning rule of the v0 and v1 routines (Swarm.Flow): the full turn at every speed, with no feed-forward term.
-        // (The gentler v2 rule, weaker at low speed plus a path-curvature term, made the robots wobble and move one step at a time.)
-        double rotate = turnDeg * Mathf.Deg2Rad / SteerTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        // The turning rule of the v0 and v1 routines (Swarm.Flow): the full turn, at the same rate. Only where the wanted speed is so low
+        // that the position sensor's noise (a unit or two, times the gain) is as big as the wanted movement itself is the direction not
+        // believed: below 6 units per second the robot keeps its heading and only creeps along it, and the turn comes in fully by 20. Without
+        // this the robots spin about on the noise as they start to move.
+        float believe = Mathf.Clamp01((want.magnitude - lowSpeed) / Mathf.Max(0.01f, fullTurnSpeed - lowSpeed));
+        double rotate = believe * turnDeg * Mathf.Deg2Rad / SteerTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
         handle.Move(translate, rotate, 200, false);
     }
 

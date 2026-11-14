@@ -40,6 +40,12 @@ public static class SimRecorder
         EditorPrefs.SetString(Key + "Routine", arg("-routine"));
         EditorPrefs.SetString(Key + "Out", arg("-out"));
         PlayerPrefs.SetInt("SimulatorRobots", int.Parse(arg("-robots") ?? "8"));
+        // optional test settings: position noise (mat units) and the low-speed turning limits of V2Show's steering
+        foreach (var pair in new[] { new[] { "-noise", "V2Noise" }, new[] { "-lowspeed", "V2LowSpeed" }, new[] { "-fullturn", "V2FullTurn" } })
+        {
+            string v = arg(pair[0]);
+            if (v != null) { PlayerPrefs.SetFloat(pair[1], float.Parse(v, System.Globalization.CultureInfo.InvariantCulture)); } else { PlayerPrefs.DeleteKey(pair[1]); }
+        }
         PlayerPrefs.Save();
         EditorSceneManager.OpenScene("Assets/development/RoutineSimulator.unity");
         EditorApplication.EnterPlaymode();

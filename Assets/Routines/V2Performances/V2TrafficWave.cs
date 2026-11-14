@@ -4,60 +4,45 @@ using System.Linq;
 using UnityEngine;
 
 // v2 Traffic to Wave (C14).
-//   1. Two streams of four, from the left and from the right, along shallow curves toward one opening
-//      near the middle of the mat (wide enough for one robot). The two leaders reach it together,
-//      each stops short of the space they would share; the right leader gives way with one small
-//      move back, keeping its heading, and the left leader goes through. The followers creep up in
-//      order behind them.
-//   2. A zipper merge, L1 R1 L2 R2 L3 R3 L4 R4: a robot is released into the opening only after the
-//      one before has cleared it; the next is already easing up to its entry. The first gaps are
-//      uneven, then the cadence settles.
-//   3. Beyond the opening each robot takes a short curve that straightens into its own lane, one
-//      lane per slot, perpendicular to the row. The first pair take the two middle slots, then
-//      outward a pair at a time. As each reaches its slot its first shallow stroke grows out of
-//      the exit path, into a wave that is already running.
-//   4. One broad wave travels across all eight, offset = amplitude * sin(k x - phase), for several
-//      cycles; then it tapers and the row goes straight back down its lanes to the line.
-// Slots 0..7 from the left; the left stream is slots 3 2 1 0, the right 4 5 6 7 (front first), and
-// each robot's slot is where it stands in the line, so the wave row lies above the line.
+//   1. After the standard opening all eight head for the same place on the left of the mat, each at
+//      its own speed, along paths that cross: they run into each other (3 and 6 first).
+//   2. They keep going, bumping along in S and figure-eight loops, a tangle that drifts to the
+//      left-middle. Disorder, no lanes.
+//   3. Slowly it unwinds from the right: the rightmost robot peels out like a spring uncoiling and
+//      goes to the far end of the row; then the next one, and so on, each into its own lane.
+//   4. As soon as the rightmost reaches its place the wave starts there and travels along the row as
+//      each robot arrives; several cycles; then it tapers and the row goes straight back to the line.
 public class V2TrafficWave : SwarmRoutine
 {
     public override string Name { get { return "v2 Traffic to Wave"; } }
     public override string Code { get { return "C14"; } }
-    public override string Note { get { return "Merge, zipper, travelling wave"; } }
+    public override string Note { get { return "Collide, untangle, travelling wave"; } }
     public override int MinRobots { get { return 8; } }
 
     public override IEnumerator Run(RoutineContext ctx)
     {
-        // the fixed opening (the Messenger's introduction) and ending (all in the line, facing the participant)
         yield return V2Show.Run(ctx, start => new Plan(start), 90);
     }
 
     public class Plan : V2Show.IPlan, V2Show.IHeading
     {
-        static readonly Vector2 Gate = new Vector2(250f, 232f);      // the opening: one robot wide
-        const float RowY = 126f;                                      // the wave row's resting line
-        const float LaneTopY = 156f;                                  // where an exit curve has straightened into its lane
-        static readonly int[] Left = { 3, 2, 1, 0 }, Right = { 4, 5, 6, 7 };    // front first
-        static readonly int[] Release = { 3, 4, 2, 5, 1, 6, 0, 7 };           // L1 R1 L2 R2 L3 R3 L4 R4
-        static readonly float[] Behind = { 0f, 52f, 110f, 166f };               // along the stream, behind the leader
-        static readonly float[] BehindR = { 0f, 48f, 114f, 160f };
-        const float FormSecs = 8f, CreepFrom = 8f, CreepSecs = 5f;
-        const float YieldAt = 14.6f, YieldBack = 16.2f;   // the right leader steps back, then forward again, before its release
-        static readonly float[] Gaps = { 3.0f, 2.6f, 2.3f, 2.1f, 2.0f, 1.9f, 1.9f };   // between releases: uneven, then regular
-        const float FirstRelease = 15.8f;
-        const float PassSecs = 4.6f, EaseUpSecs = 1.6f;
-        const float WaveAmp = 38f, WavePeriod = 7f, WaveLength = 336f, Cycles = 6f;
+        const float RowY = 126f;
+        const float WaveAmp = 38f, WavePeriod = 7f, WaveLength = 336f, Cycles = 5f;
         const float JoinRampSecs = 6f, TaperSecs = 9f, ReturnSecs = 9f;
+        const float TangleFrom = 12f, PeelFrom = 42f, PeelGap = 3f, PeelSecs = 9f;
+        static readonly float[] RunSecs = { 9f, 10.5f, 8.5f, 8f, 12f, 9.5f, 11f, 13f };     // the run to the left, per robot
+        static readonly float[] RunFrom = { 1.5f, 1f, 1.8f, 1f, 2.2f, 1.2f, 1f, 1.6f };
+        static readonly float[] AmpX = { 78f, 100f, 70f, 108f, 90f, 74f, 98f, 84f };
+        static readonly float[] AmpY = { 46f, 60f, 70f, 52f, 64f, 44f, 68f, 50f };
+        static readonly float[] Period = { 17f, 21f, 15.5f, 18.5f, 23f, 16f, 21.5f, 19f };
+        static readonly float[] Phase = { 0f, 1.9f, 3.4f, 0.8f, 4.6f, 2.5f, 5.5f, 1.2f };
+        static readonly float[] Spin = { 0.7f, -0.9f, 0.5f, -0.6f, 0.8f, -0.5f, 0.6f, -0.8f };
 
         readonly Vector2[] start, line;
-        readonly float[] releaseAt = new float[8], arriveAt = new float[8];
-        readonly bool[] isLeft = new bool[8];
-        readonly int[] rank = new int[8];
+        readonly float[] arriveAt = new float[8];
         readonly float waveFrom, waveTo, taperTo;
         public float Total { get; private set; }
         public float WaveFrom { get { return waveFrom; } }
-        public float ReleaseOf(int slot) { return releaseAt[slot]; }
         public float ArriveOf(int slot) { return arriveAt[slot]; }
         public float ReturnAt { get { return taperTo; } }
 
@@ -65,90 +50,37 @@ public class V2TrafficWave : SwarmRoutine
         {
             this.start = start;
             line = V2Show.OwnSpots(8);
-            for (int r = 0; r < 4; r++) { isLeft[Left[r]] = true; rank[Left[r]] = r; rank[Right[r]] = r; }
-            float t = FirstRelease;
-            for (int k = 0; k < 8; k++)
-            {
-                releaseAt[Release[k]] = t;
-                if (k < 7) { t += Gaps[k]; }
-            }
-            for (int s = 0; s < 8; s++) { arriveAt[s] = releaseAt[s] + PassSecs; }
-            waveFrom = arriveAt[Release[0]];
-            waveTo = arriveAt[Release[7]] + JoinRampSecs + Cycles * WavePeriod;
+            for (int s = 0; s < 8; s++) { arriveAt[s] = PeelFrom + PeelGap * (7 - s) + PeelSecs; }
+            waveFrom = arriveAt[7];
+            waveTo = arriveAt[0] + JoinRampSecs + Cycles * WavePeriod;
             taperTo = waveTo + TaperSecs;
             Total = taperTo + ReturnSecs + 0.3f;
         }
 
-        // ---------------- The streams ----------------
-        // A stream's curve: s = 0 at the stop-short point beside the opening, negative further back
-        static Vector2 StreamAt(bool left, float s)
+        float PeelAt(int slot) { return PeelFrom + PeelGap * (7 - slot); }
+
+        // ---------------- The tangle ----------------
+        Vector2 Hub(float t)
         {
-            float x = left ? 232f + s * 0.72f : 268f - s * 0.72f;
-            return new Vector2(x, 262f + 0.0007f * s * s);
+            return Vector2.Lerp(new Vector2(230f, 262f), new Vector2(172f, 252f), Shapes.Ease((t - TangleFrom) / (PeelFrom - TangleFrom)));
         }
 
-        float Behind_(int slot) { return isLeft[slot] ? Behind[rank[slot]] : BehindR[rank[slot]]; }
-
-        // where robot `slot` stands in its stream at t (before its release), s along the curve
-        float YieldS(int slot, float t)
+        // S and figure-eight loops about the drifting hub, each robot its own size, speed and phase
+        Vector2 Tangle(int slot, float t)
         {
-            if (slot != 4) { return 0f; }
-            return -16f * (Shapes.Ease((t - YieldAt) / 0.7f) - Shapes.Ease((t - YieldBack) / 1.2f));
+            float w = 2f * Mathf.PI / Period[slot];
+            float a = w * t + Phase[slot];
+            return Hub(t) + new Vector2(AmpX[slot] * Mathf.Sin(a), AmpY[slot] * Mathf.Sin(2f * a + 0.7f * slot));
         }
 
-        float StreamS(int slot, float t)
-        {
-            // each robot ahead in its stream that is released lets this one move up a place
-            float eff = rank[slot];
-            for (int r = 0; r < rank[slot]; r++)
-            {
-                int a = isLeft[slot] ? Left[r] : Right[r];
-                eff -= Shapes.Ease((t - releaseAt[a] - 0.3f) / 2.4f);
-            }
-            float[] places = isLeft[slot] ? Behind : BehindR;
-            int lo = Mathf.Clamp(Mathf.FloorToInt(eff), 0, places.Length - 2);
-            float behind = Mathf.Lerp(places[lo], places[lo + 1], eff - lo);
-            // everyone creeps up 20 toward the opening as the leaders ease toward it (the nearest first)
-            float start0 = CreepFrom + 0.9f * rank[slot];
-            float s = -behind - 20f + 20f * Shapes.Ease((t - start0) / CreepSecs);
-            if (rank[slot] == 0) { s = Mathf.Min(s, 0f); }
-            s += YieldS(slot, t);
-            // the second right robot waits while its leader gives way
-            if (slot == 5) { s = Mathf.Min(s, StreamS(4, t) - 42f); }
-            return s;
-        }
+        // ---------------- The wave ----------------
+        Vector2 RowSpot(int slot) { return new Vector2(line[slot].x, RowY); }
 
-        int AheadOf(int slot)
-        {
-            int r = rank[slot];
-            return r == 0 ? -1 : (isLeft[slot] ? Left[r - 1] : Right[r - 1]);
-        }
-
-        // ---------------- Through the opening ----------------
-        Vector2 Bezier(Vector2 a, Vector2 b, Vector2 c, Vector2 d, float u)
-        {
-            float v = 1f - u;
-            return v * v * v * a + 3f * v * v * u * b + 3f * v * u * u * c + u * u * u * d;
-        }
-
-        // the way through: the entry beside the opening, the opening, then a curve straightening into the lane
-        Vector2 Pass(int slot, float tau)
-        {
-            Vector2 entry = StreamAt(isLeft[slot], 0f);
-            float x = line[slot].x;
-            float p = Mathf.Lerp(tau, Shapes.Ease(tau), 0.6f);   // leaves the entry smoothly, then keeps a steady pace
-            const float Split = 0.31f;                           // the entry-to-opening part, and the exit curve after it
-            if (p < Split) { return Bezier(entry, entry + new Vector2(isLeft[slot] ? 12f : -12f, -14f), Gate + new Vector2(0f, 14f), Gate, p / Split); }
-            float u = (p - Split) / (1f - Split);
-            return Bezier(Gate, Gate + new Vector2(0f, -40f), new Vector2(x, LaneTopY + 40f), new Vector2(x, LaneTopY), u);
-        }
-
-        // the wave: offset from the row's line
         float Wave(int slot, float t)
         {
             float k = 2f * Mathf.PI / WaveLength;
             float x = line[slot].x - 250f;
-            float own = Shapes.Ease((t - arriveAt[slot]) / JoinRampSecs);           // shallow at first, growing
+            float own = Shapes.Ease((t - arriveAt[slot]) / JoinRampSecs);
             float taper = 1f - Shapes.Ease((t - waveTo) / TaperSecs);
             return WaveAmp * own * taper * Mathf.Sin(k * x - 2f * Mathf.PI * (t - waveFrom) / WavePeriod);
         }
@@ -157,38 +89,31 @@ public class V2TrafficWave : SwarmRoutine
         {
             t = Mathf.Clamp(t, 0f, Total);
             float x = line[slot].x;
-            // the final return: straight down its lane to the line
             if (t >= taperTo)
             {
-                float y = Mathf.Lerp(RowY, line[slot].y, Shapes.Ease((t - taperTo) / ReturnSecs));
-                return new Vector2(x, y);
+                return new Vector2(x, Mathf.Lerp(RowY, line[slot].y, Shapes.Ease((t - taperTo) / ReturnSecs)));
             }
-            // in the row: the wave
-            if (t >= arriveAt[slot])
+            if (t >= arriveAt[slot]) { return new Vector2(x, RowY + Wave(slot, t)); }
+            Vector2 p = Tangle(slot, t);
+            if (t < TangleFrom + 4f)
             {
-                float join = Shapes.Ease((t - arriveAt[slot]) / 2f);
-                float y = Mathf.Lerp(LaneTopY, RowY, join) + Wave(slot, t);
-                return new Vector2(x, y);
+                // the run to the left: each at its own speed, straight at the others' way
+                float r = Shapes.Ease((t - RunFrom[slot]) / RunSecs[slot]);
+                p = Vector2.Lerp(start[slot], p, r);
             }
-            // going through the opening
-            if (t >= releaseAt[slot]) { return Pass(slot, (t - releaseAt[slot]) / PassSecs); }
-            // easing up to the entry just before its release
-            Vector2 entry = StreamAt(isLeft[slot], 0f);
-            float easeFrom = releaseAt[slot] - EaseUpSecs;
-            float s = StreamS(slot, t);
-            Vector2 p;
-            if (t < FormSecs) { p = Vector2.Lerp(start[slot], StreamAt(isLeft[slot], -Behind_(slot) - 20f), Shapes.Ease(t / FormSecs)); }
-            else
+            float e = Shapes.Ease((t - PeelAt(slot)) / PeelSecs);
+            if (e > 0f)
             {
-                p = StreamAt(isLeft[slot], s);
-                if (t > easeFrom) { p = Vector2.Lerp(p, entry, Shapes.Ease((t - easeFrom) / EaseUpSecs)); }
+                // uncoiling like a spring: it spirals outward while it travels to its place in the row
+                float s = 40f * Mathf.Sin(Mathf.PI * e);
+                float ang = Spin[slot] * 2f * Mathf.PI * 1.2f * e + Phase[slot];
+                p = Vector2.Lerp(p, RowSpot(slot), e) + s * new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             }
             return p;
         }
 
-        // robots in the row face the way the traffic went (away from the participant)
         public float Heading(int slot, float t) { return 270f; }
         public Vector2 LineSpot(int i) { return line[i]; }
-        public bool InLane(int slot, float t) { return t >= arriveAt[slot] + 0.5f; }
+        public bool InLane(int slot, float t) { return false; }   // free path steering: a lane robot cannot correct sideways drift
     }
 }

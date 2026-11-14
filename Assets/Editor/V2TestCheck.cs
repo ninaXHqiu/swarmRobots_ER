@@ -34,6 +34,9 @@ public static class V2TestCheck
             ("Traffic", new V2TrafficWave.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("Fight", new V2FightBreathing.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("Rhythm", new V2FindingRhythm.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Circles", new V2SmallCircles.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
+            ("RingSwap", new V2RingSwap.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Zigzag", new V2ZigzagRelay.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("Cuddling", new V2Cuddling.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
         };
         foreach (var (name, plan, extra) in plans)

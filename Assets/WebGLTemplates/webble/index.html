@@ -24,7 +24,7 @@
         <div id="unity-build-title">{{{ PRODUCT_NAME }}}</div>
       </div>
     </div>
-    <details id="physio-panel" class="physio-panel">
+    <details id="physio-panel" class="physio-panel" open>
       <summary>Sensor and monitor (Shimmer) &nbsp;<span id="physio-summary">not connected</span></summary>
       <div class="physio-body">
         <div class="physio-row">
@@ -39,19 +39,81 @@
           <button onclick="Physio.downloadCsv()">Download CSV</button>
           <button onclick="Physio.openMonitor()">Open the monitor in a new tab</button>
         </div>
-        <iframe id="physio-frame" title="Physio monitor" src="StreamingAssets/physio/monitor.html?embedded=1"></iframe>
+        <details class="physio-sub" open>
+          <summary>Connection log</summary>
+          <pre id="physio-log">Nothing yet. Click a Connect button.</pre>
+        </details>
+        <details class="physio-sub" open>
+          <summary>How to put the sensor on the person</summary>
+          <p><a href="StreamingAssets/physio/guide.html" target="_blank">Open the picture guide (which part is which, where it goes) in a new tab</a></p>
+          <div class="physio-guide">
+            <svg viewBox="0 0 520 250" role="img" aria-label="Where each sensor part goes on the hand and wrist">
+              <rect x="0" y="0" width="520" height="250" fill="none"/>
+              <!-- forearm and hand (palm side) -->
+              <rect x="20" y="95" width="150" height="70" rx="18" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="165" y="85" width="120" height="90" rx="22" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="280" y="92" width="150" height="20" rx="10" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="285" y="116" width="160" height="20" rx="10" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="280" y="140" width="145" height="20" rx="10" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="270" y="164" width="120" height="18" rx="9" fill="#f1d9c4" stroke="#8a6a50"/>
+              <rect x="190" y="58" width="95" height="22" rx="11" fill="#f1d9c4" stroke="#8a6a50" transform="rotate(25 190 58)"/>
+              <!-- Shimmer unit on wrist strap -->
+              <rect x="95" y="88" width="46" height="84" rx="6" fill="#444" stroke="#111"/>
+              <text x="118" y="135" fill="#fff" font-size="11" text-anchor="middle" transform="rotate(-90 118 135)">Shimmer</text>
+              <!-- GSR electrodes on index and middle (middle sections) -->
+              <rect x="330" y="92" width="22" height="20" rx="4" fill="#2b7bd9" stroke="#14407a"/>
+              <rect x="330" y="116" width="22" height="20" rx="4" fill="#2b7bd9" stroke="#14407a" transform="translate(5 0)"/>
+              <!-- PPG clip on ring finger tip -->
+              <rect x="388" y="138" width="34" height="24" rx="6" fill="#d9472b" stroke="#7a1d0f"/>
+              <!-- cables -->
+              <path d="M141 120 C 220 40, 300 60, 341 96" fill="none" stroke="#2b7bd9" stroke-width="2.5" stroke-dasharray="5 3"/>
+              <path d="M141 140 C 230 215, 340 215, 405 160" fill="none" stroke="#d9472b" stroke-width="2.5" stroke-dasharray="5 3"/>
+              <text x="118" y="82" font-size="12" text-anchor="middle" fill="currentColor">1 unit on wrist</text>
+              <text x="341" y="78" font-size="12" text-anchor="middle" fill="#2b7bd9">2 GSR electrodes</text>
+              <text x="405" y="190" font-size="12" text-anchor="middle" fill="#d9472b">3 pulse probe</text>
+            </svg>
+            <ol>
+              <li><b>Before you start.</b> Clean, dry hands, no hand cream. Use the hand the person uses less (for example the left hand if they write with the right). They sit with that arm resting on the table or on their lap. Allow about 2 minutes for the skin conductance to settle before recording.</li>
+              <li><b>1. The Shimmer unit (the box).</b> Fix it on the wrist of that arm with its wrist strap, snug but not tight, the box on the back of the wrist like a watch. It must not slide when the hand moves. Switch it on (the light blinks).</li>
+              <li><b>2. GSR electrodes (skin conductance).</b> Two Velcro finger straps, each with a metal electrode, on the <b>index and middle finger</b>, around the <b>middle segment</b> (between the two lower knuckles), electrode against the <b>palm side</b> of the finger. The straps hold the electrodes firmly on the skin, snug, no gaps, not cutting off blood flow. The two electrode leads plug into the unit's <b>GSR / electrode jack</b> (the one marked GSR on the Shimmer GSR+ board).</li>
+              <li><b>3. Pulse probe (heart rate).</b> The optical probe goes on the <b>ring finger</b> of the same hand, <b>fingertip pad</b> against the light (or on the earlobe if the hand moves a lot). Snug, not squeezing: if the fingertip goes white or tingles it is too tight. Its lead plugs into the unit's <b>optical pulse jack</b>. Keep that finger still; most heart-rate failures are caused by moving it.</li>
+              <li><b>Cables.</b> Lay the leads along the back of the hand and wrist and tape or strap them down so they do not pull on the electrodes or the probe when the hand moves.</li>
+              <li><b>Check.</b> Click <i>Connect Shimmer3R</i>. After about 5 seconds of a still finger the monitor shows a heart rate; skin conductance appears as a slowly moving line. If the heart rate stays "--", check the probe position and keep the hand still. If the conductance is flat at zero, check that the electrode straps touch the skin.</li>
+            </ol>
+            <p class="physio-note">Placement follows common practice for Shimmer GSR+ (finger GSR electrodes, fingertip or ear PPG, non-dominant hand). Check jack labels and exact positions against Shimmer's GSR+ user guide for your unit.</p>
+          </div>
+        </details>
+        <iframe id="physio-frame" title="Physio monitor" src="StreamingAssets/physio/monitor.html?embedded=1" scrolling="no"></iframe>
       </div>
     </details>
     <style>
-      .physio-panel { width: {{{ WIDTH }}}px; max-width: 100%; margin: 8px auto 24px; font: 14px system-ui, sans-serif; color: #333; }
-      .physio-panel summary { cursor: pointer; padding: 6px 2px; font-weight: 600; }
-      .physio-body { border: 1px solid #ccc; border-radius: 8px; padding: 8px; background: #fafafa; }
-      .physio-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
-      .physio-row button { font: inherit; padding: 4px 9px; border: 1px solid #bbb; background: #fff; border-radius: 6px; cursor: pointer; }
-      #physio-frame { width: 100%; height: 640px; border: 0; background: transparent; }
+      .physio-panel { width: min(1200px, 96vw); margin: 8px auto 24px; font: 15px/1.45 system-ui, sans-serif; color: #333; }
+      .physio-panel > summary { cursor: pointer; padding: 8px 2px; font-weight: 600; font-size: 17px; }
+      .physio-body { border: 1px solid #ccc; border-radius: 8px; padding: 12px; background: #fafafa; }
+      .physio-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+      .physio-row button { font: inherit; padding: 7px 14px; border: 1px solid #bbb; background: #fff; border-radius: 6px; cursor: pointer; }
+      .physio-sub { margin: 8px 0; }
+      .physio-sub > summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+      #physio-log { max-height: 200px; overflow: auto; background: #1d1d1b; color: #e8e8e4; padding: 8px 10px; border-radius: 6px; font: 12px/1.4 ui-monospace, Menlo, monospace; white-space: pre-wrap; margin: 4px 0; }
+      .physio-guide { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+      .physio-guide svg { flex: 1 1 360px; max-width: 520px; background: #fff; border: 1px solid #ddd; border-radius: 8px; }
+      .physio-guide ol { flex: 2 1 420px; margin: 0; padding-left: 20px; }
+      .physio-guide li { margin-bottom: 8px; }
+      .physio-note { flex-basis: 100%; margin: 0; font-size: 13px; color: #666; }
+      #physio-frame { width: 100%; height: 1500px; border: 0; background: transparent; display: block; }
     </style>
     <script>
-      if (window.Physio) { Physio.onStatus = function (m) { var e = document.getElementById("physio-summary"); if (e) { e.textContent = m; } }; }
+      if (window.Physio) {
+        Physio.onStatus = function (m) { var e = document.getElementById("physio-summary"); if (e) { e.textContent = m; } };
+        Physio.onLog = function (lines) { var e = document.getElementById("physio-log"); if (e) { e.textContent = lines.join("\n"); e.scrollTop = e.scrollHeight; } };
+      }
+      // the monitor fits its content, so the accordion never needs an inner scrollbar
+      setInterval(function () {
+        try {
+          var f = document.getElementById("physio-frame"), d = f.contentDocument;
+          if (d && d.documentElement) { var h = d.documentElement.scrollHeight; if (h > 200 && Math.abs(h - f.offsetHeight) > 4) { f.style.height = h + "px"; } }
+        } catch (e) { /* different origin: keep the default height */ }
+      }, 500);
     </script>
     <script>
       var buildUrl = "Build";

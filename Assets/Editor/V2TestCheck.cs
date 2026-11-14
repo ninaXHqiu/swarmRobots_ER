@@ -25,20 +25,22 @@ public static class V2TestCheck
             if (typeof(SwarmRoutine).IsAssignableFrom(type) && !type.IsAbstract && type.GetConstructor(Type.EmptyTypes) != null) { found.Add((SwarmRoutine)Activator.CreateInstance(type)); }
         }
         foreach (var r in RoutineLabels.Sort(found)) { report.AppendFormat("LIST {0}\n", RoutineLabels.Label(r).Replace("\n", "  //  ").Replace("<b>", "").Replace("</b>", "").Replace("<size=11>", "").Replace("</size>", "")); }
-        var line = LineUp.Spots(8).Select(s => (Vector2)s).ToArray();
+        var line = V2Show.OwnSpots(8);
         var spawn = Swarm.Line(8).Select(s => (Vector2)s).ToArray();
         var plans = new (string, V2Show.IPlan, string)[]
         {
             ("Maze_fromLineUp", new V2MazeBreathing.Plan(line), ""),
             ("Maze_fromSpawnLine", new V2MazeBreathing.Plan(spawn), ""),
-            ("Traffic", new V2TrafficWave.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("Fight", new V2FightBreathing.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("Rhythm", new V2FindingRhythm.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("Circles", new V2SmallCircles.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("RingSwap", new V2RingSwap.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("Zigzag", new V2ZigzagRelay.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("HeartRing", new V2HeartRing.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
-            ("Cuddling", new V2Cuddling.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Traffic", new V2TrafficWave.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Fight", new V2FightBreathing.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Rhythm", new V2FindingRhythm.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Identical", new V2IdenticalCircles.Plan(V2Show.IdealStart(8)), ""),
+            ("Circles", new V2SmallCircles.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("RingSwap", new V2RingSwap.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Zigzag", new V2ZigzagRelay.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("HeartRing", new V2HeartRing.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("HeartResonance", new V2HeartResonance.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Cuddling", new V2Cuddling.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
         };
         foreach (var (name, plan, extra) in plans)
         {

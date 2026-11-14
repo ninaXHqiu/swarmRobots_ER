@@ -46,6 +46,9 @@ public static class Physio
     // The heart rate, or `fallback` when there is no sensor or no beat yet
     public static float HeartRateOr(float fallback) { float h = HeartRate; return h > 0f ? h : fallback; }
 
+    // The smoothed skin conductance in microsiemens, or `fallback` when there is no sensor or no reading yet
+    public static float EdaOr(float fallback) { float e = Eda; return e > 0f ? e : fallback; }
+
     // Seconds since the participant's last heartbeat. With a sensor that is the real beat; without one it is a
     // metronome at `fallbackBpm` counted from `t` (the routine's own clock), so routines behave the same in tests.
     public static float SecondsSinceBeatOr(float t, float fallbackBpm)

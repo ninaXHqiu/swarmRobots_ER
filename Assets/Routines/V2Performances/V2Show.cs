@@ -56,7 +56,7 @@ public static class V2Show
     public static float Budget(float minutes) { return minutes * 60f - IntroSecs - EndSecs; }
 
     public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60,
-                                  Func<int, float, bool> skip = null, Action<float> extra = null)
+                                  Func<int, float, bool> skip = null, Action<float> extra = null, float approachWithin = 0f)
     {
         yield return Introduction(ctx);
         Physio.Marker("opening done");
@@ -65,6 +65,7 @@ public static class V2Show
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var plan = makePlan(start);
+        if (approachWithin > 0f) { plan = WithApproach.Wrap(plan, approachWithin, n); }
         yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
         // The ending: the path itself brings every robot onto its own spot and it holds there while the steering closes the last
         // few units smoothly (no separate stop-and-go settle: that made the robots shake), then all turn in place to face the participant
@@ -75,14 +76,17 @@ public static class V2Show
     // ---------------- Introduction ----------------
 
     // Messenger.cs steps 1-5 with its constants
-    const int VisitDistance = 70, LookMs = 3000, TurnMs = 1800, WalkMaxSpeed = 70;
-    const float WalkUnitsPerSec = 60f, StepOut = 50f, TalkGap = 55f;
-    const int Shakes = 3, ShakeSpeed = 25, ShakeMs = 150, AfterTalkMs = 800;
+    // The line stands in the lower third of the mat. The second robot from the left is the messenger: it walks out to the participant,
+    // looks at them for two seconds at most, turns, comes back to just in front of the group and talks.
+    public const float LineY = 330f;
+    const int VisitDistance = 45, LookMs = 2000, TurnMs = 1800, WalkMaxSpeed = 70;
+    const float WalkUnitsPerSec = 60f, StepOut = 50f, TalkGap = 30f;
+    const int Shakes = 3, ShakeSpeed = 25, ShakeMs = 150, AfterTalkMs = 500;
 
-    public static Vector2 TalkSpot { get { return Shapes.Centre - Swarm.Inward * TalkGap; } }
+    public static Vector2 TalkSpot { get { return new Vector2(Swarm.Centre, LineY + TalkGap); } }
 
     // The messenger's line slot, counted from the left (left of the middle with an even number)
-    public static int MessengerSlot(int n) { return (n - 1) / 2; }
+    public static int MessengerSlot(int n) { return Mathf.Min(1, n - 1); }
 
     static IEnumerator Introduction(RoutineContext ctx)
     {
@@ -140,7 +144,7 @@ public static class V2Show
     static IEnumerator ToOwnSlots(RoutineContext ctx)
     {
         int n = ctx.Count;
-        var line = LineUp.Spots(n);
+        var line = LineUp.Spots(n, LineY);
         var at = new Vector2[n];
         for (int i = 0; i < n; i++) { at[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var nearest = Swarm.LeastTravel(at, line.Select(s => (Vector2)s).ToArray());   // shortest trips: slot per robot
@@ -190,15 +194,16 @@ public static class V2Show
         static readonly float[] Bows = { 0f, 45f, -45f, 85f, -85f, 125f, -125f };
         static readonly float[] Waits = { 0f, 0.6f, 1.2f, 1.8f, 2.4f, 3.2f, 4f, 5f, 6f };
 
+        readonly float keepDist;
         readonly int n;
         readonly Vector2[] from, to, via;
         readonly float[] wait, secs;
         public readonly bool Clear;
         public float Total { get; private set; }
 
-        public WayToLine(Vector2[] from, Vector2[] to, float unitsPerSec = 70f)
+        public WayToLine(Vector2[] from, Vector2[] to, float unitsPerSec = 70f, float keep = Keep)
         {
-            this.from = from; this.to = to; UnitsPerSec = unitsPerSec;
+            this.from = from; this.to = to; UnitsPerSec = unitsPerSec; keepDist = keep;
             n = from.Length;
             via = new Vector2[n]; wait = new float[n]; secs = new float[n];
             var random = new System.Random(7);
@@ -254,7 +259,7 @@ public static class V2Show
             {
                 int j = order[k];
                 // never asked to be further apart than they stand at the start or will at the end
-                float keep = Mathf.Min(Keep, Mathf.Min((from[i] - from[j]).magnitude, (to[i] - to[j]).magnitude) - 1f);
+                float keep = Mathf.Min(keepDist, Mathf.Min((from[i] - from[j]).magnitude, (to[i] - to[j]).magnitude) - 1f);
                 float until = Mathf.Max(wait[i] + secs[i], wait[j] + secs[j]);
                 for (float t = 0f; t <= until + Step; t += Step)
                 {
@@ -325,7 +330,79 @@ public static class V2Show
     }
 
     // Each robot's own line spot (robot i owns slot i)
-    public static Vector2[] OwnSpots(int n) { return LineUp.Spots(n).Select(s => (Vector2)s).ToArray(); }
+    // A plan whose first movement, from the line (with the messenger in front of it) to where the plan has the robots a few seconds in, is
+    // replaced by clear paths that keep the robots apart. The plan itself carries on from there, so its times do not move.
+    public class WithApproach : IPlan, IHeading, ISections
+    {
+        readonly IPlan inner; readonly IHeading heading; readonly ISections sections; readonly WayToLine way; readonly float wayEnd;
+        public static IPlan Wrap(IPlan plan, float within, int n)
+        {
+            var w = new WithApproach(plan, within, n);
+            if (w.way == null) { return plan; }
+            return plan is INoSafetyPush ? new WithApproachNoPush(plan, w) : (IPlan)w;
+        }
+        protected WithApproach(IPlan inner, WithApproach like) { this.inner = inner; heading = inner as IHeading; sections = inner as ISections; way = like.way; wayEnd = like.wayEnd; }
+        WithApproach(IPlan inner, float within, int n)
+        {
+            this.inner = inner; heading = inner as IHeading; sections = inner as ISections;
+            float t = within;
+            for (int round = 0; round < 3; round++)
+            {
+                float at = t;
+                var w = Approach(Enumerable.Range(0, n).Select(i => inner.Position(i, at)).ToArray(), at);
+                if (w == null) { break; }
+                way = w; t = w.Total + 0.3f; wayEnd = w.Total;
+                if (Mathf.Abs(t - at) < 0.6f) { break; }
+            }
+        }
+        public float Total { get { return inner.Total; } }
+        public Vector2 LineSpot(int i) { return inner.LineSpot(i); }
+        public bool InLane(int i, float t) { return inner.InLane(i, t); }
+        public float Heading(int i, float t) { return heading != null ? heading.Heading(i, t) : float.NaN; }
+        public IEnumerable<KeyValuePair<float, string>> Sections { get { return sections != null ? sections.Sections : new KeyValuePair<float, string>[0]; } }
+        public Vector2 Position(int i, float t)
+        {
+            if (way == null || t >= wayEnd + 2f) { return inner.Position(i, t); }
+            if (t < wayEnd) { return way.Position(i, t); }
+            return Vector2.Lerp(way.Position(i, wayEnd), inner.Position(i, t), Shapes.Ease((t - wayEnd) / 2f));
+        }
+    }
+    class WithApproachNoPush : WithApproach, INoSafetyPush { public WithApproachNoPush(IPlan inner, WithApproach like) : base(inner, like) { } }
+
+    // The messenger's way from its talking spot (in front of the line) back to its place in the line: a curve that dips below the line first,
+    // so it passes under its neighbours instead of through them. u runs 0 to 1.
+    public static Vector2 BackToLine(Vector2 from, Vector2 spot, float u)
+    {
+        Vector2 control = new Vector2(spot.x, Mathf.Max(from.y, spot.y) + 45f);
+        float v = 1f - u;
+        return v * v * from + 2f * u * v * control + u * u * spot;
+    }
+
+    // The robots' places just after the opening: the line, with the messenger at its talking spot
+    public static Vector2[] IdealStart(int n)
+    {
+        var s = OwnSpots(n);
+        s[MessengerSlot(n)] = TalkSpot;
+        return s;
+    }
+
+    // Paths from the opening to `targets` that keep clear of each other, as roomy and as slow as will arrive within `within` seconds.
+    // Planned from the ideal start (not from where the robots happen to stand) so the plan is the same every time. Null if none is found.
+    public static WayToLine Approach(Vector2[] targets, float within)
+    {
+        var ideal = IdealStart(targets.Length);
+        foreach (float keep in new[] { 58f, 50f, 42f })
+        {
+            foreach (float speed in new[] { 20f, 24f, 28f, 34f, 40f, 48f, 60f })
+            {
+                var w = new WayToLine(ideal, targets, speed, keep);
+                if (w.Clear && w.Total <= within) { return w; }
+            }
+        }
+        return null;
+    }
+
+    public static Vector2[] OwnSpots(int n) { return LineUp.Spots(n, LineY).Select(s => (Vector2)s).ToArray(); }
 
     static RoutineContext Only(RoutineContext ctx, int i)
     {

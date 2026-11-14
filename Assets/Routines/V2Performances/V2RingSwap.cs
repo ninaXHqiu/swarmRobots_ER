@@ -31,8 +31,8 @@ public class V2RingSwap : SwarmRoutine
     {
         const float W = 0.25f;                                   // turning speed of each ring, radians per second (about 14 degrees)
         const float InnerR = 58f, OuterR = 122f, RingR = 118f;
-        const float FormEnd = 16f;                                // the rings start turning when the robots have arrived
-        const float SwapSecs = 7f, LagSecs = 4.2f;                // a robot keeps its old turning speed for the first 60% of its move
+        float FormEnd = 16f;                                       // the rings start turning when the robots have arrived (set once the way there is planned)
+        const float SwapSecs = 7f;                                  // how long the robots take to change ring
         const int Swaps = 4;
         const float WideRadius = 128f, SmallRadius = 52f, WidenSecs = 12f, BreathSecs = 20f;
         const int Breaths = 4;
@@ -85,11 +85,10 @@ public class V2RingSwap : SwarmRoutine
             return aOutside ? v : 1f - v;
         }
 
-        // turning rate of a robot: its ring's, taken on late (the lag) when it changes ring
+        // turning rate of a robot: its own direction, whichever ring it is on
         float Rate(int slot, float tau, int swaps = Swaps)
         {
-            float u = Outside(slot, tau - LagSecs, swaps);
-            return W * (1f - 2f * u);
+            return groupA[slot] ? W : -W;
         }
 
         public Plan(Vector2[] start)
@@ -99,39 +98,20 @@ public class V2RingSwap : SwarmRoutine
             var order = V2Show.RingOrder(8);
             for (int i = 0; i < 8; i++) { baseAngle[i] = (135f + 45f * order[i]) * Mathf.Deg2Rad; groupA[i] = order[i] % 2 == 0; }
 
-            // swap times: each swap starts when the angle between the two rings is again a multiple of 90 degrees
-            // (so they are interleaved), found by following the angle between them forward in time
-            swapAt[0] = 2f * Mathf.PI;     // W-W turning for 2 pi seconds: 180 degrees apart
+            // Each robot keeps its own turning direction for the whole piece: the robots of group A turn one way and those of
+            // group B the other, inside or outside alike. So the angle between the two groups drifts steadily, and the swaps are
+            // timed so that the middle of each swap (when the robots that cross are at the same radius) comes exactly when the groups
+            // are interleaved, 45 degrees apart: the middles of the swaps are whole multiples of a quarter turn of that angle apart.
+            float quarter = Mathf.PI / (4f * W);                        // seconds for the angle between the groups to change by 90 degrees
             aOutside = true;
-            float dAng = 0f, t0 = 0f;      // dAng: angle of group B minus that of group A
-            int known = 1;
-            for (int k = 1; k < Swaps; k++)
-            {
-                // integrate from t0 to the earliest next start
-                float earliest = swapAt[k - 1] + SwapSecs + LagSecs + 2f, t = t0;
-                bool found = false;
-                for (; t < earliest + 12f; t += Dt)
-                {
-                    float ua = AOut(t - LagSecs, known);
-                    dAng += (W * (1f - 2f * (1f - ua)) - W * (1f - 2f * ua)) * Dt;
-                    if (t >= earliest && Mathf.Abs(Wrap(dAng)) < 0.012f) { swapAt[k] = t; found = true; t += Dt; break; }
-                }
-                if (!found) { swapAt[k] = t; }
-                t0 = t; known = k + 1;
-            }
-            // keep integrating through the last swap to the start of the merge
-            mergeFrom = swapAt[Swaps - 1] + SwapSecs + LagSecs;
-            for (float t = t0; t < mergeFrom; t += Dt)
-            {
-                float ua = AOut(t - LagSecs, Swaps);
-                dAng += (W * (1f - 2f * (1f - ua)) - W * (1f - 2f * ua)) * Dt;
-            }
-            // merge length: the angle between the rings must again be a multiple of 90 degrees when it ends
-            // (during the merge it shrinks by 0.25 per second of merge length; both groups end at one turning rate)
+            float mid = 5f * quarter;
+            for (int k = 0; k < Swaps; k++) { swapAt[k] = mid - SwapSecs / 2f; mid += 4f * quarter; }
+            mergeFrom = swapAt[Swaps - 1] + SwapSecs;
+            // merge length: the angle between the groups must again be a whole number of quarter turns when the merge ends
             float mg = 11f;
-            for (int k = -10; k < 10; k++)
+            for (int k = 1; k < 8; k++)
             {
-                float cand = 4f * (dAng - k * Half) * -1f;
+                float cand = (k * Half - 2f * W * (SwapSecs / 2f)) / W;
                 if (cand >= 8f && cand <= 14f) { mg = cand; break; }
             }
             mergeTo = mergeFrom + mg;
@@ -216,18 +196,28 @@ public class V2RingSwap : SwarmRoutine
             mergeLen = mg;
 
             // the way from where the opening leaves the robots to their places on the two rings: planned paths that keep clear of each other
-            var targets = Enumerable.Range(0, 8).Select(i => OnRings(i, FormEnd)).ToArray();
+            FormEnd = 1000f;   // (just for the line below: every robot's place at the very start of the turning)
+            var targets = Enumerable.Range(0, 8).Select(i => OnRings(i, 0f)).ToArray();
+            FormEnd = 16f;
             // the formation: clear paths planned from where the opening leaves the robots (the line, with the messenger at
             // its talking spot), at the slowest speed that still arrives in time. Planned from those ideal spots, not from the
             // exact positions of the moment, so the plan is the same every time
             var ideal = Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? (Vector2)V2Show.TalkSpot : line[i]).ToArray();
             way = null;
-            foreach (float speed in new[] { 22f, 26f, 30f, 36f, 42f, 50f })
+            // as much room between the robots as can be had: real robots stray a few units from their planned paths
+            foreach (float keep in new[] { 58f, 50f, 42f })
             {
-                var w = new V2Show.WayToLine(ideal, targets, speed);
-                if (w.Clear && w.Total <= FormEnd) { way = w; break; }
+                foreach (float speed in new[] { 22f, 26f, 30f, 36f, 42f, 50f })
+                {
+                    var w = new V2Show.WayToLine(ideal, targets, speed, keep);
+                    if (w.Clear && w.Total <= FormEnd) { way = w; break; }
+                }
+                if (way != null) { break; }
             }
-            float formEnd = way != null ? way.Total : -1f;
+            // the rings start turning the moment the last robot has arrived: nobody stands about waiting
+            FormEnd = way != null ? way.Total + 0.3f : 14f;
+            Total = FormEnd + ringStop + 0.3f;
+            float formEnd = FormEnd;
             Debug.Log("RingSwap formation takes " + formEnd + " swaps at " + string.Join(",", swapAt.Select(x => x.ToString("0.0")).ToArray()) + " merge " + mg + " aOutside=" + aOutside);
         }
         float mergeLen;

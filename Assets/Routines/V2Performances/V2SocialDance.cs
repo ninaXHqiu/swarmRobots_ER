@@ -55,7 +55,8 @@ public static class V2SocialDance
     const float FinalRadius = 128f;        // diameter 256 = 62% of the mat's usable 410
     const float CompactSecs = 3f;          // the compact ring turns before it opens
     const float OpenSecs = 10f;            // opening out
-    const float WideSecs = 6f;             // dancing on at the final size, at least
+    const float WideSecs = 42f;            // at the final size, at least: the ring breathes (draws in and opens out) about every 20 s
+    const float BreathSecs = 20f, SmallRadius = 52f;   // as in the other breathing circles: slow, large
     const float RingSpeed = 28f;           // mat units per second along the ring, whatever its size
     const float TurnSecs = 2f * Mathf.PI * FinalRadius / RingSpeed;   // one turn at the final size
 
@@ -79,15 +80,21 @@ public static class V2SocialDance
             while ((phrases + 1) * PhraseSecs < 0.45f * budget && Duration(phrases + 1, WideSecs) <= budget) { phrases++; }
             leftover = budget - Duration(phrases, WideSecs);
         }
-        float bestSecs = 0f, bestDir = 1f, bestScore = float.MaxValue;
+        // The breathing at the end changes the ring's size, and so how fast it turns round, so the length of the wide phase that brings the
+        // ring to the angle it opens into the line from is found by trying lengths: the shortest one that lines up (or, in a timed
+        // version, the one that lines up and is nearest to the time left).
+        float bestExtra = 0f, bestDir = 1f, bestScore = float.MaxValue;
         foreach (float dir in new[] { 1f, -1f })
         {
-            float secs = new Plan(start, phrases, WideSecs, dir).NeedTurn / (2f * Mathf.PI) * TurnSecs;
-            if (leftover >= 0f) { secs += TurnSecs * Mathf.Max(0f, Mathf.Round((leftover - secs) / TurnSecs)); }
-            float score = leftover >= 0f ? Mathf.Abs(leftover - secs) : secs;
-            if (score < bestScore) { bestScore = score; bestSecs = secs; bestDir = dir; }
+            for (float extra = 0f; extra <= 50f; extra += 0.5f)
+            {
+                float need = new Plan(start, phrases, WideSecs + extra, dir).NeedTurn;
+                float err = Mathf.Min(need, 2f * Mathf.PI - need);
+                float score = (err < 0.06f ? 0f : 1000f + err) + (leftover >= 0f ? Mathf.Abs(leftover - extra) : extra);
+                if (score < bestScore) { bestScore = score; bestExtra = extra; bestDir = dir; }
+            }
         }
-        return new Plan(start, phrases, WideSecs + bestSecs, bestDir);
+        return new Plan(start, phrases, WideSecs + bestExtra, bestDir);
     }
 
     // The partner dance's clock: still for the first part of the walk in, then easing up to full
@@ -113,6 +120,14 @@ public static class V2SocialDance
         readonly float allJoined, exitFrom;
         readonly Show.Eased radius;
         readonly Show.Integrated turned;
+        readonly float breathFrom, breathLen; readonly int breaths;
+        // the ring's radius: opening out to its final size, then breathing (smaller and larger again) until it peels into the line
+        float RadiusAt(float s)
+        {
+            float r = radius.At(s);
+            for (int b = 0; b < breaths; b++) { r -= (FinalRadius - SmallRadius) * Show.Bump((s - breathFrom - b * breathLen) / breathLen); }
+            return r;
+        }
         public float Total { get; private set; }
 
         public Plan(Vector2[] start, int phrases, float wideSecs, float dir)
@@ -126,8 +141,11 @@ public static class V2SocialDance
             exitFrom = openFrom + OpenSecs + wideSecs;
             Total = exitFrom + Show.ReturnSecs;
             radius = new Show.Eased(0f, JoinRadius, openFrom, JoinRadius, openFrom + OpenSecs, FinalRadius);
+            breathFrom = openFrom + OpenSecs;
+            breaths = Mathf.Max(1, Mathf.RoundToInt(wideSecs / BreathSecs));
+            breathLen = wideSecs / breaths;
             float firstJoin = JoinFrom(phrases, pairs - 1);
-            turned = new Show.Integrated(s => Shapes.Ease((s - firstJoin) / (allJoined - firstJoin)) * RingSpeed / radius.At(s)
+            turned = new Show.Integrated(s => Shapes.Ease((s - firstJoin) / (allJoined - firstJoin)) * RingSpeed / RadiusAt(s)
                                              * (1f - Shapes.Ease((s - exitFrom) / Show.ReturnSecs)), Total + 1f);
 
             // Pairs: the robots next to each other round the ring (two by two). The pairs take
@@ -219,7 +237,7 @@ public static class V2SocialDance
                                Mathf.Lerp(start[i].y, wing.y, Shapes.Ease(t / (ArriveSecs * 0.75f))));
         }
 
-        Vector2 Ring(int i, float t) { return Show.OnRing(place[i] + dir * turned.At(t), radius.At(t)); }
+        Vector2 Ring(int i, float t) { return Show.OnRing(place[i] + dir * turned.At(t), RadiusAt(t)); }
 
         public float JoinAt(int p) { return JoinFrom(phrases, p); }
         public float AllJoined { get { return allJoined; } }

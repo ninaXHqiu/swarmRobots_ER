@@ -21,9 +21,9 @@ public static class V2Check
         string outDir = at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
         var makers = new (string, Func<Vector2[], float, V2Show.IPlan>)[]
         {
-            ("Vibration", (s, m) => V2Vibration.For(s, m)),
+            ("Vibration", (s, m) => V2Show.WithApproach.Wrap(V2Vibration.For(s, m), 11f, s.Length)),
             ("Heartbeat", (s, m) => V2Heartbeat.For(s, m)),
-            ("Kaleidoscope", (s, m) => V2Kaleidoscope.For(s, m)),
+            ("Kaleidoscope", (s, m) => V2Show.WithApproach.Wrap(V2Kaleidoscope.For(s, m), 8f, s.Length)),
             ("SocialDance", (s, m) => V2SocialDance.For(s, m)),
         };
         var report = new StringBuilder("\nV2CHECK results\n");
@@ -34,7 +34,7 @@ public static class V2Check
                 for (int n = minutes == 0f ? 2 : 8; n <= 8; n++)
                 {
                     var start = new Vector2[n];
-                    var line = LineUp.Spots(n);
+                    var line = V2Show.OwnSpots(n);
                     for (int i = 0; i < n; i++) { start[i] = line[i]; }
                     start[V2Show.MessengerSlot(n)] = V2Show.TalkSpot;
                     var plan = make(start, minutes);

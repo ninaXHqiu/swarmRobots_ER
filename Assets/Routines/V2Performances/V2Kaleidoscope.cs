@@ -26,7 +26,7 @@ public abstract class V2KaleidoscopeBase : SwarmRoutine
     public override string Code { get { return "C08" + (Minutes <= 0f ? ".n" : (Minutes < 4f ? ".3" : ".5")); } }
     public override string Note { get { return "Shapes turn, book opens"; } }
     public override int MinRobots { get { return 2; } }
-    public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Kaleidoscope.For(start, Minutes), maxSpeed: 70); }
+    public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Kaleidoscope.For(start, Minutes), maxSpeed: 70, approachWithin: 8f); }
 }
 public class V2KaleidoscopeNatural : V2KaleidoscopeBase { protected override float Minutes { get { return 0f; } } }
 public class V2Kaleidoscope3Min : V2KaleidoscopeBase { protected override float Minutes { get { return 3f; } } }
@@ -42,7 +42,7 @@ public static class V2Kaleidoscope
     // ---- Turning and timing ----
     const float TurnDegPerSec = 18f;       // the first flower turned at 20
     const float FormSecs = 6f;             // line -> circle, turning as it forms
-    const float CircleSecs = 4.5f, TriangleSecs = 7f, SquareSecs = 6f;   // each finished shape, turning
+    const float CircleSecs = 3f, TriangleSecs = 3f, SquareSecs = 3f;   // each finished shape, turning: about three seconds each
     const float BloomSecs = 5f;            // circle -> triangle (the first flower's bloom time)
     const float ChangeSecs = 4.5f;         // triangle -> square, square -> circle
 
@@ -260,7 +260,7 @@ public static class V2Kaleidoscope
             {
                 // Fold into the closed book, and sweep the halves open around their inner ends
                 float open = Mathf.PI / 2f * Shapes.Ease((t - openFrom) / OpenSecs);
-                var book = new Vector2(armX[i] + armSide[i] * armReach[i] * Mathf.Sin(open), Swarm.Centre - armReach[i] * Mathf.Cos(open));
+                var book = new Vector2(armX[i] + armSide[i] * armReach[i] * Mathf.Sin(open), V2Show.LineY - armReach[i] * Mathf.Cos(open));
                 p = Vector2.Lerp(p, book, Shapes.Ease((t - bookFrom) / CloseSecs));
             }
             return p;

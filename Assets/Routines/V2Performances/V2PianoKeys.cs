@@ -24,23 +24,23 @@ public class V2PianoKeys : SwarmRoutine
     public override string Note { get { return "Piano keys play melody"; } }
     public override int MinRobots { get { return 8; } }
 
-    const float BeatsPerMinute = 96f;
+    const float BeatsPerMinute = 60f;
     const float LeadInSecs = 1f;           // stillness in the line before the first note
     const float AfterSecs = 0.6f;
 
     // ---- One keystroke ----
     const float Depth = 34f;               // mat units out of the line, away from the participant (about 4.6 cm, 1.4 robot lengths)
     const float HarmonyDepth = 20f;        // B's quieter accent
-    const float StrokeSecs = 0.22f;        // out: a jump
-    const float FrontSecs = 0.05f;         // at the front before a one-beat note returns
+    const float StrokeSecs = 0.6f;         // out: a smooth push out, not a snap (it was 0.22 s, about 150 units a second)
+    const float FrontSecs = 0.15f;         // at the front before a one-beat note returns
     const float HeldFrontBeats = 0.8f;     // a held (two-beat) note stays forward this many beats
-    const float QuickReturnSecs = 0.27f;   // back in place in time for the same key's next note
-    const float LightReturnSecs = 0.45f;   // otherwise: an unhurried, light return
-    const float Crisp = 1.5f;              // > 1 puts the stroke's speed early, so it eases into the front
+    const float QuickReturnSecs = 0.7f;   // back in place in time for the same key's next note
+    const float LightReturnSecs = 0.9f;   // otherwise: an unhurried, light return
+    const float Crisp = 1.1f;              // > 1 puts the stroke's speed early, so it eases into the front
 
     // ---- Closing wave ----
-    const float WaveSecs = 1f;             // one key's rise and fall
-    const float WaveLagSecs = 0.24f;       // each key this long after its neighbour
+    const float WaveSecs = 2.2f;             // one key's rise and fall
+    const float WaveLagSecs = 0.55f;       // each key this long after its neighbour
     static readonly float[] WaveIn = { 0f, 28f, 25f, 23f };    // height going in, by distance from the nearest end (the ends are already out)
     static readonly float[] WaveOut = { 10f, 14f, 18f, 0f };   // height coming back out (the middle turns the wave round in one move)
 
@@ -152,7 +152,7 @@ public class V2PianoKeys : SwarmRoutine
         {
             t = Mathf.Clamp(t, 0f, Total);
             Vector2 inLine = spot[i] + Swarm.Inward * Pressed(i, t);
-            return t < EnterSecs ? Vector2.Lerp(start[i], inLine, Shapes.Ease(t / EnterSecs)) : inLine;
+            return t < EnterSecs ? V2Show.BackToLine(start[i], inLine, Shapes.Ease(t / EnterSecs)) : inLine;
         }
 
         // every key faces the participant, whichever way it is driving
@@ -160,6 +160,6 @@ public class V2PianoKeys : SwarmRoutine
 
         public Vector2 LineSpot(int i) { return spot[i]; }
         // the messenger comes back to its place steering freely, and only then keeps to its lane
-        public bool InLane(int i, float t) { return t >= EnterSecs || Mathf.Abs(start[i].x - spot[i].x) < 3f; }
+        public bool InLane(int i, float t) { return false; }   // free steering: a lane robot cannot correct sideways drift, so the keys did not go straight out and back
     }
 }

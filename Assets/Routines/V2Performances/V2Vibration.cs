@@ -22,7 +22,7 @@ public abstract class V2VibrationBase : SwarmRoutine
     public override string Code { get { return "C06" + (Minutes <= 0f ? ".n" : (Minutes < 4f ? ".3" : ".5")); } }
     public override string Note { get { return "Ring surges and settles"; } }
     public override int MinRobots { get { return 2; } }
-    public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Vibration.For(start, Minutes), maxSpeed: 90); }
+    public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Vibration.For(start, Minutes), maxSpeed: 90, approachWithin: 11f); }
 }
 public class V2VibrationNatural : V2VibrationBase { protected override float Minutes { get { return 0f; } } }
 public class V2Vibration3Min : V2VibrationBase { protected override float Minutes { get { return 3f; } } }
@@ -39,7 +39,7 @@ public static class V2Vibration
     const float FormSecs = 5f;             // line -> ring; the ring is already turning as it forms
     const float BaseSpeed = 25f;           // between surges
     const float SurgeBoost = 85f;          // extra at the top of a surge (peak 110)
-    const float CalmSpeed = 16f;
+    const float CalmSpeed = 22f;           // calm, but not slower than the robots can carry out smoothly
 
     // ---- Radius: compact, drawn in, wide ----
     const float Compact = 72f, DrawnIn = 56f, Wide = 112f;

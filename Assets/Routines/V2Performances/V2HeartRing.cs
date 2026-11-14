@@ -6,8 +6,9 @@ using UnityEngine;
 // v2 Heart Ring (C19): the first routine that follows the participant's body.
 //   1. After the standard opening the robots form one ring round the middle of the mat.
 //   2. The ring swells a little at every heartbeat of the participant (from the Shimmer sensor, or from the
-//      simulated sensor), and turns slowly: the faster the heart, the slower the turn, as a calm pace to follow.
-//      With no sensor the ring beats like a heart at 72 beats per minute, so the routine still runs.
+//      simulated sensor), and turns at base speed x skin conductance (microsiemens): the more aroused the
+//      participant, the faster the ring turns. With no sensor the ring beats like a heart at 72 beats per minute
+//      and turns as if the skin conductance were 5, so the routine still runs.
 //   3. The ring then opens and flattens into the line.
 // The swell is small and slow enough for the robots to follow (about 12 mat units out in a quarter of a second).
 public class V2HeartRing : SwarmRoutine
@@ -24,16 +25,19 @@ public class V2HeartRing : SwarmRoutine
 
     public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
-        const float FormEnd = 14f, BeatSecs = 100f, ReturnSecs = 12f, ExitRadius = 106f, FallbackBpm = 72f;
+        const float BeatSecs = 100f, ReturnSecs = 12f, ExitRadius = 106f, FallbackBpm = 72f;
         const float RingR = 100f, SwellBy = 10f, AttackSecs = 0.3f, DecaySecs = 0.7f;
-        const float RateAt60 = 0.14f, RatePerBpm = 0.0008f, RateMin = 0.05f, LockSecs = 22f;
+        // turn speed (radians per second) = BaseSpeed x skin conductance, kept inside what the robots can follow
+        // (0.35 rad/s at the ring's radius of 100 is 35 mat units per second)
+        const float BaseSpeed = 0.028f, FallbackEda = 5f, RateMin = 0.05f, RateMax = 0.35f, LockSecs = 22f;
         static readonly Vector2 Centre = new Vector2(250f, 250f);
 
         readonly Vector2[] start, line;
         readonly float[] sectorTo = new float[8];
-        readonly float beatEnd, ringStop;
+        float beatEnd, ringStop;
         readonly float opensAt;
         V2Show.WayToLine way;
+        float FormEnd = 14f;
         float lastT = -1f, angle, lockedAngle, extraTurn; bool locked;
         public float Total { get; private set; }
 
@@ -54,18 +58,24 @@ public class V2HeartRing : SwarmRoutine
             line = V2Show.OwnSpots(start.Length);
             var order = V2Show.RingOrder(8);
             for (int i = 0; i < 8; i++) { sectorTo[i] = (135f + 45f * order[i]) * Mathf.Deg2Rad; }
-            beatEnd = FormEnd + BeatSecs;
-            ringStop = beatEnd + ReturnSecs;
-            Total = ringStop + 0.3f;
             float unused; opensAt = V2Show.BestAngle(order, 1, ExitRadius, line, out unused);
             // the way from the line to the ring, planned from the ideal start spots so it is the same every time
             var ideal = Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? (Vector2)V2Show.TalkSpot : line[i]).ToArray();
             var targets = Enumerable.Range(0, 8).Select(i => RingPoint(i, RingR, 0f)).ToArray();
-            foreach (float speed in new[] { 22f, 26f, 30f, 36f, 42f, 50f })
+            // as much room between the robots as can be had: real robots stray a few units from their planned paths
+            foreach (float keep in new[] { 58f, 50f, 42f })
             {
-                var w = new V2Show.WayToLine(ideal, targets, speed);
-                if (w.Clear && w.Total <= FormEnd) { way = w; break; }
+                foreach (float speed in new[] { 22f, 26f, 30f, 36f, 42f, 50f })
+                {
+                    var w = new V2Show.WayToLine(ideal, targets, speed, keep);
+                    if (w.Clear && w.Total <= FormEnd) { way = w; break; }
+                }
+                if (way != null) { break; }
             }
+            if (way != null) { FormEnd = way.Total + 0.3f; }   // the ring begins to beat the moment the last robot is there
+            beatEnd = FormEnd + BeatSecs;
+            ringStop = beatEnd + ReturnSecs;
+            Total = ringStop + 0.3f;
         }
 
         Vector2 RingPoint(int slot, float r, float turn)
@@ -74,7 +84,7 @@ public class V2HeartRing : SwarmRoutine
             return Centre + r * new Vector2(Mathf.Cos(a), Mathf.Sin(a));
         }
 
-        // the ring's turn: follows the heart (slower when it is faster) until the settle time, then eases round to the
+        // the ring's turn: base speed x skin conductance until the settle time, then eases round to the
         // angle from which the ring flattens into the line without crossing
         float Turn(float t)
         {
@@ -86,7 +96,7 @@ public class V2HeartRing : SwarmRoutine
                 float settleFrom = beatEnd - LockSecs;
                 if (t <= settleFrom && t > FormEnd)
                 {
-                    float rate = Mathf.Clamp(RateAt60 - RatePerBpm * (Physio.HeartRateOr(FallbackBpm) - 60f), RateMin, RateAt60);
+                    float rate = Mathf.Clamp(BaseSpeed * Physio.EdaOr(FallbackEda), RateMin, RateMax);
                     angle += rate * dt;
                 }
                 if (t > settleFrom && !locked)

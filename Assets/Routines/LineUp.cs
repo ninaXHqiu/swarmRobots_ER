@@ -23,10 +23,13 @@ public class LineUp : SwarmRoutine
     const int TurnMs = 1500;            // turn to the participant: slow and smooth (max 2000)
 
     // Spots in the line, left to right, centred on the mat
-    public static Vector2Int[] Spots(int n)
+    public static Vector2Int[] Spots(int n) { return Spots(n, LineY); }
+
+    // The same line on another row of the mat (the v2 performances stand in the lower third)
+    public static Vector2Int[] Spots(int n, float y)
     {
         var spots = new Vector2Int[n];
-        for (int i = 0; i < n; i++) { spots[i] = new Vector2Int(Mathf.RoundToInt(Swarm.Centre + (i - (n - 1) / 2f) * Spacing), Mathf.RoundToInt(LineY)); }
+        for (int i = 0; i < n; i++) { spots[i] = new Vector2Int(Mathf.RoundToInt(Swarm.Centre + (i - (n - 1) / 2f) * Spacing), Mathf.RoundToInt(y)); }
         return spots;
     }
 

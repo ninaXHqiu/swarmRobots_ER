@@ -31,7 +31,7 @@ public class SimRoutinePlayer : MonoBehaviour
         // Simulated robots start in the line already standing on their own slots (the same spots every
         // routine's opening and ending use), so the opening has no spreading-out shuffle
         var prefab = Resources.Load<GameObject>("Cube");
-        foreach (var spot in LineUp.Spots(robots))
+        foreach (var spot in LineUp.Spots(robots, V2Show.LineY))
         {
             Instantiate(prefab, Mat.MatCoord2UnityCoord(spot.x, spot.y), Quaternion.identity);
         }

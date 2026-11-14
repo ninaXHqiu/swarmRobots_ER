@@ -43,6 +43,8 @@ public class V2SmallCircles : SwarmRoutine
         readonly int[] cellOf = new int[8];
         readonly float breatheFrom, stopFrom, ringStop;
         Show.Eased turnRate;
+        V2Show.WayToLine way;
+        float approachEnd = 18f;   // the moment the last robot is on its own path (found when the way there is planned)
         public float Total { get; private set; }
         public float RingAt { get { return RingFrom; } }
         public float BreatheAt { get { return breatheFrom; } }
@@ -76,6 +78,15 @@ public class V2SmallCircles : SwarmRoutine
             }
             turnRate = RateFor(chosen);
             Total = ringStop + 0.3f;
+            // the way from the opening onto the robots' own paths, ending the moment the last robot arrives (their paths move, so the end is found by trying again)
+            for (int round = 0; round < 3; round++)
+            {
+                float endT = approachEnd;
+                var w = V2Show.Approach(Enumerable.Range(0, 8).Select(i => Circle(i, endT)).ToArray(), endT);
+                if (w == null) { break; }
+                way = w; approachEnd = w.Total + 0.3f;
+                if (Mathf.Abs(approachEnd - endT) < 0.6f) { break; }
+            }
         }
 
         // a robot's own small circle: the circle passes through the cell's centre-line start so the entry is smooth
@@ -109,8 +120,14 @@ public class V2SmallCircles : SwarmRoutine
             // the circle shrinks toward its cell centre as the ring forms, so the entry into the ring is smooth
             float b = Shapes.Ease((t - RingFrom) / FormSecs);
             if (b > 0f) { p = Cells[cellOf[slot]] + (p - Cells[cellOf[slot]]) * (1f - b); }
-            float go = Shapes.Ease((t - 0.6f * slot) / GoSecs);
-            if (go < 1f) { p = Vector2.Lerp(start[slot], p, go); }
+            if (way != null)
+            {
+                // along the clear way to its own path, then onto the path itself over a moment
+                float wt = way.Total;
+                if (t < wt) { p = way.Position(slot, t); }
+                else if (t < wt + 2f) { p = Vector2.Lerp(way.Position(slot, wt), p, Shapes.Ease((t - wt) / 2f)); }
+            }
+            else if (t < approachEnd) { p = Vector2.Lerp(start[slot], p, Shapes.Ease(t / approachEnd)); }
             if (b > 0f) { p = Vector2.Lerp(p, Sector(slot, t), b); }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }
             return p;

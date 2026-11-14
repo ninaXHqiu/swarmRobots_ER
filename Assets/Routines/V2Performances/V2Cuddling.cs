@@ -45,7 +45,7 @@ public class V2Cuddling : SwarmRoutine
 
     public class Plan : V2Show.IPlan, V2Show.INoSafetyPush
     {
-        public const int Conductor = 3, First = 2;
+        public const int Conductor = 1, First = 3;   // the messenger is the conductor; its right-hand neighbour arrives first
 
         // ---- The group: places, found by search so that straight paths in and out stay clear ----
         const float Gap = 44f;
@@ -53,7 +53,7 @@ public class V2Cuddling : SwarmRoutine
         static readonly Arrival[] Arrivals =
         {
             new Arrival { slot = 5, offset = new Vector2(31f, 38f),   start = 15f },   // right: lower right of the conductor
-            new Arrival { slot = 1, offset = new Vector2(-75f, 31f),  start = 24f },   // left: lower left of the first arrival
+            new Arrival { slot = 2, offset = new Vector2(-75f, 31f),  start = 24f },   // left: lower left of the first arrival
             new Arrival { slot = 4, offset = new Vector2(44f, 0f),    start = 33f },   // right: beside the conductor
             new Arrival { slot = 0, offset = new Vector2(-98f, 0f),   start = 42f },   // left: beside the first arrival
             new Arrival { slot = 6, offset = new Vector2(-75f, -31f), start = 50f },   // right: round to the upper left
@@ -83,7 +83,7 @@ public class V2Cuddling : SwarmRoutine
         struct Pair { public int a, b; public float at, d; }
         readonly List<Pair> cuddles = new List<Pair>();
         readonly float[] groupTouch = new float[3];
-        const float SqueezeBy = 4f;
+        const float SqueezeBy = 7f;
 
         // ---- Heart and circle ----
         const float Scale = 5.7f;               // about 190 wide: large enough to read as a heart with eight robots
@@ -102,7 +102,7 @@ public class V2Cuddling : SwarmRoutine
         readonly float[] arriveAt = new float[8];
         readonly Vector2[] heart; readonly float[] cum; readonly float perimeter;
         readonly Vector2 heartCentre;
-        readonly int[] peelOrder = { 7, 6, 4, 2, 0, 1, 3, 5 };
+        readonly int[] peelOrder = { 7, 6, 4, 3, 0, 2, 1, 5 };
         readonly float[] peelAt = new float[8];
         readonly float peelFrom, morphStart, morphEnd, returnFrom, ringStop;
         Show.Integrated phase;
@@ -129,11 +129,11 @@ public class V2Cuddling : SwarmRoutine
             foreach (var a in Arrivals) { spot[a.slot] = conductor0 + a.offset; arriveAt[a.slot] = a.start + ArriveSecs; }
 
             // lean-ins while the next robot is on its way: neighbours in the group
-            Cuddle(Conductor, 5, 24f, 3.5f);
-            Cuddle(First, 1, 33f, 3.5f);
-            Cuddle(Conductor, 4, 42f, 3.5f); Cuddle(First, Conductor, 42f, 4.5f);
-            Cuddle(First, 0, 51f, 3.5f); Cuddle(Conductor, 5, 51f, 3.5f);
-            Cuddle(First, 6, 59f, 3.5f);
+            Cuddle(Conductor, 5, 24f, 6.5f);
+            Cuddle(First, 2, 33f, 6.5f);
+            Cuddle(Conductor, 4, 42f, 6.5f); Cuddle(First, Conductor, 42f, 7f);
+            Cuddle(First, 0, 51f, 6.5f); Cuddle(Conductor, 5, 51f, 6.5f);
+            Cuddle(First, 6, 59f, 6.5f);
             groupTouch[0] = 67f; groupTouch[1] = 67f + PhraseSecs; groupTouch[2] = 67f + 2f * PhraseSecs;
             peelFrom = groupTouch[2] + PhraseSecs + 1f;
 
@@ -284,7 +284,7 @@ public class V2Cuddling : SwarmRoutine
                 Vector2 p = Vector2.Lerp(start[i], spot[i], w);
                 // the one gentle touch: a little closer to the conductor, then back
                 float touch = Shapes.Ease((t - FirstTouchAt) / 1.5f) - Shapes.Ease((t - FirstTouchAt - 2f) / 1.6f);
-                return p + new Vector2(Gap - 35f, 0f) * touch;
+                return p + new Vector2(Gap - 31.5f, 0f) * touch;
             }
             var arr = Arrivals[System.Array.FindIndex(Arrivals, a => a.slot == i)];
             return Vector2.Lerp(start[i], spot[i], Shapes.Ease((t - arr.start) / ArriveSecs));

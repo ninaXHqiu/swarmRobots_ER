@@ -33,14 +33,14 @@ public class V2Heartbeat5Min : V2HeartbeatBase { protected override float Minute
 public static class V2Heartbeat
 {
     // ---- The travelling signal ----
-    const float TravelSpeed = 2.1f;        // places along the row per second, the same throughout
+    const float TravelSpeed = 3.6f;        // places along the row per second, the same throughout
     // Seconds per beat / cycle at the end of each section (the rate eases between them)
-    const float RapidEvery = 1.5f;         // 2.1 x 1.5 = a peak every 3.15 places: 2 to 3 on an 8 robot row
-    const float CalmerEvery = 2.4f;
-    const float WaveEvery = 3f;
-    const float CalmEvery = 4.2f;
+    const float RapidEvery = 2.6f;         // 2.1 x 1.5 = a peak every 3.15 places: 2 to 3 on an 8 robot row
+    const float CalmerEvery = 3.4f;
+    const float WaveEvery = 3.8f;
+    const float CalmEvery = 5f;
     // Height: mat units from the baseline at the peak (heartbeat), or each way (wave)
-    const float RapidHeight = 60f;         // about 8 cm of travel
+    const float RapidHeight = 70f;         // about 8 cm of travel
     const float CalmerHeight = 40f;
     const float WaveHeight = 26f;
     const float CalmHeight = 16f;
@@ -104,8 +104,7 @@ public static class V2Heartbeat
             float r = round.At(x);
             float shape = Mathf.Lerp(Heartbeat(u), Mathf.Cos(2f * Mathf.PI * (u - PeakPhase)), r);
             float taper = 1f - Shapes.Ease(x - (beats - 1f));   // the last cycle flattens
-            float onset = Shapes.Ease(x / OnsetBeats);   // the first beats start small and grow: it comes in, it does not start at full strength
-            return height.At(x) * shape * taper * onset;
+            return height.At(x) * shape * taper;
         }
     }
 
@@ -144,13 +143,12 @@ public static class V2Heartbeat
                 // Already in its lane: only the offset across the baseline ever changes
                 return new Vector2(spot[i].x, Mathf.Lerp(start[i].y, spot[i].y, Shapes.Ease(t / EnterSecs)) - lift);
             }
-            // The messenger: sideways into its lane first, so it arrives moving along the lane
-            float along = Shapes.Ease(t / (EnterSecs * 0.7f));
-            float up = Shapes.Ease((t - EnterSecs * 0.2f) / (EnterSecs * 0.8f));
-            return new Vector2(Mathf.Lerp(start[i].x, spot[i].x, along), Mathf.Lerp(start[i].y, spot[i].y, up) - lift);
+            // The messenger: back into its place by a curve that passes below the line, not through its neighbours
+            Vector2 back = V2Show.BackToLine(start[i], spot[i], Shapes.Ease(t / EnterSecs));
+            return new Vector2(back.x, back.y - lift);
         }
 
         public Vector2 LineSpot(int i) { return spot[i]; }
-        public bool InLane(int i, float t) { return !entering[i] || t >= EnterSecs * 0.7f; }
+        public bool InLane(int i, float t) { return false; }   // free steering: a lane robot cannot correct sideways drift, and they drifted into each other and off the mat
     }
 }

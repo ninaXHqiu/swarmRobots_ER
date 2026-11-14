@@ -8,6 +8,9 @@
 const SENSORS_PPG_GSR = 260;
 const SAMPLING_HZ = 128;
 
+// Loads the SDK module in advance (see Physio.preload)
+export function preloadSdk() { return import('./vendor/shimmer-web-sdk.esm.js'); }
+
 export async function connectShimmer(kind, handlers) {
   const sdk = await import('./vendor/shimmer-web-sdk.esm.js');
   let client;
@@ -22,8 +25,16 @@ export async function connectShimmer(kind, handlers) {
   client.onStatus = (msg) => handlers.status(String(msg));
   client.onDisconnect = (reason) => handlers.closed(reason ? String(reason.message || reason) : 'the sensor went away');
   let sampleCount = 0;
+  let seenPpg = false;
   client.onStreamFrame = (oc) => {
-    const ppg = pick(oc, ['PPG'], /ppg|a13/i, 'raw');
+    if (sampleCount === 0) {
+      // say once which channels the sensor really sends, so a wrong channel name is visible in the panel
+      const names = (oc.fields || []).map((f) => f.name + ':' + f.kind).join(', ');
+      handlers.status('First data frame. Channels: ' + names);
+      setTimeout(() => { if (!seenPpg) { handlers.status('WARNING: no PPG channel in the data. Check the pulse probe is plugged into the optical pulse jack of the GSR+ unit.'); } }, 4000);
+    }
+    const ppg = pick(oc, ['PPG'], /ppg|a13|a12|a1\b/i, 'raw');
+    if (ppg !== undefined) { seenPpg = true; }
     const eda = pick(oc, ['GSR'], /^gsr$/i, 'cal');      // calibrated conductance in microsiemens
     sampleCount++;
     handlers.sample({ ppg: ppg, eda: eda });

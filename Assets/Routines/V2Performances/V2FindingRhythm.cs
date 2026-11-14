@@ -31,15 +31,17 @@ public class V2FindingRhythm : SwarmRoutine
         const float WideRadius = 128f, SmallRadius = 52f, WidenSecs = 12f, BreathSecs = 20f;
         const int Breaths = 4;
         const float ReturnSecs = 12f, ExitRadius = 106f;
-        const float Beat = 2f * Mathf.PI / 12f;                                   // the shared tempo
-        static readonly float[] Period = { 9.5f, 13f, 10.5f, 14.5f, 11f, 12.5f, 9f, 15f };
-        static readonly float[] Size = { 30f, 34f, 36f, 32f, 38f, 36f, 34f, 30f };
+        const float Beat = 2f * Mathf.PI / 17f;                                   // the shared tempo
+        static readonly float[] Period = { 14f, 19f, 16f, 22f, 17f, 15f, 20f, 18f };   // slower turns and bigger shapes: calm, readable loops, not a twitch
+        static readonly float[] Size = { 44f, 48f, 50f, 46f, 52f, 48f, 46f, 42f };
         static readonly Vector2 Centre = new Vector2(250f, 250f);
 
         readonly Vector2[] start, line;
         readonly float[] sectorTo = new float[8], phase0 = new float[8];
         readonly float breatheFrom, stopFrom, ringStop;
         readonly Show.Eased syncRamp;
+        V2Show.WayToLine way;
+        float approachEnd = 18f;   // the moment the last robot is on its own path (found when the way there is planned)
         Show.Eased turnRate;
         public float Total { get; private set; }
         public float RingAt { get { return RingFrom; } }
@@ -77,6 +79,15 @@ public class V2FindingRhythm : SwarmRoutine
             }
             turnRate = RateFor(chosen);
             Total = ringStop + 0.3f;
+            // the way from the opening onto the robots' own paths, ending the moment the last robot arrives (their paths move, so the end is found by trying again)
+            for (int round = 0; round < 3; round++)
+            {
+                float endT = approachEnd;
+                var w = V2Show.Approach(Enumerable.Range(0, 8).Select(i => OwnPath(i, endT)).ToArray(), endT);
+                if (w == null) { break; }
+                way = w; approachEnd = w.Total + 0.3f;
+                if (Mathf.Abs(approachEnd - endT) < 0.6f) { break; }
+            }
         }
 
         // the eight shapes, as unit curves of the phase u
@@ -127,8 +138,14 @@ public class V2FindingRhythm : SwarmRoutine
             Vector2 own = OwnPath(slot, t);
             if (b > 0f) { own = Cell(slot) + (own - Cell(slot)) * (1f - b); }     // the shape dies away into the arc
             Vector2 p = own;
-            float go = Shapes.Ease((t - 0.7f * slot) / GoSecs);
-            if (go < 1f) { p = Vector2.Lerp(start[slot], own, go); }
+            if (way != null)
+            {
+                // along the clear way to its own path, then onto the path itself over a moment
+                float wt = way.Total;
+                if (t < wt) { p = way.Position(slot, t); }
+                else if (t < wt + 2f) { p = Vector2.Lerp(way.Position(slot, wt), own, Shapes.Ease((t - wt) / 2f)); }
+            }
+            else if (t < approachEnd) { p = Vector2.Lerp(start[slot], own, Shapes.Ease(t / approachEnd)); }
             if (b > 0f) { p = Vector2.Lerp(p, Sector(slot, t), b); }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }
             return p;

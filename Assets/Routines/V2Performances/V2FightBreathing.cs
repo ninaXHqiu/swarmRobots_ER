@@ -30,10 +30,12 @@ public class V2FightBreathing : SwarmRoutine
 
     public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
-        const float AxisDeg = 0f;                  // the line from the conductor to the attacker
+        const float AxisDeg = 180f;                  // the attacker comes from the left of the conductor                  // the line from the conductor to the attacker
         const float RushAt = 3f, RushSecs = 1.1f;
         const float JoinAt = 13f, JoinSecs = 6f, TugAt = 19f, ScrumAt = 24f;
-        static readonly int[] Fighters = { 3, 4, 2, 7 }, Helpers = { 1, 6, 0, 5 };   // helper k pulls fighter k
+        public const int Conductor = 1, Attacker = 2;               // the messenger stays where it stands; its neighbour rushes it
+        static readonly float[] PullSign = { 1f, -1f, -1f, 1f };     // which way each fighter is led out: the conductor to the right, the attacker to the left
+        static readonly int[] Fighters = { 1, 2, 4, 7 }, Helpers = { 3, 0, 6, 5 };   // helper k pulls fighter k
         static readonly float[] HelpFrom = { 36f, 36.5f, 54f, 54.8f };
         static readonly float[] PullFrom = { 46f, 47.2f, 64f, 65.4f }, PullTo = { 62f, 64.5f, 81f, 82.5f };
         const float HelpSecs = 7f, Flank = 46f, HelperLead = 1.5f;
@@ -62,13 +64,13 @@ public class V2FightBreathing : SwarmRoutine
 
         static Plan()
         {
-            Stand[1] = new Vector2(105f, 310f); Stand[6] = new Vector2(410f, 310f);
-            Stand[0] = new Vector2(90f, 170f); Stand[5] = new Vector2(395f, 395f);
-            GoAt[1] = 19f; GoAt[6] = 19.5f; GoAt[5] = 20.5f; GoAt[0] = 21.5f;
+            Stand[3] = new Vector2(410f, 360f); Stand[0] = new Vector2(105f, 360f);
+            Stand[6] = new Vector2(90f, 225f); Stand[5] = new Vector2(395f, 420f);
+            GoAt[3] = 19f; GoAt[0] = 19.5f; GoAt[5] = 20.5f; GoAt[6] = 21.5f;
             // (time, move toward the fight: + closer, - back): each its own hesitation
-            Reactions[1] = new[] { 26f, 12f, 28.5f, -9f, 31f, 14f, 36f, -6f, 40f, 10f };
-            Reactions[6] = new[] { 25f, 9f, 27f, -12f, 29f, 11f, 34f, -8f, 38f, 13f };
-            Reactions[0] = new[] { 27f, 10f, 30f, -8f, 33f, 13f, 39f, -10f, 44f, 14f, 49f, -9f, 53f, 11f };
+            Reactions[3] = new[] { 26f, 12f, 28.5f, -9f, 31f, 14f, 36f, -6f, 40f, 10f };
+            Reactions[0] = new[] { 25f, 9f, 27f, -12f, 29f, 11f, 34f, -8f, 38f, 13f };
+            Reactions[6] = new[] { 27f, 10f, 30f, -8f, 33f, 13f, 39f, -10f, 44f, 14f, 49f, -9f, 53f, 11f };
             Reactions[5] = new[] { 28f, 8f, 30f, -11f, 32f, 12f, 37f, -9f, 43f, 10f, 48f, -12f, 52f, 9f };
         }
 
@@ -76,7 +78,7 @@ public class V2FightBreathing : SwarmRoutine
         {
             this.start = start;
             line = V2Show.OwnSpots(start.Length);
-            m0 = start[3] + 21f * Dir(AxisDeg);
+            m0 = start[Conductor] + 16.5f * Dir(AxisDeg);
             push = new Show.Eased(0f, 0f, 4f, 0f, 5.5f, 0f, 6.7f, -8f, 7.6f, -8f, 9.4f, 7f, 10.2f, 7f, 12f, -9f, 12.8f, -9f,
                                   14.5f, 5f, 15.5f, 5f, 18f, -6f, 19f, -6f, 21f, 4f, 24f, 0f, 200f, 0f);
             var order = V2Show.RingOrder(8);
@@ -133,26 +135,26 @@ public class V2FightBreathing : SwarmRoutine
         {
             float a = Axis(t), w = Wild(t);
             Vector2 c = ClusterCentre(t);
-            if (slot == 3) { return c - Dir(a) * (21f + 2f * w * Wob(t, 2.1f, 0f)); }
-            if (slot == 4) { return c + Dir(a) * (21f + 2f * w * Wob(t, 2.3f, 1.7f)); }
-            float side = slot == 7 ? 1f : -1f, ph = slot == 2 ? 0.4f : 2.2f;
+            if (slot == Conductor) { return c - Dir(a) * (16.5f + 1.5f * w * Wob(t, 2.1f, 0f)); }
+            if (slot == Attacker) { return c + Dir(a) * (16.5f + 1.5f * w * Wob(t, 2.3f, 1.7f)); }
+            float side = slot == Fighters[3] ? 1f : -1f, ph = slot == Fighters[2] ? 0.4f : 2.2f;
             float calm = Shapes.Ease((t - 63f) / 6f);
-            float r = 64f - 20f * Shapes.Ease((t - TugAt) / 6f) - 23f * calm + 3f * Wob(t, 2.3f, ph) * Shapes.Ease((t - ScrumAt) / 3f) * (1f - calm);
+            float r = 64f - 34f * Shapes.Ease((t - TugAt) / 6f) - 13.5f * calm + 2.5f * Wob(t, 2.3f, ph) * Shapes.Ease((t - ScrumAt) / 3f) * (1f - calm);
             return c + Dir(a + side * 90f) * r;
         }
 
         // before it is pulled out: where each fighter is
         Vector2 FighterPlace(int slot, float t)
         {
-            if (slot == 4)
+            if (slot == Attacker)
             {
                 float w = Mathf.Clamp01((t - RushAt) / RushSecs);
                 Vector2 bow = new Vector2(0f, 0f);
-                return Vector2.Lerp(start[4], Cluster(4, t), Shapes.Ease(w)) + bow;
+                return Vector2.Lerp(start[Attacker], Cluster(Attacker, t), Shapes.Ease(w)) + bow;
             }
-            if (slot == 3) { return Cluster(3, t); }
+            if (slot == Conductor) { return Cluster(Conductor, t); }
             float j = Shapes.Ease((t - JoinAt) / JoinSecs);
-            Vector2 sideBow = new Vector2(0f, (slot == 7 ? 18f : 0f) * Mathf.Sin(Mathf.PI * j));
+            Vector2 sideBow = new Vector2(0f, (slot == Fighters[3] ? -40f : 0f) * Mathf.Sin(Mathf.PI * j));
             return Vector2.Lerp(start[slot], Cluster(slot, t), j) + sideBow;
         }
 
@@ -169,7 +171,9 @@ public class V2FightBreathing : SwarmRoutine
         // ---------------- The onlookers ----------------
         Vector2 Onlooker(int slot, float t)
         {
-            Vector2 p = Vector2.Lerp(start[slot], Stand[slot], Shapes.Ease((t - GoAt[slot]) / 5f));
+            float e = Shapes.Ease((t - GoAt[slot]) / 5f);
+            // out of the line away from the others: below it for a stand below the line, above it for one above
+            Vector2 p = Vector2.Lerp(start[slot], Stand[slot], e) + new Vector2(0f, (Stand[slot].y > start[slot].y ? 42f : -42f) * Mathf.Sin(Mathf.PI * e));
             Vector2 toward = (new Vector2(268f, 305f) - Stand[slot]).normalized;
             Vector2 perp = new Vector2(-toward.y, toward.x);
             float[] ev = Reactions[slot];
@@ -207,7 +211,7 @@ public class V2FightBreathing : SwarmRoutine
             {
                 p = FighterPlace(slot, t);
                 float pull = Pull(k, t);
-                if (pull > 0f) { p = Vector2.Lerp(p, Sector(slot, t), pull) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 42f * Mathf.Sin(Mathf.PI * pull), 0f); }
+                if (pull > 0f) { p = Vector2.Lerp(p, Sector(slot, t), pull) + new Vector2(PullSign[k] * 42f * Mathf.Sin(Mathf.PI * pull), 0f); }
             }
             else
             {
@@ -227,7 +231,7 @@ public class V2FightBreathing : SwarmRoutine
                 {
                     Vector2 fp = FighterPlace(f, t);
                     Vector2 outward = k >= 2 ? new Vector2(k == 2 ? -1f : 1f, 0f) : (fp - ClusterCentre(t)).normalized;
-                    p = Vector2.Lerp(fp + outward * Flank, Sector(slot, t), lead) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 70f * Mathf.Sin(Mathf.PI * lead), 0f);
+                    p = Vector2.Lerp(fp + outward * Flank, Sector(slot, t), lead) + new Vector2(PullSign[k] * 70f * Mathf.Sin(Mathf.PI * lead), 0f);
                 }
             }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }

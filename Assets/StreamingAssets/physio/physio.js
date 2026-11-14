@@ -125,26 +125,55 @@
     latest: { t: 0, ppg: NaN, eda: NaN, edaSmooth: NaN, edaTonic: NaN, edaPhasic: NaN, hr: NaN, hrValid: false, beats: 0, lastBeatT: -1 },
     routine: '', section: '',
     recording: false, rows: [], recStart: 0,
-    onStatus: null, onUpdate: null,
+    onStatus: null, onUpdate: null, onLog: null, logLines: [],
     _hr: new HeartRateEstimator(), _eda: new EdaFilter(), _lastT: null, _handle: null, _sim: null, _channel: null,
     _batch: [], _batchTimer: null, _hist: [], _simulatedBpm: 72,
 
     now() { return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000; },
 
     // ---- connecting
+    // Plain-words reason for a failed connection (the browser's own messages are cryptic)
+    explain(e) {
+      const msg = e && e.message ? e.message : String(e);
+      const name = e && e.name ? e.name : '';
+      if (name === 'NotFoundError' || /cancel/i.test(msg)) { return 'No sensor was chosen. Switch the Shimmer on (green light blinking), click Connect again and pick it in the list.'; }
+      if (name === 'SecurityError' || /secure context|permissions policy/i.test(msg)) { return 'The browser blocks Bluetooth on this page. Open the page from https:// or http://localhost, not from a file.'; }
+      if (name === 'NetworkError' || /GATT|disconnected|connection attempt failed/i.test(msg)) { return 'The sensor did not accept the connection. Switch it off and on, make sure no other app or computer is connected to it, then try again. (' + msg + ')'; }
+      if (/ACK|timeout|timed out/i.test(msg)) { return 'The sensor connected but did not answer its setup commands. Check the firmware (1.0.22 or newer for Shimmer3R) and try again. (' + msg + ')'; }
+      return msg;
+    },
+    log(m) {
+      const line = new Date().toLocaleTimeString() + '  ' + m;
+      this.logLines.push(line); if (this.logLines.length > 60) { this.logLines.shift(); }
+      if (this.onLog) { this.onLog(this.logLines); }
+    },
+    preload() {
+      // Load the sensor code ahead of time, so the Bluetooth chooser opens right after the click (browsers only
+      // allow it for a few seconds after a click)
+      if (this._preloaded) { return; }
+      this._preloaded = import(this._base() + 'shimmer-source.js').then(
+        (m) => m.preloadSdk ? m.preloadSdk() : null).catch((e) => { this._preloaded = null; this.log('Could not load the sensor code: ' + (e && e.message || e)); });
+    },
     async connect(kind) {
       await this.disconnect();
       this._reset();
       try {
+        if (kind === 'shimmer3r-ble' && !(navigator && navigator.bluetooth)) {
+          throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on a computer (not Safari, not Firefox).');
+        }
+        if (kind === 'shimmer3-serial' && !(navigator && navigator.serial)) {
+          throw new Error('This browser has no Web Serial. Use Chrome or Edge on a computer.');
+        }
         if (kind === 'simulated') {
           this._sim = new SimulatedSource((s) => this._push(s), { bpm: this._simulatedBpm });
           this._sim.start();
           this._handle = { name: 'Simulated sensor', stop: async () => { this._sim.stop(); } };
         } else {
-          this._setStatus('Connecting...');
+          this._setStatus('Connecting...'); this.log('Connecting (' + kind + ')');
+          if (this._preloaded) { await this._preloaded; }
           const mod = await import(this._base() + 'shimmer-source.js');
           this._handle = await mod.connectShimmer(kind, {
-            status: (m) => this._setStatus(m),
+            status: (m) => { this.log(m); this._setStatus(m); },
             sample: (s) => this._push(s),
             closed: (why) => { this.connected = false; this._setStatus('Connection lost: ' + why); this._announce(); },
           });
@@ -154,7 +183,9 @@
         this._announce();
       } catch (e) {
         this.connected = false; this.source = null;
-        this._setStatus('Could not connect: ' + (e && e.message ? e.message : e));
+        const why = this.explain(e);
+        this.log('FAILED: ' + (e && e.message ? e.message : e));
+        this._setStatus('Could not connect: ' + why);
         this._announce();
         throw e;
       }
@@ -278,5 +309,6 @@
   if (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) { Physio._scriptBase = document.currentScript.src.replace(/[^/]*$/, ''); }
   Physio._startChannel();
   global.Physio = Physio;
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') { window.addEventListener('DOMContentLoaded', () => Physio.preload()); }
   if (typeof module !== 'undefined' && module.exports) { module.exports = { Physio, HeartRateEstimator, PeakTracker, EdaFilter, SimulatedSource }; }
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -14,9 +14,9 @@ using UnityEngine;
 //      each robot arrives; several cycles; then it tapers and the row goes straight back to the line.
 public class V2TrafficWave : SwarmRoutine
 {
-    public override string Name { get { return "v2 Traffic to Wave"; } }
+    public override string Name { get { return "v2 Traffic to Wave (dropped)"; } }
     public override string Code { get { return "C14"; } }
-    public override string Note { get { return "Collide, untangle, travelling wave"; } }
+    public override string Note { get { return "Dropped; label kept"; } }
     public override int MinRobots { get { return 8; } }
 
     public override IEnumerator Run(RoutineContext ctx)

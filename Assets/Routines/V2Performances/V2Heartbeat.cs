@@ -51,6 +51,7 @@ public static class V2Heartbeat
     const float PeakPhase = SpikeAt + SpikeLength / 2f;                // the wave's crest sits on the spike
 
     // ---- Joining the row ----
+    const float OnsetBeats = 3.5f;         // beats over which the first robot's height grows from nothing
     const float EnterSecs = 3.5f;          // the messenger glides back into its place, sideways first
 
     public static Plan For(Vector2[] start, float minutes)
@@ -103,7 +104,8 @@ public static class V2Heartbeat
             float r = round.At(x);
             float shape = Mathf.Lerp(Heartbeat(u), Mathf.Cos(2f * Mathf.PI * (u - PeakPhase)), r);
             float taper = 1f - Shapes.Ease(x - (beats - 1f));   // the last cycle flattens
-            return height.At(x) * shape * taper;
+            float onset = Shapes.Ease(x / OnsetBeats);   // the first beats start small and grow: it comes in, it does not start at full strength
+            return height.At(x) * shape * taper * onset;
         }
     }
 

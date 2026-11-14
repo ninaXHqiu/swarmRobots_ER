@@ -62,7 +62,25 @@ public static class V2Show
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
         var plan = makePlan(start);
         yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
-        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 4000, rotateTimeMs: 1500);
+        // The ending: settle every robot exactly onto its own spot (position first, while it still drives),
+        // then turn all of them in place to face the participant, so the line stands straight and even
+        yield return SettleOnSlots(ctx, 3.5f);
+        yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 5000, rotateTimeMs: 1500);
+    }
+
+    static IEnumerator SettleOnSlots(RoutineContext ctx, float secs)
+    {
+        var line = LineUp.Spots(ctx.Count);
+        float end = Time.time + secs;
+        while (Time.time < end)
+        {
+            if (ctx.CubeManager.synced)
+            {
+                for (int k = 0; k < ctx.Count; k++) { ctx.Navigators[k].handle.Move2Target(line[k].x, line[k].y, maxSpd: 30, tolerance: 1).Exec(); }
+            }
+            yield return null;
+        }
+        Swarm.StopAll(ctx);
     }
 
     // ---------------- Introduction ----------------

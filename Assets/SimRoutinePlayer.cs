@@ -28,10 +28,10 @@ public class SimRoutinePlayer : MonoBehaviour
     void Awake()
     {
         robots = Mathf.Clamp(PlayerPrefs.GetInt(RobotsKey, 8), 2, 8);
-        // Simulated robots start in the shared single line (the same line every routine
-        // starts in and the Closing ends in)
+        // Simulated robots start in the line already standing on their own slots (the same spots every
+        // routine's opening and ending use), so the opening has no spreading-out shuffle
         var prefab = Resources.Load<GameObject>("Cube");
-        foreach (var spot in Swarm.Line(robots))
+        foreach (var spot in LineUp.Spots(robots))
         {
             Instantiate(prefab, Mat.MatCoord2UnityCoord(spot.x, spot.y), Quaternion.identity);
         }

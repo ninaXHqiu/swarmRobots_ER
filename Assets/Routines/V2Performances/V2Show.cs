@@ -347,6 +347,7 @@ public static class V2Show
                                    System.Func<int, float, bool> skip = null, System.Action<float> extra = null)
     {
         var reverse = new bool[ctx.Count];
+        var holding = new bool[ctx.Count];
         safetyOn = !(plan is INoSafetyPush);
         var sections = (plan as ISections) != null ? System.Linq.Enumerable.ToList(System.Linq.Enumerable.OrderBy(((ISections)plan).Sections, k => k.Key)) : null;
         int nextSection = 0;
@@ -360,8 +361,8 @@ public static class V2Show
                 for (int i = 0; i < ctx.Count; i++)
                 {
                     if (skip != null && skip(i, t)) { continue; }
-                    if (plan.InLane(i, t + (float)CubeHandle.lag)) { SteerLane(ctx, i, plan, t, maxSpeed); }
-                    else { Steer(ctx, i, plan, t, maxSpeed, ref reverse[i]); }
+                    if (plan.InLane(i, t + (float)CubeHandle.lag)) { SteerLane(ctx, i, plan, t, maxSpeed, ref holding[i]); }
+                    else { Steer(ctx, i, plan, t, maxSpeed, ref reverse[i], ref holding[i]); }
                 }
                 if (extra != null) { extra(t); }
             }
@@ -371,7 +372,8 @@ public static class V2Show
     }
 
     const float FlowGain = 3f;        // per second: how firmly robots close the gap to the path
-    const float FlowTurnSecs = 0.45f; // how quickly robots turn to the wanted direction
+    const float FlowTurnSecs = 0.45f; // how quickly robots in a lane turn to the wanted direction
+    const float SteerTurnSecs = 0.25f; // how quickly free robots turn to the wanted direction (the same as Swarm.Flow)
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
     const float FlowTurnSpeed = 40f;  // below this speed robots turn more gently
     const float LaneLeanDeg = 4f;     // most a lane robot leans off its lane to drift back onto it
@@ -381,7 +383,19 @@ public static class V2Show
     // are driven by the lane speed alone, and the only turning is the small correction that
     // keeps the body square to the lane (plus a lean of a few degrees, while moving, if the
     // robot has drifted sideways off its lane).
-    static void SteerLane(RoutineContext ctx, int i, IPlan plan, float t, int maxSpeed)
+    // Standing still means standing still. The position sensor is only good to a unit or two, so a robot that keeps correcting its
+    // place while the plan itself is standing wobbles for nothing. A robot whose plan is (nearly) at rest and which is on its place
+    // is simply stopped, and stays stopped until the plan moves on or it has really been pushed away (hysteresis: on within 5 units,
+    // off beyond 9).
+    static bool Holds(ref bool holding, Vector2 pathVelocity, Vector2 target, Vector2 here)
+    {
+        float err = (target - here).magnitude, speed = pathVelocity.magnitude;
+        if (holding) { if (speed > 4f || err > 9f) { holding = false; } }
+        else if (speed < 2.5f && err < 5f) { holding = true; }
+        return holding;
+    }
+
+    static void SteerLane(RoutineContext ctx, int i, IPlan plan, float t, int maxSpeed, ref bool holding)
     {
         var handle = ctx.Navigators[i].handle;
         float at = t + (float)CubeHandle.lag;
@@ -391,6 +405,7 @@ public static class V2Show
         Vector2 pathVelocity = (plan.Position(i, at + h) - plan.Position(i, from)) / (at + h - from);
         Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
         Vector2 want = pathVelocity + FlowGain * (target - here);
+        if (Holds(ref holding, pathVelocity, target, here)) { handle.Move(0, 0, 100, false); return; }
 
         float facingDeg = (float)handle.radPred * Mathf.Rad2Deg;
         float alongDeg = Mathf.Abs(Mathf.DeltaAngle(facingDeg, LaneDeg)) <= 90f ? LaneDeg : LaneDeg + 180f;
@@ -414,7 +429,7 @@ public static class V2Show
     static Vector2 KeepOnMat(Vector2 v) { return new Vector2(Mathf.Clamp(v.x, 62f, 438f), Mathf.Clamp(v.y, 62f, 438f)); }
 
     // Same steering as Swarm.Flow's
-    static void Steer(RoutineContext ctx, int i, IPlan plan, float t, int maxSpeed, ref bool reverse)
+    static void Steer(RoutineContext ctx, int i, IPlan plan, float t, int maxSpeed, ref bool reverse, ref bool holding)
     {
         var handle = ctx.Navigators[i].handle;
         float at = t + (float)CubeHandle.lag;
@@ -424,6 +439,7 @@ public static class V2Show
         Vector2 pathVelocity = (plan.Position(i, at + h) - plan.Position(i, from)) / (at + h - from);
         Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
         Vector2 want = pathVelocity + FlowGain * (target - here);
+        if (Holds(ref holding, pathVelocity, target, here)) { handle.Move(0, 0, 100, false); return; }
 
         float limit = maxSpeed * (float)CubeHandle.VDotOverU;
         if (want.magnitude > limit) { want = want.normalized * limit; }
@@ -439,14 +455,9 @@ public static class V2Show
         }
         float drive = want.magnitude * Mathf.Max(0f, Mathf.Cos(turnDeg * Mathf.Deg2Rad));
         double translate = (reverse ? -drive : drive) / CubeHandle.VDotOverU;
-        float turnWeight = Mathf.Clamp01(want.magnitude / FlowTurnSpeed);
-        Vector2 aheadVelocity = (plan.Position(i, at + 2f * h) - plan.Position(i, at)) / (2f * h);
-        float pathTurn = 0f;
-        if (pathVelocity.magnitude > FlowTurnSpeed && aheadVelocity.magnitude > FlowTurnSpeed)
-        {
-            pathTurn = Mathf.DeltaAngle(Mathf.Atan2(pathVelocity.y, pathVelocity.x) * Mathf.Rad2Deg, Mathf.Atan2(aheadVelocity.y, aheadVelocity.x) * Mathf.Rad2Deg) * Mathf.Deg2Rad / h;
-        }
-        double rotate = (turnWeight * turnDeg * Mathf.Deg2Rad / FlowTurnSecs + pathTurn) * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
+        // exactly the turning rule of the v0 and v1 routines (Swarm.Flow): the full turn at every speed, with no feed-forward term.
+        // (The gentler v2 rule, weaker at low speed plus a path-curvature term, made the robots wobble and move one step at a time.)
+        double rotate = turnDeg * Mathf.Deg2Rad / SteerTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
         handle.Move(translate, rotate, 200, false);
     }
 

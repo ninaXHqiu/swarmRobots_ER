@@ -98,17 +98,23 @@ public class V2TrafficWave : SwarmRoutine
 
         float StreamS(int slot, float t)
         {
-            float back = -Behind_(slot);
-            float creep = 20f;                            // everyone creeps up 20 as the leaders ease toward the opening
-            float start0 = CreepFrom + 0.9f * rank[slot];   // the nearest first, then the next, ...
-            float s = back - creep + creep * Shapes.Ease((t - start0) / CreepSecs);
-            // the followers close part of the gap behind the robot in front as it goes
-            int ahead = AheadOf(slot);
-            if (ahead >= 0 && t > releaseAt[ahead]) { s += Mathf.Min(40f, Behind_(slot) - Behind_(ahead) - 46f) * Shapes.Ease((t - releaseAt[ahead]) / 2.5f); }
+            // each robot ahead in its stream that is released lets this one move up a place
+            float eff = rank[slot];
+            for (int r = 0; r < rank[slot]; r++)
+            {
+                int a = isLeft[slot] ? Left[r] : Right[r];
+                eff -= Shapes.Ease((t - releaseAt[a] - 0.3f) / 2.4f);
+            }
+            float[] places = isLeft[slot] ? Behind : BehindR;
+            int lo = Mathf.Clamp(Mathf.FloorToInt(eff), 0, places.Length - 2);
+            float behind = Mathf.Lerp(places[lo], places[lo + 1], eff - lo);
+            // everyone creeps up 20 toward the opening as the leaders ease toward it (the nearest first)
+            float start0 = CreepFrom + 0.9f * rank[slot];
+            float s = -behind - 20f + 20f * Shapes.Ease((t - start0) / CreepSecs);
             if (rank[slot] == 0) { s = Mathf.Min(s, 0f); }
             s += YieldS(slot, t);
-            // never closer than 42 to the robot in front while it is still in the stream
-            if (ahead >= 0 && t < releaseAt[ahead]) { s = Mathf.Min(s, StreamS(ahead, t) - 42f); }
+            // the second right robot waits while its leader gives way
+            if (slot == 5) { s = Mathf.Min(s, StreamS(4, t) - 42f); }
             return s;
         }
 

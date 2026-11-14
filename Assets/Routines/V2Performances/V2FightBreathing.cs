@@ -35,21 +35,22 @@ public class V2FightBreathing : SwarmRoutine
     public class Plan : V2Show.IPlan, V2Show.IHeading
     {
         // ---- The fight ----
-        const float LaneLow = 308f, LaneHigh = 272f;       // the two lanes of the confrontation
+        const float LaneLow = 266f, LaneHigh = 230f;       // the two lanes of the confrontation: just above the conductor, which stays where it is
         const float Flank = 44f;                           // a helper stands this far beside its fighter
         static readonly int[] Lower = { 1, 5 }, Upper = { 2, 6 };
         const float Lag = 0.14f;                           // the second robot of a side reacts this late
         // (time, centre of the contest, distance between the two sides' robots); each step eases
         static readonly float[] Keys =
         {
-            0f, 250f, 170f,   6f, 250f, 170f,
-            7.0f, 262f, 82f,  7.6f, 262f, 82f,  8.6f, 252f, 94f,  9.1f, 238f, 62f,  9.6f, 238f, 62f,  10.8f, 250f, 106f,
-            11.3f, 263f, 50f, 11.8f, 263f, 50f, 12.8f, 243f, 92f, 13.3f, 232f, 46f, 13.8f, 232f, 46f, 15f, 250f, 124f,
-            21f, 250f, 124f, 22f, 265f, 72f, 22.6f, 265f, 72f, 23.6f, 252f, 98f, 24.2f, 236f, 58f, 24.8f, 236f, 58f, 26f, 250f, 112f,
-            26.6f, 266f, 54f, 27.2f, 266f, 54f, 28.4f, 244f, 90f, 29f, 230f, 48f, 29.6f, 230f, 48f, 31f, 250f, 118f,
-            31.6f, 262f, 62f, 32.2f, 262f, 62f, 33.4f, 250f, 102f, 34f, 238f, 56f, 34.6f, 238f, 56f, 36f, 250f, 124f,
-            // trying to re-engage while being led away: shorter, slower
-            42f, 250f, 124f, 43f, 258f, 84f, 43.8f, 258f, 84f, 45.2f, 250f, 112f, 46.4f, 244f, 90f, 47.4f, 244f, 90f, 49f, 250f, 128f, 60f, 250f, 150f
+            // coupled pair: the fronts stay together (centre distance 36: a small gap, no actual contact), both shift as one
+            0f, 250f, 160f,   1.5f, 250f, 160f,   4.0f, 250f, 36f,   5.8f, 250f, 36f,
+            7.4f, 276f, 36f,  8.2f, 276f, 36f,  10.4f, 224f, 36f,  11.2f, 224f, 36f,
+            13.2f, 272f, 36f, 14.0f, 272f, 36f, 15.8f, 230f, 36f,  16.6f, 230f, 36f,  18f, 250f, 36f,
+            // two against two, the same pushing carried on
+            21f, 250f, 36f,   22.8f, 274f, 36f, 23.6f, 274f, 36f,  25.8f, 226f, 36f, 26.6f, 226f, 36f,
+            28.6f, 272f, 36f, 29.4f, 272f, 36f, 31.4f, 232f, 36f,  32.2f, 232f, 36f,  34f, 250f, 36f,  38f, 250f, 36f,
+            // being led away: shorter, slower pushes, then they give way
+            41f, 250f, 36f, 43f, 262f, 36f, 44.2f, 262f, 36f, 47f, 244f, 38f, 48.2f, 244f, 38f, 51f, 250f, 60f, 55f, 250f, 110f, 60f, 250f, 150f
         };
         readonly Show.Eased contestM, contestD;
         const float EnterSecs = 5f, SecondEnterFrom = 16f, SecondEnterSecs = 5f;
@@ -87,8 +88,8 @@ public class V2FightBreathing : SwarmRoutine
 
         static Plan()
         {
-            Stand[0] = new Vector2(108f, 372f); Stand[4] = new Vector2(176f, 214f);
-            Stand[3] = new Vector2(338f, 388f); Stand[7] = new Vector2(372f, 208f);
+            Stand[0] = new Vector2(108f, 372f); Stand[4] = new Vector2(160f, 190f);
+            Stand[7] = new Vector2(380f, 190f);   // (the conductor, slot 3, stays where it is)
         }
 
         public Plan(Vector2[] start)
@@ -156,7 +157,12 @@ public class V2FightBreathing : SwarmRoutine
             if (!IsSecond(slot))
             {
                 Vector2 firstLane = new Vector2(X(IsLeft(slot), 5f), LaneLow);
-                if (t < EnterSecs) { return Vector2.Lerp(start[slot], firstLane, Shapes.Ease(t / EnterSecs)); }
+                if (t < EnterSecs)
+                {
+                    float w = Shapes.Ease(t / EnterSecs);
+                    // slot 1 goes round above the robot standing in the line beside it
+                    return Vector2.Lerp(start[slot], firstLane, w) + (slot == 1 ? new Vector2(0f, -40f * Mathf.Sin(Mathf.PI * w)) : Vector2.zero);
+                }
             }
             else if (t < SecondEnterFrom + SecondEnterSecs)
             {
@@ -181,9 +187,9 @@ public class V2FightBreathing : SwarmRoutine
         {
             float w = ChaosWeight(t);
             if (w <= 0f) { return Vector2.zero; }
-            float a = leftSide ? 0f : 1.9f;
-            float x = 9f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 1.7f : 2.3f) + a) + 6f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 0.9f : 1.3f) + 2f * a);
-            float y = 12f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 2.9f : 2.1f) + 1.3f + a) + 5f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 1.1f : 1.6f) + a);
+            float a = 0f;
+            float x = 5f * Mathf.Sin(2f * Mathf.PI * t / 1.9f + a) + 4f * Mathf.Sin(2f * Mathf.PI * t / 1.1f + 2f * a);
+            float y = 5f * Mathf.Sin(2f * Mathf.PI * t / 2.6f + 1.3f + a) + 5f * Mathf.Sin(2f * Mathf.PI * t / 1.4f + a);
             return new Vector2(x, y) * w;
         }
 
@@ -194,11 +200,13 @@ public class V2FightBreathing : SwarmRoutine
             float[] ev = Reactions[idx];
             // to its stand, one after another
             // the messenger (slot 3) has to clear the fight's lane first; the others stay in the line until the first exchange is under way
-            float go = slot == 3 ? 0.5f : 7f + 1.6f * idx;
-            Vector2 p = Vector2.Lerp(start[slot], Stand[slot], Shapes.Ease((t - go) / 5f));
-            Vector2 toward = (new Vector2(250f, 290f) - Stand[slot]).normalized;
+            // the three others leave the line early, out of the fight's way; the conductor does not leave
+            float go = 0.5f + 1.0f * idx;
+            Vector2 stand = slot == 3 ? start[slot] : Stand[slot];
+            Vector2 p = Vector2.Lerp(start[slot], stand, Shapes.Ease((t - go) / 5f));
+            Vector2 toward = (new Vector2(250f, 258f) - stand).normalized;
             Vector2 perp = new Vector2(-toward.y, toward.x);
-            for (int k = 0; k + 1 < ev.Length; k += 2)
+            for (int k = 0; k + 1 < ev.Length && slot != 3; k += 2)   // (the conductor stays still)
             {
                 // a small move toward (+) or away (-) over a second, then settling back over two
                 float u = t - ev[k];
@@ -277,11 +285,8 @@ public class V2FightBreathing : SwarmRoutine
 
         public Vector2 LineSpotOf(int i) { return line[i]; }
         public Vector2 LineSpot(int i) { return line[i]; }
-        public bool InLane(int slot, float t)
-        {
-            if (!IsFighter(slot)) { return false; }
-            float from = IsSecond(slot) ? SecondEnterFrom + SecondEnterSecs : EnterSecs + 0.5f;
-            return t >= from && t < ChaosFrom;   // free to swerve and turn once the scrum starts
-        }
+        // free path steering for everyone: a lane robot cannot correct sideways drift while it stands still
+        // pressing, and the fighters still face each other because they only ever move along their axis
+        public bool InLane(int slot, float t) { return false; }
     }
 }

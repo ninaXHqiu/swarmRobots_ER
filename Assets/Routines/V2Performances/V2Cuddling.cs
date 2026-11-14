@@ -6,7 +6,7 @@ using toio;
 
 // v2 Cuddling (C12).
 //   1. The conductor (the Messenger's robot) stays where the introduction leaves it and keeps
-//      turning gently in place, its centre fixed. The first robot approaches it slowly from the
+//      wiggling left and right in place (the shake it made at the start), its centre fixed. The first robot approaches it slowly from the
 //      left. When that robot is close, the conductor eases out of the turn and the two make one
 //      gentle touch. The first arrival stays beside the conductor.
 //   2. The others arrive one at a time, right, left, right, left, then the last two, each straight
@@ -64,9 +64,10 @@ public class V2Cuddling : SwarmRoutine
         static readonly Vector2 FirstOffset = new Vector2(-Gap, 0f);
 
         // ---- Spinning, touching ----
-        const float SpinFrom = 1f, SpinUpSecs = 1.5f, SpinDownFrom = 12f, SpinDownSecs = 2f, SpinSpeedUnits = 12f;
+        const float SpinFrom = 1f, SpinUpSecs = 1.5f, SpinDownFrom = 12f, SpinDownSecs = 2f, SpinSpeedUnits = 22f, WigglePeriod = 0.7f;
         public bool Spinning(float t) { return t > SpinFrom && t < SpinDownFrom + SpinDownSecs; }
-        public float SpinSpeed(float t) { return SpinSpeedUnits * Shapes.Ease((t - SpinFrom) / SpinUpSecs) * (1f - Shapes.Ease((t - SpinDownFrom) / SpinDownSecs)); }
+        // the same left-and-right wiggle in place as the messenger's shake at the start, kept going gently
+        public float SpinSpeed(float t) { return SpinSpeedUnits * Mathf.Sin(2f * Mathf.PI * (t - SpinFrom) / WigglePeriod) * Shapes.Ease((t - SpinFrom) / SpinUpSecs) * (1f - Shapes.Ease((t - SpinDownFrom) / SpinDownSecs)); }
         const float FirstTouchAt = 13.5f;
         const float PhraseSecs = 5.2f;
         static float Lean(float u)
@@ -82,14 +83,14 @@ public class V2Cuddling : SwarmRoutine
         struct Pair { public int a, b; public float at, d; }
         readonly List<Pair> cuddles = new List<Pair>();
         readonly float[] groupTouch = new float[3];
-        const float SqueezeBy = 7f;
+        const float SqueezeBy = 4f;
 
         // ---- Heart and circle ----
         const float Scale = 4.4f;
         const float TipY = 205f;               // the point of the heart: just above the group's way out
         const float CircleR = 62f;
         static readonly Vector2 CircleCentre = new Vector2(250f, 250f);   // the circle ends in the middle of the mat
-        const float LapSecs = 16f;
+        const float LapSecs = 20f;
         const float GateSecs = 3.2f, DropSecs = 1.6f, JoinSecs = GateSecs + DropSecs, GateSpeed = 28f;
         const float HeartLaps = 2.5f, MorphSecs = 15f, CircleLaps = 2.2f;
         const float ReturnSecs = 12f, ExitRadius = 62f;
@@ -128,11 +129,11 @@ public class V2Cuddling : SwarmRoutine
             foreach (var a in Arrivals) { spot[a.slot] = conductor0 + a.offset; arriveAt[a.slot] = a.start + ArriveSecs; }
 
             // lean-ins while the next robot is on its way: neighbours in the group
-            Cuddle(Conductor, 5, 24f, 5.5f);
-            Cuddle(First, 1, 33f, 5.5f);
-            Cuddle(Conductor, 4, 42f, 5.5f); Cuddle(First, Conductor, 42f, 7.5f);
-            Cuddle(First, 0, 51f, 5.5f); Cuddle(Conductor, 5, 51f, 5.5f);
-            Cuddle(First, 6, 59f, 5.5f); Cuddle(1, 0, 59f, 3f);
+            Cuddle(Conductor, 5, 24f, 3.5f);
+            Cuddle(First, 1, 33f, 3.5f);
+            Cuddle(Conductor, 4, 42f, 3.5f); Cuddle(First, Conductor, 42f, 4.5f);
+            Cuddle(First, 0, 51f, 3.5f); Cuddle(Conductor, 5, 51f, 3.5f);
+            Cuddle(First, 6, 59f, 3.5f); Cuddle(1, 0, 59f, 2.5f);
             groupTouch[0] = 67f; groupTouch[1] = 67f + PhraseSecs; groupTouch[2] = 67f + 2f * PhraseSecs;
             peelFrom = groupTouch[2] + PhraseSecs + 1f;
 
@@ -145,7 +146,7 @@ public class V2Cuddling : SwarmRoutine
                 raw[k] = new Vector2(16f * Mathf.Pow(Mathf.Sin(t), 3f),
                                      -(13f * Mathf.Cos(t) - 5f * Mathf.Cos(2f * t) - 2f * Mathf.Cos(3f * t) - Mathf.Cos(4f * t)));
             }
-            for (int pass = 0; pass < 4; pass++)   // round the tightest turns just enough
+            for (int pass = 0; pass < 8; pass++)   // round the tightest turns, so the robots can steer round them
             {
                 var soft = new Vector2[Samples];
                 for (int k = 0; k < Samples; k++)

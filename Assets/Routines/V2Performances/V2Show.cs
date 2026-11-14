@@ -394,13 +394,16 @@ public static class V2Show
         handle.Move(drive / CubeHandle.VDotOverU, rotate, 200, false);
     }
 
+    // A robot is never sent to a point close to or beyond the mat's edge
+    static Vector2 KeepOnMat(Vector2 v) { return new Vector2(Mathf.Clamp(v.x, 62f, 438f), Mathf.Clamp(v.y, 62f, 438f)); }
+
     // Same steering as Swarm.Flow's
     static void Steer(RoutineContext ctx, int i, IPlan plan, float t, int maxSpeed, ref bool reverse)
     {
         var handle = ctx.Navigators[i].handle;
         float at = t + (float)CubeHandle.lag;
         const float h = 0.05f;
-        Vector2 target = plan.Position(i, at) + SafetyPush(ctx, i);
+        Vector2 target = KeepOnMat(plan.Position(i, at)) + SafetyPush(ctx, i);
         float from = Mathf.Max(0f, at - h);
         Vector2 pathVelocity = (plan.Position(i, at + h) - plan.Position(i, from)) / (at + h - from);
         Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);

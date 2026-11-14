@@ -10,6 +10,7 @@ public class Closing : SwarmRoutine
     public override string Name { get { return "v0 Closing: regroup and return"; } }
     public override string Code { get { return "A04"; } }
     public override string Note { get { return "Regroup, widen, return"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     const float BigScale = 1.5f;    // big circle = 1.5 x the small one (stays in the middle)

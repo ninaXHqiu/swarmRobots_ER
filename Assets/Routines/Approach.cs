@@ -8,6 +8,7 @@ public class Approach : SwarmRoutine
     public override string Name { get { return "v0 Approach: move closer"; } }
     public override string Code { get { return "A02"; } }
     public override string Note { get { return "Move toward participant"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     const float StopDistance = 120f; // how far in from the participant's edge the swarm's centre stops

@@ -10,6 +10,7 @@ public class StudyFlowExample : SwarmRoutine
     public override string Name { get { return "v0 Study flow (example)"; } }
     public override string Code { get { return "A06"; } }
     public override string Note { get { return "Example for new routines"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

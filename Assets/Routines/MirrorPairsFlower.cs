@@ -11,6 +11,7 @@ public class MirrorPairsFlower : SwarmRoutine
     public override string Name { get { return "v0 Mirror pairs -> flower"; } }
     public override string Code { get { return "A05"; } }
     public override string Note { get { return "Pairs, ring, flower"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

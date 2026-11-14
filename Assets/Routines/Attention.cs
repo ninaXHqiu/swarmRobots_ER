@@ -7,6 +7,7 @@ public class Attention : SwarmRoutine
     public override string Name { get { return "v0 Attention: face participant"; } }
     public override string Code { get { return "A03"; } }
     public override string Note { get { return "Face the participant"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

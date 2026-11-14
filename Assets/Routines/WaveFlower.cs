@@ -9,6 +9,7 @@ public class WaveFlower : SwarmRoutine
     public override string Name { get { return "v0 Wave -> large waves"; } }
     public override string Code { get { return "A07"; } }
     public override string Note { get { return "Row waves grow larger"; } }
+    public override bool Listed { get { return false; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

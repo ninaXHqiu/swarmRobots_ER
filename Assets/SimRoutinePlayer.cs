@@ -9,7 +9,7 @@ using toio.Simulator;
 
 // Simulator: runs routines on `robots` simulated cubes on the 3D mat. The "Real robots" button
 // at the top switches to the Control screen, which connects real toio cubes and runs the same
-// routines on them. In the Unity editor, Play opens this scene. Add ?play=<label> (for example ?play=C06n) to the web build's URL to start
+// routines on them. In the Unity editor, Play opens this scene. Add ?play=<label> (for example ?play=C06.n) to the web build's URL to start
 // that routine automatically.
 public class SimRoutinePlayer : MonoBehaviour
 {
@@ -45,7 +45,7 @@ public class SimRoutinePlayer : MonoBehaviour
         ctx = new RoutineContext { Cubes = cubes, Navigators = cubeManager.navigators.ToArray(), CubeManager = cubeManager };
         status = cubes.Length + " simulated robots ready";
 
-        // ?play=<label> starts the routine with that label (the one shown in the list), e.g. ?play=C06n
+        // ?play=<label> starts the routine with that label (the one shown in the list), e.g. ?play=C06.n
         string auto = AutoPlayLabel();
         var wanted = auto == null ? null : RoutineLabels.Find(routines, auto);
         if (wanted != null) { Play(wanted); }

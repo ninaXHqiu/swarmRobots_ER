@@ -42,6 +42,6 @@ from the user. Run everything from the project root (the folder with `Assets/`).
 - The site is the `gh-pages` branch, which holds only the built `SimPreview/` files plus
   `.nojekyll`. Each publish replaces that branch with a single fresh commit, so the repo
   doesn't grow with every build. `main` never contains build output.
-- `?play=C06n` on the URL autoplays the routine with that label (the one shown in the list; each routine's label and note are in its own file, see `Assets/Routines/RoutineLabels.cs`).
+- `?play=C06.n` on the URL autoplays the routine with that label (the one shown in the list; each routine's label and note are in its own file, see `Assets/Routines/RoutineLabels.cs`).
 - The Real robots screen works on the live site too (Web Bluetooth needs https, which Pages
   provides), in Chrome.

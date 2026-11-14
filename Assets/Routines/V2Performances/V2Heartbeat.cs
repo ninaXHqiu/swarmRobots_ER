@@ -21,7 +21,7 @@ public abstract class V2HeartbeatBase : SwarmRoutine
 {
     protected abstract float Minutes { get; }
     public override string Name { get { return "v2 Heartbeat (" + V2Show.Label(Minutes) + ")"; } }
-    public override string Code { get { return "C07" + (Minutes <= 0f ? "n" : (Minutes < 4f ? "3" : "5")); } }
+    public override string Code { get { return "C07" + (Minutes <= 0f ? ".n" : (Minutes < 4f ? ".3" : ".5")); } }
     public override string Note { get { return "Heartbeat becomes wave"; } }
     public override int MinRobots { get { return 2; } }
     public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Heartbeat.For(start, Minutes), maxSpeed: 110); }

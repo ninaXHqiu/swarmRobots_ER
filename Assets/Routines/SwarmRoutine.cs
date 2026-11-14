@@ -38,11 +38,13 @@ public abstract class SwarmRoutine
 {
     public abstract string Name { get; }
     // The routine's short label and a note of at most five words, both shown in the routine lists
-    // (see RoutineLabels) and used for every test record and message ("C07 passed", "C063 jitters").
+    // (see RoutineLabels) and used for every test record and message ("C07 passed", "C06.3 jitters").
     // Label = a letter for the stage (A = v0, B = v1, C = v2) and two digits, counting up within the
-    // stage, never reused or renumbered. A routine with lengths adds n (natural), 3 or 5 (minutes).
+    // stage, never reused or renumbered. A routine with lengths adds .n (natural), .3 or .5 (minutes), e.g. C06.3.
     public virtual string Code { get { return ""; } }
     public virtual string Note { get { return ""; } }
+    // false = left out of the routine lists (the file stays, and other routines can still use it)
+    public virtual bool Listed { get { return true; } }
     public virtual int MinRobots { get { return 1; } }
     public abstract IEnumerator Run(RoutineContext ctx);
 }

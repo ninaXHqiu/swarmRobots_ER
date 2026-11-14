@@ -43,7 +43,7 @@ public class V2Cuddling : SwarmRoutine
             });
     }
 
-    public class Plan : V2Show.IPlan
+    public class Plan : V2Show.IPlan, V2Show.INoSafetyPush
     {
         public const int Conductor = 3, First = 2;
 
@@ -86,8 +86,8 @@ public class V2Cuddling : SwarmRoutine
         const float SqueezeBy = 4f;
 
         // ---- Heart and circle ----
-        const float Scale = 4.4f;
-        const float TipY = 205f;               // the point of the heart: just above the group's way out
+        const float Scale = 5.7f;               // about 190 wide: large enough to read as a heart with eight robots
+        const float TipY = 240f;               // the point of the heart: just above the group's way out
         const float CircleR = 62f;
         static readonly Vector2 CircleCentre = new Vector2(250f, 250f);   // the circle ends in the middle of the mat
         const float LapSecs = 20f;
@@ -171,7 +171,7 @@ public class V2Cuddling : SwarmRoutine
             float bottomS = 0f, bottomY = float.MinValue;
             for (int k = 0; k < Samples; k++) { if (heart[k].y > bottomY) { bottomY = heart[k].y; bottomS = cum[k]; } }
             uBottom = bottomS / perimeter;
-            gate = HeartAt(LandU) + new Vector2(0f, 28f);
+            gate = HeartAt(LandU) + new Vector2(0f, 30f);
 
             float interval = LapSecs / peelOrder.Length;
             for (int k = 0; k < peelOrder.Length; k++) { peelAt[peelOrder[k]] = peelFrom + k * interval; }

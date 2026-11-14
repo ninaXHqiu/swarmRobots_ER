@@ -39,6 +39,11 @@ public static class V2Show
     // lane. A robot facing its heading backs up when the path goes the other way.
     public interface IHeading { float Heading(int i, float t); }
 
+    // A plan whose paths already keep the robots clear, and that deliberately brings them close
+    // (touching): the steering's safety push, which shoves close robots apart, is left off for it
+    public interface INoSafetyPush { }
+    static bool safetyOn = true;
+
     public static string Label(float minutes)
     {
         return minutes <= 0f ? "natural" : minutes.ToString("0.#") + " min";
@@ -335,6 +340,7 @@ public static class V2Show
                                    System.Func<int, float, bool> skip = null, System.Action<float> extra = null)
     {
         var reverse = new bool[ctx.Count];
+        safetyOn = !(plan is INoSafetyPush);
         float start = Time.time;
         while (Time.time - start < seconds)
         {
@@ -439,6 +445,7 @@ public static class V2Show
     const float SafetyStrength = 3f;
     static Vector2 SafetyPush(RoutineContext ctx, int i)
     {
+        if (!safetyOn) { return Vector2.zero; }
         float reach = Swarm.MinSpacing - 3f;
         Vector2 me = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
         Vector2 push = Vector2.zero;

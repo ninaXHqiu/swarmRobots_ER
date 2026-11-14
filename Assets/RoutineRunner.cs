@@ -140,7 +140,9 @@ public class RoutineRunner : MonoBehaviour
     {
         SetPlaying(true);
         status.text = "Running: " + routine.Name;
+        Physio.BeginRoutine(routine.Code, routine.Name);
         yield return routine.Run(ctx);
+        Physio.EndRoutine();
         running = null;
         SetPlaying(false);
         status.text = "Finished: " + routine.Name;

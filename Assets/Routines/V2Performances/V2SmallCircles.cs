@@ -21,7 +21,7 @@ public class V2SmallCircles : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100);
     }
 
-    public class Plan : V2Show.IPlan, V2Show.IHeading
+    public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
         const float GoSecs = 9f, RingFrom = 74f;
         const float SectorRadius = 118f, FormSecs = 12f, TurnUpSecs = 6f, RingRate0 = 0.11f;
@@ -114,6 +114,17 @@ public class V2SmallCircles : SwarmRoutine
             if (b > 0f) { p = Vector2.Lerp(p, Sector(slot, t), b); }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }
             return p;
+        }
+
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections
+        {
+            get
+            {
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(0f, "to the cells, small circles");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(RingFrom, "ring forms");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(breatheFrom, "breathing circle");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(stopFrom, "back to the line");
+            }
         }
 
         public float Heading(int slot, float t) { return 270f; }

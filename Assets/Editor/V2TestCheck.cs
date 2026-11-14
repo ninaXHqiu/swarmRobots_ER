@@ -37,6 +37,7 @@ public static class V2TestCheck
             ("Circles", new V2SmallCircles.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("RingSwap", new V2RingSwap.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("Zigzag", new V2ZigzagRelay.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
+            ("HeartRing", new V2HeartRing.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
             ("Cuddling", new V2Cuddling.Plan(Enumerable.Range(0, 8).Select(i => i == 3 ? (Vector2)Show.TalkSpot : line[i]).ToArray()), ""),
         };
         foreach (var (name, plan, extra) in plans)

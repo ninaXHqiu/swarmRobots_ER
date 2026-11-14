@@ -45,3 +45,7 @@ from the user. Run everything from the project root (the folder with `Assets/`).
 - `?play=C06.n` on the URL autoplays the routine with that label (the one shown in the list; each routine's label and note are in its own file, see `Assets/Routines/RoutineLabels.cs`).
 - The Real robots screen works on the live site too (Web Bluetooth needs https, which Pages
   provides), in Chrome.
+- The page also has a collapsible **Sensor and monitor** panel under the Control screen for a Shimmer sensor
+  (heart rate, skin conductance, recording, the monitor in a second tab). Its files are in
+  `Assets/StreamingAssets/physio/` and are published with the build; see `SHIMMER.md`. A Shimmer connects
+  with a click and Chrome or Edge, like the robots.

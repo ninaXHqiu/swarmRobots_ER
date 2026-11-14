@@ -7,6 +7,7 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     <script src="TemplateData/webble.js"></script>
+    <script src="StreamingAssets/physio/physio.js"></script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
@@ -23,6 +24,35 @@
         <div id="unity-build-title">{{{ PRODUCT_NAME }}}</div>
       </div>
     </div>
+    <details id="physio-panel" class="physio-panel">
+      <summary>Sensor and monitor (Shimmer) &nbsp;<span id="physio-summary">not connected</span></summary>
+      <div class="physio-body">
+        <div class="physio-row">
+          <button onclick="Physio.connect('shimmer3r-ble').catch(function(){})">Connect Shimmer3R (Bluetooth LE)</button>
+          <button onclick="Physio.connect('shimmer3-serial').catch(function(){})">Connect Shimmer3 (paired, serial)</button>
+          <button onclick="Physio.connect('simulated').catch(function(){})">Use simulated sensor</button>
+          <button onclick="Physio.disconnect()">Disconnect</button>
+        </div>
+        <div class="physio-row">
+          <button onclick="Physio.startRecording()">Start recording</button>
+          <button onclick="Physio.stopRecording()">Stop</button>
+          <button onclick="Physio.downloadCsv()">Download CSV</button>
+          <button onclick="Physio.openMonitor()">Open the monitor in a new tab</button>
+        </div>
+        <iframe id="physio-frame" title="Physio monitor" src="StreamingAssets/physio/monitor.html?embedded=1"></iframe>
+      </div>
+    </details>
+    <style>
+      .physio-panel { width: {{{ WIDTH }}}px; max-width: 100%; margin: 8px auto 24px; font: 14px system-ui, sans-serif; color: #333; }
+      .physio-panel summary { cursor: pointer; padding: 6px 2px; font-weight: 600; }
+      .physio-body { border: 1px solid #ccc; border-radius: 8px; padding: 8px; background: #fafafa; }
+      .physio-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
+      .physio-row button { font: inherit; padding: 4px 9px; border: 1px solid #bbb; background: #fff; border-radius: 6px; cursor: pointer; }
+      #physio-frame { width: 100%; height: 640px; border: 0; background: transparent; }
+    </style>
+    <script>
+      if (window.Physio) { Physio.onStatus = function (m) { var e = document.getElementById("physio-summary"); if (e) { e.textContent = m; } }; }
+    </script>
     <script>
       var buildUrl = "Build";
       var loaderUrl = buildUrl + "/{{{ LOADER_FILENAME }}}";

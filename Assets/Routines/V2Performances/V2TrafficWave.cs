@@ -24,7 +24,7 @@ public class V2TrafficWave : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 90);
     }
 
-    public class Plan : V2Show.IPlan, V2Show.IHeading
+    public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
         const float RowY = 126f;
         const float WaveAmp = 38f, WavePeriod = 7f, WaveLength = 336f, Cycles = 5f;
@@ -110,6 +110,18 @@ public class V2TrafficWave : SwarmRoutine
                 p = Vector2.Lerp(p, RowSpot(slot), e) + s * new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
             }
             return p;
+        }
+
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections
+        {
+            get
+            {
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(RunFrom[3], "run to the left, collide");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(TangleFrom, "tangle");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(PeelFrom, "untangle from the right");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(waveFrom, "wave");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(taperTo, "calm, back to the line");
+            }
         }
 
         public float Heading(int slot, float t) { return 270f; }

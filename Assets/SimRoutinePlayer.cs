@@ -70,7 +70,9 @@ public class SimRoutinePlayer : MonoBehaviour
     IEnumerator Run(SwarmRoutine routine)
     {
         status = "Running: " + routine.Name;
+        Physio.BeginRoutine(routine.Code, routine.Name);
         yield return routine.Run(ctx);
+        Physio.EndRoutine();
         status = "Finished: " + routine.Name;
         running = null;
     }

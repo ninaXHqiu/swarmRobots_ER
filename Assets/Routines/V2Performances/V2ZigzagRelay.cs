@@ -23,7 +23,7 @@ public class V2ZigzagRelay : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100);
     }
 
-    public class Plan : V2Show.IPlan, V2Show.IHeading
+    public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
         const float A0 = 70f, A1 = 8f;                           // half the distance between top and bottom: at the start and at the end of the relay
         const float FormSecs = 8f;
@@ -105,6 +105,17 @@ public class V2ZigzagRelay : SwarmRoutine
                 p = new Vector2(Mathf.Lerp(p.x, line[slot].x, e), Mathf.Lerp(p.y, RowY, e) + Wave(slot, t));
             }
             return p;
+        }
+
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections
+        {
+            get
+            {
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(0f, "zigzag forms");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(cyclesFrom, "relay along the zigzag");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(waveFrom, "wave");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(taperTo, "calm, back to the line");
+            }
         }
 
         public float Heading(int slot, float t) { return 270f; }

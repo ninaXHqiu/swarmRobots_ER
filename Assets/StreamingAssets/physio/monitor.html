@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Physio monitor</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --card:#ffffff; --line:#d9d9d4; --accent:#c2410c; --ok:#15803d; --bad:#b91c1c; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ececea; --muted:#9a9a94; --card:#20201f; --line:#383836; --accent:#fb923c; --ok:#4ade80; --bad:#f87171; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; padding:12px 16px 24px; }
+  body.embedded { padding:8px 10px 12px; font-size:13px; }
+  h1 { font-size:16px; margin:0 0 8px; } h2 { font-size:13px; margin:14px 0 6px; color:var(--muted); font-weight:600; }
+  .row { display:flex; flex-wrap:wrap; gap:10px; align-items:stretch; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:8px 12px; }
+  .big { font-size:34px; font-weight:700; line-height:1.1; } .unit { font-size:12px; color:var(--muted); }
+  .muted { color:var(--muted); } .heart { display:inline-block; transition:transform .1s; } .heart.beat { transform:scale(1.35); color:var(--bad); }
+  canvas { width:100%; height:130px; display:block; background:var(--card); border:1px solid var(--line); border-radius:8px; }
+  body.embedded canvas { height:100px; }
+  button, .btn { font:inherit; padding:5px 10px; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:6px; cursor:pointer; text-decoration:none; }
+  button:hover, .btn:hover { border-color:var(--accent); } button.rec { color:var(--bad); }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--muted); margin-right:6px; } .dot.on { background:var(--ok); } .dot.recording { background:var(--bad); }
+  #markers { max-height:110px; overflow:auto; font-size:12px; } #markers div { padding:1px 0; border-bottom:1px solid var(--line); }
+</style>
+</head>
+<body>
+<h1>Physio monitor <span class="muted" id="where"></span></h1>
+<div class="row">
+  <div class="card"><div class="muted">Heart rate</div><div class="big"><span class="heart" id="heart">&#9829;</span> <span id="hr">--</span></div><div class="unit">beats per minute</div></div>
+  <div class="card"><div class="muted">Skin conductance</div><div class="big" id="eda">--</div><div class="unit">microsiemens (smoothed)</div></div>
+  <div class="card" style="flex:1; min-width:220px"><div class="muted">Now</div>
+    <div><span class="dot" id="dot"></span><span id="status">Waiting for the page that runs the robots...</span></div>
+    <div>Routine: <b id="routine">-</b> &nbsp; Section: <b id="section">-</b></div>
+    <div class="muted" id="recinfo">Not recording</div></div>
+</div>
+<div class="row" style="margin-top:8px">
+  <button id="rec" class="rec">Start recording</button><button id="stop">Stop</button><button id="dl">Download CSV</button>
+  <a id="newtab" class="btn" target="swarm-physio-monitor">Open in a new tab</a>
+</div>
+<h2>Pulse waveform (last 10 s)</h2><canvas id="cPpg" width="900" height="130"></canvas>
+<h2>Heart rate (last 5 min)</h2><canvas id="cHr" width="900" height="130"></canvas>
+<h2>Skin conductance (last 5 min)</h2><canvas id="cEda" width="900" height="130"></canvas>
+<h2>Markers</h2><div class="card" id="markers"></div>
+<h2>Look at a recording</h2>
+<div class="row"><input type="file" id="file" accept=".csv"><span class="muted" id="fileinfo">Choose a CSV downloaded from this page.</span></div>
+<canvas id="rHr" width="900" height="150" style="margin-top:6px"></canvas>
+<canvas id="rEda" width="900" height="150" style="margin-top:6px"></canvas>
+<script src="monitor.js"></script>
+</body>
+</html>

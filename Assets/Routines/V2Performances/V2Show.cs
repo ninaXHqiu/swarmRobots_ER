@@ -39,6 +39,9 @@ public static class V2Show
     // lane. A robot facing its heading backs up when the path goes the other way.
     public interface IHeading { float Heading(int i, float t); }
 
+    // A plan that names its sections (time from the start of the performance, name): they go into the sensor recording as markers
+    public interface ISections { System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections { get; } }
+
     // A plan whose paths already keep the robots clear, and that deliberately brings them close
     // (touching): the steering's safety push, which shoves close robots apart, is left off for it
     public interface INoSafetyPush { }
@@ -56,6 +59,7 @@ public static class V2Show
                                   Func<int, float, bool> skip = null, Action<float> extra = null)
     {
         yield return Introduction(ctx);
+        Physio.Marker("opening done");
         Show.StartedAt = Time.time;   // read by the simulator recorder
         int n = ctx.Count;
         var start = new Vector2[n];
@@ -64,6 +68,7 @@ public static class V2Show
         yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
         // The ending: settle every robot exactly onto its own spot (position first, while it still drives),
         // then turn all of them in place to face the participant, so the line stands straight and even
+        Physio.Marker("ending");
         yield return SettleOnSlots(ctx, 3.5f);
         yield return Swarm.TurnTo(ctx, Swarm.FacingParticipant, timeoutMs: 5000, rotateTimeMs: 1500);
     }
@@ -359,12 +364,15 @@ public static class V2Show
     {
         var reverse = new bool[ctx.Count];
         safetyOn = !(plan is INoSafetyPush);
+        var sections = (plan as ISections) != null ? System.Linq.Enumerable.ToList(System.Linq.Enumerable.OrderBy(((ISections)plan).Sections, k => k.Key)) : null;
+        int nextSection = 0;
         float start = Time.time;
         while (Time.time - start < seconds)
         {
             if (ctx.CubeManager.synced)
             {
                 float t = Time.time - start;
+                while (sections != null && nextSection < sections.Count && t >= sections[nextSection].Key) { Physio.Section(sections[nextSection].Value); nextSection++; }
                 for (int i = 0; i < ctx.Count; i++)
                 {
                     if (skip != null && skip(i, t)) { continue; }

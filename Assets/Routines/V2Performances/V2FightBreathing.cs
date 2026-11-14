@@ -28,7 +28,7 @@ public class V2FightBreathing : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100);
     }
 
-    public class Plan : V2Show.IPlan, V2Show.IHeading
+    public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
         const float AxisDeg = 0f;                  // the line from the conductor to the attacker
         const float RushAt = 3f, RushSecs = 1.1f;
@@ -232,6 +232,21 @@ public class V2FightBreathing : SwarmRoutine
             }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }
             return p;
+        }
+
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections
+        {
+            get
+            {
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(RushAt, "rush out, fight the conductor");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(JoinAt, "two come in to break it up");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(ScrumAt, "scrum of four");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(PullFrom[0], "first pair pulled out");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(PullFrom[2], "second pair pulled out");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(RingFrom, "ring forms");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(breatheFrom, "breathing circle");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(stopFrom, "back to the line");
+            }
         }
 
         public float Heading(int slot, float t) { return 0f; }

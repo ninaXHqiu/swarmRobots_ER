@@ -27,7 +27,7 @@ public class V2RingSwap : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100);
     }
 
-    public class Plan : V2Show.IPlan, V2Show.IHeading
+    public class Plan : V2Show.IPlan, V2Show.IHeading, V2Show.ISections
     {
         const float W = 0.25f;                                   // turning speed of each ring, radians per second (about 14 degrees)
         const float InnerR = 58f, OuterR = 122f, RingR = 118f;
@@ -278,6 +278,22 @@ public class V2RingSwap : SwarmRoutine
             if (t < FormEnd) { p = way != null ? way.Position(slot, t) : Vector2.Lerp(start[slot], p, Shapes.Ease(t / FormEnd)); }
             if (t - FormEnd > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - FormEnd - stopFrom) / ReturnSecs)); }
             return p;
+        }
+
+        public System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<float, string>> Sections
+        {
+            get
+            {
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(0f, "to the two rings");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd, "rings turning against each other");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + swapAt[0], "swap 1");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + swapAt[1], "swap 2");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + swapAt[2], "swap 3");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + swapAt[3], "swap 4");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + mergeFrom, "rings draw into one");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + breatheFrom, "breathing circle");
+                yield return new System.Collections.Generic.KeyValuePair<float, string>(FormEnd + stopFrom, "back to the line");
+            }
         }
 
         public float Heading(int slot, float t) { return 270f; }

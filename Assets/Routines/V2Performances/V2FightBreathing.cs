@@ -147,7 +147,7 @@ public class V2FightBreathing : SwarmRoutine
         Vector2 OnLane(int slot, float t)
         {
             float tt = IsSecond(slot) ? t - Lag : t;
-            return new Vector2(X(IsLeft(slot), tt), LaneOf(slot));
+            return new Vector2(X(IsLeft(slot), tt), LaneOf(slot)) + Scrum(IsLeft(slot), t);
         }
 
         Vector2 Fighter(int slot, float t)
@@ -166,13 +166,35 @@ public class V2FightBreathing : SwarmRoutine
             return lane;
         }
 
+        // ---------------- The scrum ----------------
+        // From the second exchange on the fight turns into a scrum: each side sways and surges as a
+        // block (its two robots together, so they stay clear of each other), the two sides on different
+        // irregular rhythms; the helpers circle their fighters looking for the flank. It dies away as
+        // the helpers lead the fighters out.
+        const float ChaosFrom = 21f, ChaosRampSecs = 7f;
+        float ChaosWeight(float t)
+        {
+            return Shapes.Ease((t - ChaosFrom) / ChaosRampSecs) * (1f - Shapes.Ease((t - SeparateFrom - 6f) / (SeparateSecs - 6f)));
+        }
+
+        Vector2 Scrum(bool leftSide, float t)
+        {
+            float w = ChaosWeight(t);
+            if (w <= 0f) { return Vector2.zero; }
+            float a = leftSide ? 0f : 1.9f;
+            float x = 9f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 1.7f : 2.3f) + a) + 6f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 0.9f : 1.3f) + 2f * a);
+            float y = 12f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 2.9f : 2.1f) + 1.3f + a) + 5f * Mathf.Sin(2f * Mathf.PI * t / (leftSide ? 1.1f : 1.6f) + a);
+            return new Vector2(x, y) * w;
+        }
+
         // ---------------- The onlookers ----------------
         Vector2 Onlooker(int slot, float t)
         {
             int idx = System.Array.IndexOf(HelperOf, slot);
             float[] ev = Reactions[idx];
             // to its stand, one after another
-            float go = 0.5f + 1.2f * idx;
+            // the messenger (slot 3) has to clear the fight's lane first; the others stay in the line until the first exchange is under way
+            float go = slot == 3 ? 0.5f : 7f + 1.6f * idx;
             Vector2 p = Vector2.Lerp(start[slot], Stand[slot], Shapes.Ease((t - go) / 5f));
             Vector2 toward = (new Vector2(250f, 290f) - Stand[slot]).normalized;
             Vector2 perp = new Vector2(-toward.y, toward.x);
@@ -191,7 +213,11 @@ public class V2FightBreathing : SwarmRoutine
         {
             Vector2 f = OnLane(fighter, t);
             float side = IsSecond(fighter) ? -1f : 1f;   // upper fighters: from above; lower: from below
-            return f + new Vector2(0f, side * Flank);
+            // it circles round toward the outer side (away from the other team) while the scrum is on
+            float w = ChaosWeight(t);
+            float swing = w * (0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * t / 2.2f + 1.1f * fighter)) * 0.85f;
+            float outward = IsLeft(fighter) ? -1f : 1f;
+            return f + new Vector2(outward * Flank * Mathf.Sin(swing), side * Flank * Mathf.Cos(swing));
         }
 
         int FighterOf(int helper)
@@ -255,7 +281,7 @@ public class V2FightBreathing : SwarmRoutine
         {
             if (!IsFighter(slot)) { return false; }
             float from = IsSecond(slot) ? SecondEnterFrom + SecondEnterSecs : EnterSecs + 0.5f;
-            return t >= from && t < SeparateFrom + 4f;
+            return t >= from && t < ChaosFrom;   // free to swerve and turn once the scrum starts
         }
     }
 }

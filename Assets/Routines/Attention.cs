@@ -5,8 +5,8 @@ using System.Collections;
 public class Attention : SwarmRoutine
 {
     public override string Name { get { return "v0 Attention: face participant"; } }
-    public override int Number { get { return 3; } }
-    public override string Note { get { return "robots turn to face the participant"; } }
+    public override string Code { get { return "A03"; } }
+    public override string Note { get { return "Face the participant"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

@@ -10,8 +10,8 @@ using UnityEngine;
 public class MirrorPairsV2 : SwarmRoutine
 {
     public override string Name { get { return "v1 Mirror pairs -> circle"; } }
-    public override int Number { get { return 9; } }
-    public override string Note { get { return "mirrored pairs gather into a turning circle"; } }
+    public override string Code { get { return "B02"; } }
+    public override string Note { get { return "Pairs become circle"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Timing (seconds), in order ----

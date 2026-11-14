@@ -9,7 +9,7 @@ using toio.Simulator;
 
 // Simulator: runs routines on `robots` simulated cubes on the 3D mat. The "Real robots" button
 // at the top switches to the Control screen, which connects real toio cubes and runs the same
-// routines on them. In the Unity editor, Play opens this scene. Add ?play=<number> to the web build's URL to start
+// routines on them. In the Unity editor, Play opens this scene. Add ?play=<label> (for example ?play=C06n) to the web build's URL to start
 // that routine automatically.
 public class SimRoutinePlayer : MonoBehaviour
 {
@@ -45,19 +45,18 @@ public class SimRoutinePlayer : MonoBehaviour
         ctx = new RoutineContext { Cubes = cubes, Navigators = cubeManager.navigators.ToArray(), CubeManager = cubeManager };
         status = cubes.Length + " simulated robots ready";
 
-        // ?play=<number> starts the routine with that number (the one shown in the list)
-        int auto = AutoPlayIndex();
-        var wanted = routines.FirstOrDefault(r => r.Number == auto);
+        // ?play=<label> starts the routine with that label (the one shown in the list), e.g. ?play=C06n
+        string auto = AutoPlayLabel();
+        var wanted = auto == null ? null : RoutineLabels.Find(routines, auto);
         if (wanted != null) { Play(wanted); }
     }
 
-    static int AutoPlayIndex()
+    static string AutoPlayLabel()
     {
         string url = Application.absoluteURL ?? "";
         int at = url.IndexOf("play=", StringComparison.Ordinal);
-        if (at < 0) { return -1; }
-        int value;
-        return int.TryParse(url.Substring(at + 5).Split('&')[0], out value) ? value : -1;
+        if (at < 0) { return null; }
+        return url.Substring(at + 5).Split('&')[0];
     }
 
     void Play(SwarmRoutine routine)

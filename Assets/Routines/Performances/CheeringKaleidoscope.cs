@@ -22,8 +22,8 @@ using UnityEngine;
 public class CheeringKaleidoscope : SwarmRoutine
 {
     public override string Name { get { return "v2 - bad Cheering: kaleidoscope"; } }
-    public override int Number { get { return 13; } }
-    public override string Note { get { return "older attempt, replaced by the 40s"; } }
+    public override string Code { get { return "C04"; } }
+    public override string Note { get { return "Old kaleidoscope attempt"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

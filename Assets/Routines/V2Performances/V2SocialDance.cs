@@ -25,8 +25,8 @@ public abstract class V2SocialDanceBase : SwarmRoutine
 {
     protected abstract float Minutes { get; }
     public override string Name { get { return "v2 Social Dance (" + V2Show.Label(Minutes) + ")"; } }
-    public override int Number { get { return 50 + (Minutes <= 0f ? 0 : (Minutes < 4f ? 1 : 2)); } }
-    public override string Note { get { return "four mirrored pairs, gather, campfire ring, into the line" + (Minutes <= 0f ? "" : "; more phrases, about " + Minutes.ToString("0") + " min"); } }
+    public override string Code { get { return "C09" + (Minutes <= 0f ? "n" : (Minutes < 4f ? "3" : "5")); } }
+    public override string Note { get { return "Pairs, then campfire ring"; } }
     public override int MinRobots { get { return 2; } }
     public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2SocialDance.For(start, Minutes), maxSpeed: 70); }
 }

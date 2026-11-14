@@ -9,8 +9,8 @@ using UnityEngine;
 public class WavesV2 : SwarmRoutine
 {
     public override string Name { get { return "v1 Busy -> waves -> line"; } }
-    public override int Number { get { return 8; } }
-    public override string Note { get { return "busy movement, waves, back to the line"; } }
+    public override string Code { get { return "B01"; } }
+    public override string Note { get { return "Busy, waves, line"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Timing (seconds), in order ----

@@ -9,8 +9,8 @@ using UnityEngine;
 public class MirrorPairsFlower : SwarmRoutine
 {
     public override string Name { get { return "v0 Mirror pairs -> flower"; } }
-    public override int Number { get { return 5; } }
-    public override string Note { get { return "mirrored pairs, gather into a ring, bloom into a turning flower"; } }
+    public override string Code { get { return "A05"; } }
+    public override string Note { get { return "Pairs, ring, flower"; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

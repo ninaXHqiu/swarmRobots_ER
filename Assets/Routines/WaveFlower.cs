@@ -7,8 +7,8 @@ using UnityEngine;
 public class WaveFlower : SwarmRoutine
 {
     public override string Name { get { return "v0 Wave -> large waves"; } }
-    public override int Number { get { return 7; } }
-    public override string Note { get { return "row waves, own rhythms fall into one wave, grows larger"; } }
+    public override string Code { get { return "A07"; } }
+    public override string Note { get { return "Row waves grow larger"; } }
     public override int MinRobots { get { return 2; } }
 
     // Timing (seconds)

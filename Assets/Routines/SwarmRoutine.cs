@@ -37,10 +37,11 @@ public class RoutineContext
 public abstract class SwarmRoutine
 {
     public abstract string Name { get; }
-    // The routine's own fixed number and a one-line note saying which kind it is. Both are shown in
-    // the routine lists (see RoutineLabels) so a test can say "number 21". Numbers are never reused.
-    // 0 = no number yet (listed last). Tens digit = the family; ones digit = the variant.
-    public virtual int Number { get { return 0; } }
+    // The routine's short label and a note of at most five words, both shown in the routine lists
+    // (see RoutineLabels) and used for every test record and message ("C07 passed", "C063 jitters").
+    // Label = a letter for the stage (A = v0, B = v1, C = v2) and two digits, counting up within the
+    // stage, never reused or renumbered. A routine with lengths adds n (natural), 3 or 5 (minutes).
+    public virtual string Code { get { return ""; } }
     public virtual string Note { get { return ""; } }
     public virtual int MinRobots { get { return 1; } }
     public abstract IEnumerator Run(RoutineContext ctx);

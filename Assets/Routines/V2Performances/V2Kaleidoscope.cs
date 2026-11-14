@@ -23,8 +23,8 @@ public abstract class V2KaleidoscopeBase : SwarmRoutine
 {
     protected abstract float Minutes { get; }
     public override string Name { get { return "v2 Kaleidoscope (" + V2Show.Label(Minutes) + ")"; } }
-    public override int Number { get { return 40 + (Minutes <= 0f ? 0 : (Minutes < 4f ? 1 : 2)); } }
-    public override string Note { get { return "circle, triangle, square turning, then book || V __ into the line" + (Minutes <= 0f ? "" : "; more phrases, about " + Minutes.ToString("0") + " min"); } }
+    public override string Code { get { return "C08" + (Minutes <= 0f ? "n" : (Minutes < 4f ? "3" : "5")); } }
+    public override string Note { get { return "Shapes turn, book opens"; } }
     public override int MinRobots { get { return 2; } }
     public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Kaleidoscope.For(start, Minutes), maxSpeed: 70); }
 }

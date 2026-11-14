@@ -8,6 +8,8 @@ using UnityEngine;
 public class StudyFlowExample : SwarmRoutine
 {
     public override string Name { get { return "v0 Study flow (example)"; } }
+    public override int Number { get { return 6; } }
+    public override string Note { get { return "short example for writing new routines"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

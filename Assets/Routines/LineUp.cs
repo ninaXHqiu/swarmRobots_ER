@@ -8,6 +8,8 @@ using UnityEngine;
 public class LineUp : SwarmRoutine
 {
     public override string Name { get { return "Line up: form a line"; } }
+    public override int Number { get { return 1; } }
+    public override string Note { get { return "robots glide into one centred line facing the participant"; } }
     public override int MinRobots { get { return 2; } }
 
     // Wider than the shared line (Swarm.LineSpacing, 35): at 48 apart the robots are outside the

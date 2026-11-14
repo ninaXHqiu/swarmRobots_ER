@@ -19,6 +19,8 @@ public abstract class V2VibrationBase : SwarmRoutine
 {
     protected abstract float Minutes { get; }   // 0 = natural length
     public override string Name { get { return "v2 Vibration (" + V2Show.Label(Minutes) + ")"; } }
+    public override int Number { get { return 20 + (Minutes <= 0f ? 0 : (Minutes < 4f ? 1 : 2)); } }
+    public override string Note { get { return "one ring, shared surges, wide-compact phrase, settles, into the line" + (Minutes <= 0f ? "" : "; more phrases, about " + Minutes.ToString("0") + " min"); } }
     public override int MinRobots { get { return 2; } }
     public override IEnumerator Run(RoutineContext ctx) { return V2Show.Run(ctx, start => V2Vibration.For(start, Minutes), maxSpeed: 90); }
 }

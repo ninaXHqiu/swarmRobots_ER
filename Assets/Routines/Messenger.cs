@@ -9,6 +9,8 @@ using UnityEngine;
 public class Messenger : SwarmRoutine
 {
     public override string Name { get { return "v2 Messenger: visit -> turning circle"; } }
+    public override int Number { get { return 10; } }
+    public override string Note { get { return "messenger visits the participant and tells the group, then a turning circle"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Visit ----

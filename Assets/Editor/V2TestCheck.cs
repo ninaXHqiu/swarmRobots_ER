@@ -19,6 +19,12 @@ public static class V2TestCheck
         int at = Array.IndexOf(args, "-out");
         string outDir = at >= 0 && at + 1 < args.Length ? args[at + 1] : null;
         var report = new StringBuilder("\nV2TESTCHECK results\n");
+        var found = new System.Collections.Generic.List<SwarmRoutine>();
+        foreach (var type in typeof(SwarmRoutine).Assembly.GetTypes())
+        {
+            if (typeof(SwarmRoutine).IsAssignableFrom(type) && !type.IsAbstract && type.GetConstructor(Type.EmptyTypes) != null) { found.Add((SwarmRoutine)Activator.CreateInstance(type)); }
+        }
+        foreach (var r in RoutineLabels.Sort(found)) { report.AppendFormat("LIST {0}\n", RoutineLabels.Label(r).Replace("\n", "  //  ").Replace("<b>", "").Replace("</b>", "").Replace("<size=11>", "").Replace("</size>", "")); }
         var line = LineUp.Spots(8).Select(s => (Vector2)s).ToArray();
         var spawn = Swarm.Line(8).Select(s => (Vector2)s).ToArray();
         var plans = new (string, V2Show.IPlan, string)[]

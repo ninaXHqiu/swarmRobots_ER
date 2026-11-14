@@ -8,6 +8,8 @@ using UnityEngine;
 public class Closing : SwarmRoutine
 {
     public override string Name { get { return "v0 Closing: regroup and return"; } }
+    public override int Number { get { return 4; } }
+    public override string Note { get { return "small circle, widens, then back to the line"; } }
     public override int MinRobots { get { return 2; } }
 
     const float BigScale = 1.5f;    // big circle = 1.5 x the small one (stays in the middle)

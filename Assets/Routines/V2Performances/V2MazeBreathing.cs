@@ -24,6 +24,8 @@ using UnityEngine;
 public class V2MazeBreathing : SwarmRoutine
 {
     public override string Name { get { return "v2 Maze to Breathing Circle"; } }
+    public override int Number { get { return 61; } }
+    public override string Note { get { return "test: one winding route, changing gaps, turning ring, slow breathing, into the line"; } }
     public override int MinRobots { get { return 2; } }
 
     public override IEnumerator Run(RoutineContext ctx)

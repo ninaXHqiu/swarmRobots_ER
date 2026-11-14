@@ -72,12 +72,12 @@ public class RoutineRunner : MonoBehaviour
             var go = DefaultControls.CreateButton(new DefaultControls.Resources());
             go.name = "Routine " + routines[k].Name;
             go.transform.SetParent(content.transform, false);
-            go.AddComponent<LayoutElement>().preferredHeight = 38;
+            go.AddComponent<LayoutElement>().preferredHeight = 54;
             var image = go.GetComponent<Image>();
             image.sprite = null; image.color = Color.white;
             go.AddComponent<Outline>().effectColor = Accent;
             var label = go.GetComponentInChildren<Text>();
-            label.font = font; label.text = routines[k].Name; label.fontSize = 15; label.fontStyle = FontStyle.Bold; label.color = Accent;
+            label.font = font; label.supportRichText = true; label.text = RoutineLabels.Label(routines[k]); label.fontSize = 14; label.fontStyle = FontStyle.Normal; label.color = Accent;
             go.GetComponent<Button>().onClick.AddListener(() => PlayRoutine(index));
             routineButtons.Add(image);
         }
@@ -104,7 +104,7 @@ public class RoutineRunner : MonoBehaviour
                 found.Add((SwarmRoutine)Activator.CreateInstance(type));
             }
         }
-        return found.OrderBy(r => r.Name).ToList();
+        return RoutineLabels.Sort(found);
     }
 
     // Wired to the Stop robots button (always visible): ends the routine, turns off the

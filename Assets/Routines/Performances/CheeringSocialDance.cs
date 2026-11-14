@@ -15,6 +15,8 @@ using UnityEngine;
 public class CheeringSocialDance : SwarmRoutine
 {
     public override string Name { get { return "v2 - bad Cheering: social dance"; } }
+    public override int Number { get { return 14; } }
+    public override string Note { get { return "older attempt, replaced by the 50s"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

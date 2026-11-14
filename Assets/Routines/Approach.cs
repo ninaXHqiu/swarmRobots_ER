@@ -6,6 +6,8 @@ using UnityEngine;
 public class Approach : SwarmRoutine
 {
     public override string Name { get { return "v0 Approach: move closer"; } }
+    public override int Number { get { return 2; } }
+    public override string Note { get { return "robots move toward the participant"; } }
     public override int MinRobots { get { return 2; } }
 
     const float StopDistance = 120f; // how far in from the participant's edge the swarm's centre stops

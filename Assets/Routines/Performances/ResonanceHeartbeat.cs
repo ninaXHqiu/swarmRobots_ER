@@ -13,6 +13,8 @@ using UnityEngine;
 public class ResonanceHeartbeat : SwarmRoutine
 {
     public override string Name { get { return "v2 - bad Resonance: heartbeat"; } }
+    public override int Number { get { return 12; } }
+    public override string Note { get { return "older attempt, replaced by the 30s"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

@@ -20,6 +20,8 @@ using UnityEngine;
 public class V2PianoKeys : SwarmRoutine
 {
     public override string Name { get { return "v2 Piano Keys"; } }
+    public override int Number { get { return 60; } }
+    public override string Note { get { return "test: 8 robots as piano keys play Twinkle Twinkle, closing wave"; } }
     public override int MinRobots { get { return 8; } }
 
     const float BeatsPerMinute = 96f;

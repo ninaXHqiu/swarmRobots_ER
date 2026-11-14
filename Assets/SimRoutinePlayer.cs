@@ -45,8 +45,10 @@ public class SimRoutinePlayer : MonoBehaviour
         ctx = new RoutineContext { Cubes = cubes, Navigators = cubeManager.navigators.ToArray(), CubeManager = cubeManager };
         status = cubes.Length + " simulated robots ready";
 
+        // ?play=<number> starts the routine with that number (the one shown in the list)
         int auto = AutoPlayIndex();
-        if (auto >= 0 && auto < routines.Count) { Play(routines[auto]); }
+        var wanted = routines.FirstOrDefault(r => r.Number == auto);
+        if (wanted != null) { Play(wanted); }
     }
 
     static int AutoPlayIndex()
@@ -115,7 +117,7 @@ public class SimRoutinePlayer : MonoBehaviour
         {
             var style = running != null && activeRoutine == routine.Name ? activeStyle : buttonStyle;
             GUI.enabled = ctx != null; // greyed out until the simulated robots are connected
-            if (GUILayout.Button(routine.Name, style, GUILayout.Height(40)) && ctx != null)
+            if (GUILayout.Button(RoutineLabels.Label(routine), style, GUILayout.Height(58)) && ctx != null)
             {
                 if (connected < routine.MinRobots) { status = "Needs " + routine.MinRobots + " robots"; }
                 else { Play(routine); }
@@ -164,6 +166,7 @@ public class SimRoutinePlayer : MonoBehaviour
         textStyle = new GUIStyle { fontSize = 15, wordWrap = true, normal = { textColor = new Color(0.35f, 0.42f, 0.52f) }, margin = new RectOffset(0, 0, 2, 4) };
         buttonStyle = new GUIStyle
         {
+            richText = true, wordWrap = true,
             fontSize = 16, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter,
             normal = { background = Solid(Color.white), textColor = accent },
             hover = { background = Solid(new Color(0.9f, 0.93f, 1f)), textColor = accent },
@@ -205,6 +208,6 @@ public class SimRoutinePlayer : MonoBehaviour
                 found.Add((SwarmRoutine)Activator.CreateInstance(type));
             }
         }
-        return found.OrderBy(r => r.Name).ToList();
+        return RoutineLabels.Sort(found);
     }
 }

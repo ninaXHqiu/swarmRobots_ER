@@ -11,6 +11,8 @@ using UnityEngine;
 public class ResonanceVibration : SwarmRoutine
 {
     public override string Name { get { return "v2 - bad Resonance: vibration"; } }
+    public override int Number { get { return 11; } }
+    public override string Note { get { return "older attempt, replaced by the 20s"; } }
     public override int MinRobots { get { return 2; } }
 
     // ---- Phrases (change the counts freely; the choreography follows) ----

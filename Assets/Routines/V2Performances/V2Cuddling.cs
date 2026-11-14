@@ -284,7 +284,7 @@ public class V2Cuddling : SwarmRoutine
                 Vector2 p = Vector2.Lerp(start[i], spot[i], w);
                 // the one gentle touch: a little closer to the conductor, then back
                 float touch = Shapes.Ease((t - FirstTouchAt) / 1.5f) - Shapes.Ease((t - FirstTouchAt - 2f) / 1.6f);
-                return p + new Vector2(Gap - 29f, 0f) * touch;
+                return p + new Vector2(Gap - 35f, 0f) * touch;
             }
             var arr = Arrivals[System.Array.FindIndex(Arrivals, a => a.slot == i)];
             return Vector2.Lerp(start[i], spot[i], Shapes.Ease((t - arr.start) / ArriveSecs));

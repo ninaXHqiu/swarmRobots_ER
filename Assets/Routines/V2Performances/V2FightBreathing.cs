@@ -76,7 +76,7 @@ public class V2FightBreathing : SwarmRoutine
         {
             this.start = start;
             line = V2Show.OwnSpots(start.Length);
-            m0 = start[3] + 18f * Dir(AxisDeg);
+            m0 = start[3] + 21f * Dir(AxisDeg);
             push = new Show.Eased(0f, 0f, 4f, 0f, 5.5f, 0f, 6.7f, -8f, 7.6f, -8f, 9.4f, 7f, 10.2f, 7f, 12f, -9f, 12.8f, -9f,
                                   14.5f, 5f, 15.5f, 5f, 18f, -6f, 19f, -6f, 21f, 4f, 24f, 0f, 200f, 0f);
             var order = V2Show.RingOrder(8);
@@ -133,11 +133,11 @@ public class V2FightBreathing : SwarmRoutine
         {
             float a = Axis(t), w = Wild(t);
             Vector2 c = ClusterCentre(t);
-            if (slot == 3) { return c - Dir(a) * (18f + 2f * w * Wob(t, 2.1f, 0f)); }
-            if (slot == 4) { return c + Dir(a) * (18f + 2f * w * Wob(t, 2.3f, 1.7f)); }
+            if (slot == 3) { return c - Dir(a) * (21f + 2f * w * Wob(t, 2.1f, 0f)); }
+            if (slot == 4) { return c + Dir(a) * (21f + 2f * w * Wob(t, 2.3f, 1.7f)); }
             float side = slot == 7 ? 1f : -1f, ph = slot == 2 ? 0.4f : 2.2f;
             float calm = Shapes.Ease((t - 63f) / 6f);
-            float r = 56f - 18f * Shapes.Ease((t - TugAt) / 6f) - 20f * calm + 4f * Wob(t, 2.3f, ph) * Shapes.Ease((t - ScrumAt) / 3f) * (1f - calm);
+            float r = 64f - 20f * Shapes.Ease((t - TugAt) / 6f) - 23f * calm + 3f * Wob(t, 2.3f, ph) * Shapes.Ease((t - ScrumAt) / 3f) * (1f - calm);
             return c + Dir(a + side * 90f) * r;
         }
 
@@ -207,7 +207,7 @@ public class V2FightBreathing : SwarmRoutine
             {
                 p = FighterPlace(slot, t);
                 float pull = Pull(k, t);
-                if (pull > 0f) { p = Vector2.Lerp(p, Sector(slot, t), pull) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 55f * Mathf.Sin(Mathf.PI * pull), 0f); }
+                if (pull > 0f) { p = Vector2.Lerp(p, Sector(slot, t), pull) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 42f * Mathf.Sin(Mathf.PI * pull), 0f); }
             }
             else
             {
@@ -227,7 +227,7 @@ public class V2FightBreathing : SwarmRoutine
                 {
                     Vector2 fp = FighterPlace(f, t);
                     Vector2 outward = k >= 2 ? new Vector2(k == 2 ? -1f : 1f, 0f) : (fp - ClusterCentre(t)).normalized;
-                    p = Vector2.Lerp(fp + outward * Flank, Sector(slot, t), lead) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 95f * Mathf.Sin(Mathf.PI * lead), 0f);
+                    p = Vector2.Lerp(fp + outward * Flank, Sector(slot, t), lead) + new Vector2((k == 0 || k == 2 ? -1f : 1f) * 70f * Mathf.Sin(Mathf.PI * lead), 0f);
                 }
             }
             if (t > stopFrom) { p = Vector2.Lerp(p, line[slot], Shapes.Ease((t - stopFrom) / ReturnSecs)); }

@@ -52,10 +52,10 @@ public class V2Cuddling : SwarmRoutine
         struct Arrival { public int slot; public Vector2 offset; public float start; }   // offset from the conductor
         static readonly Arrival[] Arrivals =
         {
-            new Arrival { slot = 5, offset = new Vector2(31f, 31f),   start = 15f },   // right: lower right of the conductor
+            new Arrival { slot = 5, offset = new Vector2(31f, 38f),   start = 15f },   // right: lower right of the conductor
             new Arrival { slot = 1, offset = new Vector2(-75f, 31f),  start = 24f },   // left: lower left of the first arrival
             new Arrival { slot = 4, offset = new Vector2(44f, 0f),    start = 33f },   // right: beside the conductor
-            new Arrival { slot = 0, offset = new Vector2(-88f, 0f),   start = 42f },   // left: beside the first arrival
+            new Arrival { slot = 0, offset = new Vector2(-98f, 0f),   start = 42f },   // left: beside the first arrival
             new Arrival { slot = 6, offset = new Vector2(-75f, -31f), start = 50f },   // right: round to the upper left
             new Arrival { slot = 7, offset = new Vector2(0f, -43f),   start = 58f },   // right: the last, above the conductor
         };
@@ -133,7 +133,7 @@ public class V2Cuddling : SwarmRoutine
             Cuddle(First, 1, 33f, 3.5f);
             Cuddle(Conductor, 4, 42f, 3.5f); Cuddle(First, Conductor, 42f, 4.5f);
             Cuddle(First, 0, 51f, 3.5f); Cuddle(Conductor, 5, 51f, 3.5f);
-            Cuddle(First, 6, 59f, 3.5f); Cuddle(1, 0, 59f, 2.5f);
+            Cuddle(First, 6, 59f, 3.5f);
             groupTouch[0] = 67f; groupTouch[1] = 67f + PhraseSecs; groupTouch[2] = 67f + 2f * PhraseSecs;
             peelFrom = groupTouch[2] + PhraseSecs + 1f;
 
@@ -324,7 +324,7 @@ public class V2Cuddling : SwarmRoutine
             if (t < tGate)
             {
                 float tau = Mathf.Clamp01((t - peelAt[i]) / GateSecs);
-                Vector2 c1 = from + (gate - from) * 0.35f;
+                Vector2 c1 = from + (gate - from) * 0.35f + (i == 1 ? new Vector2(-34f, -30f) : (i == 2 ? new Vector2(-10f, -34f) : (i == 0 ? new Vector2(-10f, -20f) : (i == 4 ? new Vector2(16f, -36f) : Vector2.zero))));   // the left side swings up and left, clear of the conductor
                 Vector2 c2 = gate - up * GateSpeed * GateSecs / 4.95f;
                 return Bezier(from, c1, c2, gate, 0.35f * tau + 0.65f * tau * tau);
             }

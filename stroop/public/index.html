@@ -247,7 +247,7 @@ function renderClock() {
   const cd = $('countdown');
   cd.textContent = left;
   cd.style.color = `hsl(${Math.round(120 * (left / s.seconds))}, 100%, 50%)`;
-  $('score').textContent = s.streak;
+  $('score').textContent = `${s.streak} / ${s.trials.length}`;
 }
 
 function tick() {
@@ -284,7 +284,7 @@ function resolve(key) {
   });
 
   if (key === null) $('countdown').textContent = 0;
-  $('score').textContent = s.streak;
+  $('score').textContent = `${s.streak} / ${s.trials.length}`;
   const word = $('word');
   word.className = 'feedback';
   word.style.color = isCorrect ? '#22dd22' : '#ff2222';
@@ -298,7 +298,7 @@ function resolve(key) {
 function finish() {
   clearInterval(ticker);
   s.phase = 'done';
-  $('finalScores').innerHTML = `Best streak: <b>${s.best}</b>`;
+  $('finalScores').innerHTML = `Best streak: <b>${s.best} / ${s.trials.length}</b>`;
   show('done');
 }
 

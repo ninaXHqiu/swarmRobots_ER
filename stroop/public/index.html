@@ -215,8 +215,9 @@ function nextIntroPage() {
   s.byKey = Object.fromEntries(Object.entries(s.keys).map(([colour, key]) => [key, colour]));
   s.trials = makeTrials(s.count);
   s.index = -1;
-  s.correct = 0;
-  s.tested = 0;
+  // The score on screen is a streak: +1 per correct answer, back to 0 on a wrong one.
+  s.streak = 0;
+  s.best = 0;
   show('task');
   nextTrial();
   clearInterval(ticker);
@@ -246,7 +247,7 @@ function renderClock() {
   const cd = $('countdown');
   cd.textContent = left;
   cd.style.color = `hsl(${Math.round(120 * (left / s.seconds))}, 100%, 50%)`;
-  $('score').textContent = `${s.correct} / ${s.tested}`;
+  $('score').textContent = s.streak;
 }
 
 function tick() {
@@ -266,8 +267,8 @@ function resolve(key) {
   const rt = Math.round(elapsed());
   const isCorrect = key !== null && s.byKey[key] === t.ink;
   const sound = isCorrect ? '' : wrongSound();
-  s.tested += 1;
-  if (isCorrect) s.correct += 1;
+  s.streak = isCorrect ? s.streak + 1 : 0;
+  s.best = Math.max(s.best, s.streak);
   s.log.push({
     trial: s.index + 1,
     word: t.word,
@@ -279,10 +280,11 @@ function resolve(key) {
     source: key ? 'response' : 'timeout',
     sound,
     rt_ms: key ? rt : '',
+    streak: s.streak,
   });
 
   if (key === null) $('countdown').textContent = 0;
-  $('score').textContent = `${s.correct} / ${s.tested}`;
+  $('score').textContent = s.streak;
   const word = $('word');
   word.className = 'feedback';
   word.style.color = isCorrect ? '#22dd22' : '#ff2222';
@@ -296,7 +298,7 @@ function resolve(key) {
 function finish() {
   clearInterval(ticker);
   s.phase = 'done';
-  $('finalScores').innerHTML = `Score: <b>${s.correct} / ${s.tested}</b>`;
+  $('finalScores').innerHTML = `Best streak: <b>${s.best}</b>`;
   show('done');
 }
 
@@ -328,9 +330,9 @@ function quitToSetup() {
 }
 
 function exportCsv() {
-  const cols = ['trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms'];
+  const cols = ['trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms', 'streak'];
   const header = ['trial', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
-    'correct_wrong', 'response_timeout', 'sound', 'response_time_ms'];
+    'correct_wrong', 'response_timeout', 'sound', 'response_time_ms', 'streak'];
   const lines = [header.join(','), ...s.log.map((r) => cols.map((c) => r[c]).join(','))];
   const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
   const a = document.createElement('a');

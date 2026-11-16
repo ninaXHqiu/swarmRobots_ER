@@ -35,8 +35,8 @@ public class V2CheerBreathing : SwarmRoutine
     {
         // ---- the wavy circle (settings to calibrate)
         const float RingR = 100f;           // R: main circle radius
-        const float Ripple = 16f;           // A: ripple amplitude (mat units)
-        const float Ripples = 4f;           // f: ripples per revolution. 4 with the phase below puts neighbouring robots on opposite sides: 4 out, 4 in, one in and one out alternately
+        const float Ripple = 20f;           // A: ripple amplitude (mat units)
+        const float Ripples = 3f;           // f: ripples per revolution. With only 8 robots, 4 puts every robot at the extreme (a square, 4 out and 4 in); 3 spreads them over the wave so it reads as a wave, with neighbours still mostly on opposite sides
         const float TurnRate = 0.14f;       // w: how fast the robots travel round (rad/s; one lap in about 45 s)
         const float MiddleSecs = 72f;       // length of the wavy-circle part
         const float TurnUpSecs = 5f;       // the turn eases in over this long: no jump from rest to full speed when the ring has formed

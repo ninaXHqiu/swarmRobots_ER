@@ -8,15 +8,15 @@ using UnityEngine;
 // v2 Stress, restless (C23): the swarm mirrors high arousal, then calms into the breathing circle.
 // Inspired by the fear pattern of "From Motions to Emotions" (Santos & Egerstedt), adapted to stress.
 //   0. The standard opening (the messenger's introduction), like every other routine.
-//   1. The robots take a spread-out formation across the mat.
+//   1. Every robot starts at once with sharp moves of its own: an angular dog-leg to its place in a spread-out formation.
 //   2. The participant's baseline and current skin conductance are read ONCE.
 //   3. initial_speed = clamp(BaseSpeed x stress_multiplier, MinSpeed, MaxSpeed), where
 //      stress_multiplier = 1 + Gain x (current - baseline) / baseline. At or below baseline: MinSpeed.
 //      The speed is not changed again during the restless part.
-//   4. The swarm moves in short straight segments with sharp turns between them. A segment is ONE motor command
-//      (the robot's own TargetMove: rotate, drive straight to the point). Nothing is sent while a segment runs;
-//      the next one goes out only after every robot has reported arrival (or a timeout), so there are no
-//      per-frame corrections and no wiggling. Robots that have no TargetMove (old firmware) fall back to the
+//   4. Each robot moves in short straight segments with sharp turns between them, on its own clock: a segment is ONE motor
+//      command (the robot's own TargetMove: rotate, drive straight to the point), and the robot's next one is chosen at random
+//      (turn, length, a beat of its own) when IT has arrived, without waiting for the others. Nothing is sent while a segment
+//      runs, so there are no per-frame corrections and no wiggling. Robots that have no TargetMove (old firmware) fall back to the
 //      ordinary MoveTo for that segment.
 //   5. Then it calms: from wherever the last segment left them the robots curve onto one ring, more slowly the
 //      closer they get; the ring turns, breathes (large, slow) several times, opens and flattens into the line,
@@ -41,7 +41,10 @@ public class V2StressRestless : SwarmRoutine
     public const float AgainstChance = 0.25f;                             // share of robots turning the other way from the group
     public const float MinGap = 55f;                                      // closest two robots may come (mat units; a robot is about 32 wide)
     public const float AreaMin = 90f, AreaMax = 410f;                     // play area the robot centres stay inside
-    public const int PauseMs = 120;                                       // beat between segments
+    public const float RestlessSecs = 50f;                                // how long the restless part runs (each robot then finishes its last segment)
+    public const int PauseMinMs = 0, PauseMaxMs = 450;                    // each robot's own random beat between its segments
+    public const float ForceAfterSecs = 2f;                               // a first leg that has been blocked this long goes anyway
+    public const int RandomSeed = -1;                                     // -1: different every run; 0 or more: the same every run
     public const float UnitsPerSecPerSpeed = 0.9f;                        // rough travel rate (for the timeouts and the plan check only)
     public const int Seed = 23;
 
@@ -65,6 +68,8 @@ public class V2StressRestless : SwarmRoutine
         return pts.OrderByDescending(p => (p - c).sqrMagnitude).Take(n).ToArray();
     }
 
+    // A fixed set of steps, used only by the plan check (Editor/V2TestCheck) to get a plausible spread-out start for the calming plan;
+    // the routine itself chooses its segments at run time (Restless).
     // All the steps: result[k][i] = where robot i is after segment k (result[0] = the start). Same for every run.
     public static Vector2[][] BuildSteps(Vector2[] start, int steps, int seed)
     {
@@ -133,57 +138,153 @@ public class V2StressRestless : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100, between: () => Restless(ctx));
     }
 
-    // 1-4: the spread-out formation, the skin conductance read once, the restless segments
+    // 1-4: the sharp start, the skin conductance read once, then every robot on its own restless run
+    class Bot
+    {
+        public Vector2 to; public bool active; public int id, count; public float giveUpAt, pauseUntil, heading, waitingSince = -1f;
+        public Queue<Vector2> forced = new Queue<Vector2>();   // the first legs, to the robot's place in the spread-out formation
+    }
+
     IEnumerator Restless(RoutineContext ctx)
     {
         int n = ctx.Count;
         Physio.Section("restless movement");
+        // which robot takes which spot of the spread-out formation (bookkeeping only: nothing moves here)
         var spread = SpreadSpots(n);
         Swarm.AssignNearest(ctx, spread.Select(p => Vector2Int.RoundToInt(p)).ToArray());
-        yield return Swarm.GlideTo(ctx, spread.Select(p => Vector2Int.RoundToInt(p)).ToArray(), 60f, 70);
-        yield return Swarm.Wait(800);
 
         // read the skin conductance once and fix the speed for the whole restless part
         float sc = Physio.Eda, baseline = Physio.EdaBaseline;
         float mult; int speed = Mathf.RoundToInt(InitialSpeed(sc, baseline, out mult));
         Physio.Marker(string.Format("stress speed {0} (sc {1:0.00}, baseline {2:0.00}, x{3:0.00})", speed, sc, baseline, mult));
 
-        // plan every segment from where the robots really stand, then run them one by one
-        var from = new Vector2[n];
-        for (int i = 0; i < n; i++) { from[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
-        var steps = BuildSteps(from, Steps, Seed);
+        var rng = RandomSeed >= 0 ? new System.Random(RandomSeed) : new System.Random();
         bool native = ctx.Cubes.All(c => SupportsTargetMove(c));
         var arrived = new Dictionary<Cube, int>();
         Action<Cube, int, Cube.TargetMoveRespondType> onDone = (c, id, resp) => { arrived[c] = id; };
         if (native) { foreach (var c in ctx.Cubes) { c.targetMoveCallback.AddListener("c23", onDone); } }
-        for (int k = 1; k < steps.Length; k++)
+
+        // Every robot starts at once with sharp moves of its own: an angular dog-leg from where it stands to its spot in the formation
+        var bots = new Bot[n];
+        var pos = new Vector2[n];
+        for (int i = 0; i < n; i++)
         {
-            var targets = steps[k];
-            float longest = 0f; for (int i = 0; i < n; i++) { longest = Mathf.Max(longest, Vector2.Distance(steps[k - 1][i], targets[i])); }
-            float estimate = longest / (speed * UnitsPerSecPerSpeed) + 1.5f;       // travel plus the turn on the spot
-            if (native)
+            pos[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
+            bots[i] = new Bot { pauseUntil = Time.time + (float)rng.NextDouble() * 0.4f };
+            Vector2 d = spread[i] - pos[i];
+            if (d.magnitude > 90f)
             {
-                int id = (k % 250) + 1;
+                var side = new Vector2(-d.y, d.x).normalized * (rng.NextDouble() < 0.5 ? 1f : -1f);
+                var elbow = pos[i] + d * (0.4f + 0.2f * (float)rng.NextDouble()) + side * d.magnitude * 0.35f;
+                elbow = new Vector2(Mathf.Clamp(elbow.x, AreaMin, AreaMax), Mathf.Clamp(elbow.y, AreaMin, AreaMax));
+                bots[i].forced.Enqueue(elbow);
+            }
+            bots[i].forced.Enqueue(spread[i]);
+            bots[i].heading = Mathf.Atan2(d.y, d.x);
+        }
+
+        float t0 = Time.time, deadline = t0 + RestlessSecs;
+        while (true)
+        {
+            float now = Time.time;
+            if (ctx.CubeManager.synced)
+            {
+                for (int i = 0; i < n; i++) { pos[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
                 for (int i = 0; i < n; i++)
                 {
-                    var d = targets[i] - steps[k - 1][i];
-                    if (d.sqrMagnitude < 4f) { arrived[ctx.Cubes[i]] = id; continue; }      // this one stays put
-                    int angle = Mathf.RoundToInt(Mathf.Atan2(d.y, d.x) * Mathf.Rad2Deg);
-                    ctx.Cubes[i].TargetMove(Mathf.RoundToInt(targets[i].x), Mathf.RoundToInt(targets[i].y), angle, id, Mathf.CeilToInt(estimate * 2f),
-                        Cube.TargetMoveType.RoundBeforeMove, speed, Cube.TargetSpeedType.VariableSpeed, Cube.TargetRotationType.NotRotate);
+                    var b = bots[i];
+                    if (b.active)
+                    {
+                        int got; bool back = arrived.TryGetValue(ctx.Cubes[i], out got) && got == b.id;
+                        if (back || (pos[i] - b.to).magnitude < 12f || now > b.giveUpAt)
+                        {
+                            b.active = false;
+                            b.pauseUntil = now + Mathf.Lerp(PauseMinMs, PauseMaxMs, (float)rng.NextDouble()) / 1000f;   // its own beat before the next, nobody else waits
+                        }
+                        else
+                        {
+                            if (!native) { var q = Vector2Int.RoundToInt(b.to); ctx.Navigators[i].handle.Move2Target(q.x, q.y, maxSpd: speed).Exec(); }   // old firmware: steered, as before
+                            continue;
+                        }
+                    }
+                    if (now < b.pauseUntil) { continue; }
+                    if (now >= deadline && b.forced.Count == 0) { continue; }                 // time is up: this robot has finished its last segment
+                    Vector2 end;
+                    if (!Pick(i, pos, bots, rng, now, out end)) { if (b.waitingSince < 0f) { b.waitingSince = now; } b.pauseUntil = now + 0.25f; continue; }   // blocked for the moment: wait, do not wiggle
+                    b.waitingSince = -1f;
+                    Vector2 d = end - pos[i];
+                    float travel = d.magnitude / (speed * UnitsPerSecPerSpeed) + 1.5f;
+                    b.to = end; b.active = true; b.id = (++b.count % 250) + 1; b.giveUpAt = now + travel * 2f; b.heading = Mathf.Atan2(d.y, d.x);
+                    if (native)
+                    {
+                        ctx.Cubes[i].TargetMove(Mathf.RoundToInt(end.x), Mathf.RoundToInt(end.y), Mathf.RoundToInt(b.heading * Mathf.Rad2Deg), b.id, Mathf.CeilToInt(travel * 2f),
+                            Cube.TargetMoveType.RoundBeforeMove, speed, Cube.TargetSpeedType.VariableSpeed, Cube.TargetRotationType.NotRotate);
+                    }
                 }
-                float end = Time.time + estimate * 2f;                               // nothing is sent while waiting
-                while (Time.time < end && !ctx.Cubes.All(c => arrived.ContainsKey(c) && arrived[c] == id)) { yield return null; }
+                if (now >= deadline && bots.All(b => !b.active && b.forced.Count == 0)) { break; }
+                if (now > deadline + 25f) { break; }
             }
-            else
-            {
-                yield return Swarm.MoveTo(ctx, targets.Select(p => Vector2Int.RoundToInt(p)).ToArray(), speed, Mathf.CeilToInt(estimate * 2000f));
-            }
-            yield return Swarm.Wait(PauseMs);
+            yield return null;
         }
         if (native) { foreach (var c in ctx.Cubes) { c.targetMoveCallback.RemoveListener("c23"); } }
         Swarm.StopAll(ctx);
         yield return Swarm.Wait(400);      // the segment commands have finished; the plan below takes the steering from here
+    }
+
+    // The next segment for robot i, chosen from where everybody stands now. The first legs are fixed (to its spot in the formation);
+    // after that it is random: a sharp turn from its last direction, a random length, kept inside the play area, clear of every other robot's place and
+    // of the segment each other robot is on, and preferring the candidate that leaves it furthest from the others (so the swarm stays spread out).
+    bool Pick(int i, Vector2[] pos, Bot[] bots, System.Random rng, float now, out Vector2 end)
+    {
+        var b = bots[i];
+        if (b.forced.Count > 0)
+        {
+            end = b.forced.Peek();
+            bool free = ClearOnline(i, pos[i], end, pos, bots) || (b.waitingSince >= 0f && now - b.waitingSince > ForceAfterSecs);
+            if (free) { b.forced.Dequeue(); }
+            return free;
+        }
+        float bestScore = float.MinValue; end = pos[i]; bool found = false;
+        for (int k = 0; k < 20; k++)
+        {
+            float h = k < 14
+                ? b.heading + (rng.NextDouble() < 0.5 ? -1f : 1f) * Mathf.Lerp(TurnMinDeg, TurnMaxDeg, (float)rng.NextDouble()) * Mathf.Deg2Rad * (k >= 8 ? 1.3f : 1f)
+                : (float)rng.NextDouble() * 2f * Mathf.PI;
+            float len = Mathf.Lerp(SegMin, SegMax, (float)rng.NextDouble()) * (k % 3 == 2 ? 0.7f : 1f);
+            var e = pos[i] + len * new Vector2(Mathf.Cos(h), Mathf.Sin(h));
+            if (e.x < AreaMin || e.x > AreaMax || e.y < AreaMin || e.y > AreaMax) { continue; }
+            if (!ClearOnline(i, pos[i], e, pos, bots)) { continue; }
+            float nearest = float.MaxValue;
+            for (int j = 0; j < pos.Length; j++) { if (j != i) { nearest = Mathf.Min(nearest, Vector2.Distance(e, pos[j])); } }
+            float score = Mathf.Min(nearest, 200f) + (float)rng.NextDouble() * 60f;
+            if (score > bestScore) { bestScore = score; end = e; found = true; }
+        }
+        return found;
+    }
+
+    // Does a move from p to e stay clear of every other robot, wherever on its way that robot is? (Each other robot is taken to be anywhere on
+    // the segment it is travelling, or where it stands.) Timing does not matter, so robots need not move in step.
+    static bool ClearOnline(int i, Vector2 p, Vector2 e, Vector2[] pos, Bot[] bots)
+    {
+        for (int j = 0; j < pos.Length; j++)
+        {
+            if (j == i) { continue; }
+            Vector2 a = pos[j], c = bots[j].active ? bots[j].to : pos[j];
+            float need = Mathf.Min(MinGap, Vector2.Distance(p, a) - 2f);          // robots that start close (the line) only have to move apart
+            for (int s = 0; s <= 10; s++)
+            {
+                var q = Vector2.Lerp(p, e, s / 10f);
+                if (DistToSegment(q, a, c) < need) { return false; }
+            }
+        }
+        return true;
+    }
+
+    static float DistToSegment(Vector2 q, Vector2 a, Vector2 b)
+    {
+        var ab = b - a; float l2 = ab.sqrMagnitude;
+        float u = l2 < 1e-4f ? 0f : Mathf.Clamp01(Vector2.Dot(q - a, ab) / l2);
+        return Vector2.Distance(q, a + u * ab);
     }
 
     public static bool SupportsTargetMove(Cube c)

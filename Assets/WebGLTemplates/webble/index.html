@@ -83,7 +83,7 @@
       </div>
     </details>
     <style>
-      #unity-container, #unity-container.unity-desktop { position: relative; left: auto; top: auto; transform: none; width: fit-content; margin: 0 auto; }
+      #unity-container, #unity-container.unity-desktop { position: relative; left: auto; top: auto; transform: none; width: fit-content; margin: max(24px, calc((100vh - {{{ HEIGHT }}}px - 38px) / 2)) auto 0; }   /* the gap above the player, as when it was centred in the window */
       #unity-footer { display: flow-root; margin-bottom: 32px; }
       #unity-container.unity-mobile { width: 100%; height: 100%; }
       .physio-panel { width: min(1200px, 96vw); margin: 8px auto 24px; font: 15px/1.45 system-ui, sans-serif; color: #333; }

@@ -33,8 +33,9 @@
 
   /* Task screen */
   #task { cursor: none; }
-  #countdown { position: fixed; top: 2vh; left: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
-  #score { position: fixed; top: 3vh; right: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #countdown[hidden] { display: none; }
+  #countdown { position: fixed; top: 2vh; right: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
+  #score { position: fixed; top: 3vh; left: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
   #word { font-size: 22vw; font-weight: 900; letter-spacing: 0.02em; }
   #word.feedback { font-size: 16vw; }
 
@@ -95,6 +96,8 @@ const COLOURS = Object.keys(INK);
 const KEYS = Object.fromEntries(COLOURS.map((c) => [c, c[0].toLowerCase()]));
 const MAX_TRIALS = 50;
 const FEEDBACK_MS = 1000;
+// The countdown still runs and times trials out; this only controls whether it is shown.
+const SHOW_TIMER = false;
 
 // SOUND_FILES:BEGIN (written by `npm run trim` from the files in audio/)
 const SOUND_FILES = {
@@ -341,6 +344,8 @@ function exportCsv() {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+
+$('countdown').hidden = !SHOW_TIMER;
 
 // ---- Input ----
 document.addEventListener('keydown', (e) => {

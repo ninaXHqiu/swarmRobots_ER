@@ -18,7 +18,8 @@ The participant presses the first letter of the **ink colour**, not the word:
 - Start screen: number of trials (max 50) and countdown seconds. Space or the Begin button starts.
 - Two intro screens: the task with an example, then the key list. The keys are not shown during trials.
 - Each trial is scored on the key press; a wrong key or running out of time counts as Wrong.
-- Top right: `streak / total questions`. The streak goes up by 1 for each correct answer and drops to 0 on a wrong one or a timeout.
+- Top left: `streak / total questions`. The streak goes up by 1 for each correct answer and drops to 0 on a wrong one or a timeout.
+- The countdown is hidden for now (it still times trials out); set `SHOW_TIMER = true` in `index.html` to show it, top right.
 - `CORRECT` / `WRONG` shows for 1 s, then the next trial.
 - Esc pauses and resumes. While paused, Q quits to the start screen.
 - At the end: the best streak and Export CSV (which logs the streak after every trial).

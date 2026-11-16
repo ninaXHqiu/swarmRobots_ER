@@ -1,8 +1,10 @@
-// Trims every clip in public/audio/ to under 1 s for the task.
+// Trims every clip in public/audio/ for the task (to under 1 s unless listed below).
 // It measures loudness every 50 ms, finds where the sound actually is (so
 // silence at the start or end is dropped), and if the sound is longer than
 // MAX_SEC keeps the loudest MAX_SEC window. Short fades avoid clicks.
 // Each clip is brought to the same peak loudness (PEAK_DB).
+// Clips in FULL_LENGTH keep their whole sound (only silence at the ends is
+// dropped); clips in AS_IS are used exactly as downloaded.
 // Writes <name>.mp3; originals are kept in public/audio/originals/. Needs ffmpeg.
 // Safe to re-run: trimmed outputs are tagged, so they're re-cut from the
 // original instead of being treated as new files.
@@ -19,6 +21,8 @@ const SILENCE_BELOW_PEAK_DB = 30; // quieter than peak minus this counts as sile
 const FADE_IN_SEC = 0.015;
 const FADE_OUT_SEC = 0.12;
 const PEAK_DB = -1; // every clip is brought to the same peak, just under full scale
+const FULL_LENGTH = ['w_boo'];
+const AS_IS = ['w_mocking'];
 const TAG = 'stroop-trimmed';
 const EXTS = ['.mp3', '.wav', '.m4a', '.ogg', '.aac', '.flac'];
 
@@ -48,13 +52,13 @@ function peakDb(file, filter) {
 }
 
 // Returns [start, end] in seconds of the part worth keeping.
-function pickWindow(levels) {
+function pickWindow(levels, maxSec) {
   const peak = Math.max(...levels);
   const floor = peak - SILENCE_BELOW_PEAK_DB;
   const first = levels.findIndex((v) => v > floor);
   const last = levels.length - 1 - [...levels].reverse().findIndex((v) => v > floor);
   const span = last - first + 1;
-  const win = Math.round(MAX_SEC / FRAME_SEC);
+  const win = Math.round(maxSec / FRAME_SEC);
   if (span <= win) return [first * FRAME_SEC, (last + 1) * FRAME_SEC];
 
   // Sound is longer than the limit: take the loudest window, preferring the
@@ -89,7 +93,16 @@ for (const f of files) {
     fs.renameSync(current, original);
   }
 
-  const [start, end] = pickWindow(envelope(original));
+  const out = path.join(AUDIO, `${name}.mp3`);
+  const before = parseFloat(probe(original, 'format=duration')).toFixed(2);
+  if (AS_IS.includes(name)) {
+    const codec = path.extname(original).toLowerCase() === '.mp3' ? ['-c', 'copy'] : ['-q:a', '2'];
+    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', original, ...codec, '-metadata', `comment=${TAG}`, out]);
+    console.log(`${name}: ${before}s, used as is`);
+    continue;
+  }
+
+  const [start, end] = pickWindow(envelope(original), FULL_LENGTH.includes(name) ? Infinity : MAX_SEC);
   const len = end - start;
   const cut = [`atrim=${start.toFixed(3)}:${end.toFixed(3)}`, 'asetpts=PTS-STARTPTS'];
   const gain = PEAK_DB - peakDb(original, cut.join(','));
@@ -99,15 +112,13 @@ for (const f of files) {
     `afade=t=in:d=${FADE_IN_SEC}`,
     `afade=t=out:st=${Math.max(0, len - FADE_OUT_SEC).toFixed(3)}:d=${FADE_OUT_SEC}`,
   ].join(',');
-  const out = path.join(AUDIO, `${name}.mp3`);
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', original, '-af', filter, '-metadata', `comment=${TAG}`, '-q:a', '2', out]);
-  const before = parseFloat(probe(original, 'format=duration')).toFixed(2);
   const after = parseFloat(probe(out, 'format=duration')).toFixed(2);
   console.log(`${name}: ${before}s, kept ${start.toFixed(2)}-${end.toFixed(2)}s -> ${after}s`);
 }
 
 // The page can't list a folder when opened as a file, so write the list of
-// recorded sounds into it: w_* are wrong sounds, c_* are correct sounds.
+// wrong-answer clips (w_*) into it.
 const PAGE = path.join(__dirname, 'public', 'index.html');
 const ids = fs.readdirSync(AUDIO).filter((f) => f.endsWith('.mp3')).map(baseName);
 const list = (prefix) => JSON.stringify(ids.filter((id) => id.startsWith(prefix)));
@@ -116,6 +127,6 @@ const block = /(\/\/ SOUND_FILES:BEGIN.*\n)[\s\S]*?(\/\/ SOUND_FILES:END)/;
 if (!block.test(html)) throw new Error('SOUND_FILES markers not found in public/index.html');
 fs.writeFileSync(
   PAGE,
-  html.replace(block, `$1const SOUND_FILES = {\n  wrong: ${list('w_')},\n  correct: ${list('c_')},\n};\n$2`),
+  html.replace(block, `$1const SOUND_FILES = {\n  wrong: ${list('w_')},\n};\n$2`),
 );
-console.log(`index.html: ${ids.filter((id) => /^[wc]_/.test(id)).length} sounds listed`);
+console.log(`index.html: ${ids.filter((id) => id.startsWith('w_')).length} wrong-answer clips listed`);

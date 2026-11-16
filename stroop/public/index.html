@@ -99,8 +99,7 @@ const FEEDBACK_MS = 1000;
 
 // SOUND_FILES:BEGIN (written by `npm run trim` from the files in audio/)
 const SOUND_FILES = {
-  wrong: ["w_aww","w_boo","w_buzzer","w_kids_laugh","w_mocking"],
-  correct: ["c_correct","c_ding","c_yay"],
+  wrong: ["w_boo","w_buzzer","w_mocking"],
 };
 // SOUND_FILES:END
 
@@ -122,9 +121,12 @@ function unlockAudio() {
   }
 }
 
+// Long clips (boo, mocking laugh) carry on into the next trial; a new wrong
+// answer cuts off whatever is still playing.
 function playSound(id) {
   const el = audioEls[id];
   if (!el) return;
+  for (const other of Object.values(audioEls)) if (other !== el) other.pause();
   el.volume = 1;
   el.currentTime = 0;
   el.play().catch(() => {});

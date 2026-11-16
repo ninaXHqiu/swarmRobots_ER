@@ -18,8 +18,9 @@ using UnityEngine;
 //      (turn, length, a beat of its own) when IT has arrived, without waiting for the others. Nothing is sent while a segment
 //      runs, so there are no per-frame corrections and no wiggling. Robots that have no TargetMove (old firmware) fall back to the
 //      ordinary MoveTo for that segment.
-//   5. Then it calms: from wherever the last segment left them the robots curve onto one ring, more slowly the
-//      closer they get; the ring turns, breathes (large, slow) several times, opens and flattens into the line,
+//   5. Each robot, at its own random moment, stops panicking and goes to its own place in the ring (its last run along the way the
+//      ring will turn). On its place it stays, and turns about at random times to random directions (some do not turn at all); its
+//      last turn always points it the way the ring will turn. When every robot is on its place, the ring starts to turn, breathes (large, slow) several times, opens and flattens into the line,
 //      and the standard ending follows (every robot on its own slot, facing the participant).
 // The segments are planned in advance (fixed seed, so it is the same every time): equal length for all robots in a
 // step, sharp turns (mostly in unison, a few against), and every path checked for the gap to the others and for
@@ -41,9 +42,11 @@ public class V2StressRestless : SwarmRoutine
     public const float AgainstChance = 0.25f;                             // share of robots turning the other way from the group
     public const float MinGap = 55f;                                      // closest two robots may come (mat units; a robot is about 32 wide)
     public const float AreaMin = 90f, AreaMax = 410f;                     // play area the robot centres stay inside
-    public const float RestlessSecs = 50f;                                // how long the restless part runs (each robot then finishes its last segment)
+    public const float SettleMinSecs = 22f, SettleMaxSecs = 50f;          // each robot stops panicking at its own random moment in this range and goes to its place in the ring
+    public const int MaxTurns = 2;                                        // a settled robot turns about 0 to this many times, at random times and to random directions; the last always to the way the ring will turn
+    public const float TurnWindowSecs = 8f;                               // the turns happen within this long after it has settled
     public const int PauseMinMs = 0, PauseMaxMs = 450;                    // each robot's own random beat between its segments
-    public const float ForceAfterSecs = 2f;                               // a first leg that has been blocked this long goes anyway
+    public const float ForceAfterSecs = 6f;                               // a first leg that has been blocked this long goes anyway
     public const int RandomSeed = -1;                                     // -1: different every run; 0 or more: the same every run
     public const float UnitsPerSecPerSpeed = 0.9f;                        // rough travel rate (for the timeouts and the plan check only)
     public const int Seed = 23;
@@ -138,18 +141,20 @@ public class V2StressRestless : SwarmRoutine
         yield return V2Show.Run(ctx, start => new Plan(start), 100, between: () => Restless(ctx));
     }
 
-    // 1-4: the sharp start, the skin conductance read once, then every robot on its own restless run
+    // 1-4: the panic, then each robot settles on its own place in the ring, turns about at random, and the circling starts when all are there
     class Bot
     {
-        public Vector2 to; public bool active; public int id, count; public float giveUpAt, pauseUntil, heading, waitingSince = -1f;
-        public Queue<Vector2> forced = new Queue<Vector2>();   // the first legs, to the robot's place in the spread-out formation
+        public Vector2 to; public bool active, turning; public int id, count, state;     // state: 0 panic, 1 on its way to the ring, 2 settled
+        public float giveUpAt, pauseUntil, heading, waitingSince = -1f, settleAt, arrivedAt;
+        public Queue<Vector2> forced = new Queue<Vector2>();                              // the first legs, then the last ones onto the ring
+        public List<float[]> turns = new List<float[]>();                                  // {seconds after arriving, direction in degrees}, the last one always the way the ring will turn
     }
 
     IEnumerator Restless(RoutineContext ctx)
     {
         int n = ctx.Count;
         Physio.Section("restless movement");
-        // which robot takes which spot of the spread-out formation (bookkeeping only: nothing moves here)
+        // which robot takes which spot of the spread-out start formation (bookkeeping only: nothing moves here)
         var spread = SpreadSpots(n);
         Swarm.AssignNearest(ctx, spread.Select(p => Vector2Int.RoundToInt(p)).ToArray());
 
@@ -164,13 +169,15 @@ public class V2StressRestless : SwarmRoutine
         Action<Cube, int, Cube.TargetMoveRespondType> onDone = (c, id, resp) => { arrived[c] = id; };
         if (native) { foreach (var c in ctx.Cubes) { c.targetMoveCallback.AddListener("c23", onDone); } }
 
-        // Every robot starts at once with sharp moves of its own: an angular dog-leg from where it stands to its spot in the formation
+        // Every robot starts at once with sharp moves of its own: an angular dog-leg from where it stands to its spot in the spread-out formation.
+        // Each has its own moment (settleAt) when it stops panicking and heads for its place in the ring.
+        float t0 = Time.time;
         var bots = new Bot[n];
         var pos = new Vector2[n];
         for (int i = 0; i < n; i++)
         {
             pos[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y);
-            bots[i] = new Bot { pauseUntil = Time.time + (float)rng.NextDouble() * 0.4f };
+            bots[i] = new Bot { pauseUntil = t0 + (float)rng.NextDouble() * 0.4f, settleAt = t0 + Mathf.Lerp(SettleMinSecs, SettleMaxSecs, (float)rng.NextDouble()) };
             Vector2 d = spread[i] - pos[i];
             if (d.magnitude > 90f)
             {
@@ -183,7 +190,7 @@ public class V2StressRestless : SwarmRoutine
             bots[i].heading = Mathf.Atan2(d.y, d.x);
         }
 
-        float t0 = Time.time, deadline = t0 + RestlessSecs;
+        float lastEvent = t0;
         while (true)
         {
             float now = Time.time;
@@ -196,40 +203,85 @@ public class V2StressRestless : SwarmRoutine
                     if (b.active)
                     {
                         int got; bool back = arrived.TryGetValue(ctx.Cubes[i], out got) && got == b.id;
-                        if (back || (pos[i] - b.to).magnitude < 12f || now > b.giveUpAt)
+                        bool close = !b.turning && (pos[i] - b.to).magnitude < 12f;       // (a turn on the spot ends only by its report or its time)
+                        if (back || close || now > b.giveUpAt)
                         {
-                            b.active = false;
+                            b.active = false; b.turning = false; lastEvent = now;
                             b.pauseUntil = now + Mathf.Lerp(PauseMinMs, PauseMaxMs, (float)rng.NextDouble()) / 1000f;   // its own beat before the next, nobody else waits
                         }
                         else
                         {
-                            if (!native) { var q = Vector2Int.RoundToInt(b.to); ctx.Navigators[i].handle.Move2Target(q.x, q.y, maxSpd: speed).Exec(); }   // old firmware: steered, as before
+                            if (!native && !b.turning) { var q = Vector2Int.RoundToInt(b.to); ctx.Navigators[i].handle.Move2Target(q.x, q.y, maxSpd: speed).Exec(); }   // old firmware: steered, as before
                             continue;
                         }
                     }
-                    if (now < b.pauseUntil) { continue; }
-                    if (now >= deadline && b.forced.Count == 0) { continue; }                 // time is up: this robot has finished its last segment
+                    if (now < b.pauseUntil && b.state != 2) { continue; }
+
+                    if (b.state == 2)
+                    {
+                        // settled on its place: turns about at the times it drew, the last one to the way the ring will turn
+                        if (b.turns.Count > 0 && now - b.arrivedAt >= b.turns[0][0] && native)
+                        {
+                            float deg = b.turns[0][1]; b.turns.RemoveAt(0);
+                            var here = Vector2Int.RoundToInt(pos[i]);
+                            b.id = (++b.count % 250) + 1; b.active = true; b.turning = true; b.giveUpAt = now + 3f; b.to = pos[i];
+                            ctx.Cubes[i].TargetMove(here.x, here.y, Mathf.RoundToInt(Mathf.Repeat(deg, 360f)), b.id, 4,
+                                Cube.TargetMoveType.RotatingMove, 40, Cube.TargetSpeedType.UniformSpeed, Cube.TargetRotationType.AbsoluteLeastAngle);
+                        }
+                        continue;
+                    }
+                    if (b.state == 1 && b.forced.Count == 0)
+                    {
+                        // it has reached its place in the ring: stay, and draw when to turn (some robots do not turn at all)
+                        b.state = 2; b.arrivedAt = now; lastEvent = now;
+                        int k = rng.Next(0, MaxTurns + 1);
+                        for (int q = 0; q < k; q++)
+                        {
+                            bool last = q == k - 1;
+                            b.turns.Add(new[] { Mathf.Lerp(0.4f, TurnWindowSecs, (float)rng.NextDouble()), last ? TangentDeg(i, n) : (float)rng.NextDouble() * 360f });
+                        }
+                        b.turns.Sort((x, y) => x[0].CompareTo(y[0]));
+                        if (k > 0 && b.turns[b.turns.Count - 1][1] != TangentDeg(i, n)) { b.turns[b.turns.Count - 1][1] = TangentDeg(i, n); }   // whichever comes last points the way the ring will turn
+                        continue;
+                    }
+                    if (b.state == 0 && now >= b.settleAt)
+                    {
+                        // time to go to its place in the ring: a last straight run along the way the ring will turn, so it arrives already pointing right
+                        b.state = 1; b.forced.Clear();
+                        Vector2 slot = RingSpot(i, n), tan = new Vector2(Mathf.Cos(TangentDeg(i, n) * Mathf.Deg2Rad), Mathf.Sin(TangentDeg(i, n) * Mathf.Deg2Rad));
+                        for (float len = 80f; len >= 40f; len -= 20f)
+                        {
+                            var w = slot - tan * len;
+                            if (w.x >= AreaMin && w.x <= AreaMax && w.y >= AreaMin && w.y <= AreaMax) { b.forced.Enqueue(w); break; }
+                        }
+                        b.forced.Enqueue(slot);
+                    }
+                    if (b.state == 0 && now >= b.settleAt) { continue; }
                     Vector2 end;
                     if (!Pick(i, pos, bots, rng, now, out end)) { if (b.waitingSince < 0f) { b.waitingSince = now; } b.pauseUntil = now + 0.25f; continue; }   // blocked for the moment: wait, do not wiggle
                     b.waitingSince = -1f;
-                    Vector2 d = end - pos[i];
-                    float travel = d.magnitude / (speed * UnitsPerSecPerSpeed) + 1.5f;
-                    b.to = end; b.active = true; b.id = (++b.count % 250) + 1; b.giveUpAt = now + travel * 2f; b.heading = Mathf.Atan2(d.y, d.x);
+                    Vector2 dd = end - pos[i];
+                    float travel = dd.magnitude / (speed * UnitsPerSecPerSpeed) + 1.5f;
+                    b.to = end; b.active = true; b.turning = false; b.id = (++b.count % 250) + 1; b.giveUpAt = now + travel * 2f; b.heading = Mathf.Atan2(dd.y, dd.x);
                     if (native)
                     {
                         ctx.Cubes[i].TargetMove(Mathf.RoundToInt(end.x), Mathf.RoundToInt(end.y), Mathf.RoundToInt(b.heading * Mathf.Rad2Deg), b.id, Mathf.CeilToInt(travel * 2f),
                             Cube.TargetMoveType.RoundBeforeMove, speed, Cube.TargetSpeedType.VariableSpeed, Cube.TargetRotationType.NotRotate);
                     }
                 }
-                if (now >= deadline && bots.All(b => !b.active && b.forced.Count == 0)) { break; }
-                if (now > deadline + 25f) { break; }
+                // everybody on its place, every turn made: the circling can start
+                if (bots.All(x => x.state == 2 && !x.active && x.turns.Count == 0) && now - lastEvent > 0.7f) { break; }
+                if (now > t0 + SettleMaxSecs + 60f) { break; }      // never hold the show up for a robot that cannot get there: the plan gathers it
             }
             yield return null;
         }
         if (native) { foreach (var c in ctx.Cubes) { c.targetMoveCallback.RemoveListener("c23"); } }
-        Swarm.StopAll(ctx);
-        yield return Swarm.Wait(400);      // the segment commands have finished; the plan below takes the steering from here
+        // no stop and no pause: the robots are already where they stay, and the plan below goes straight into the circling
     }
+
+    // where robot slot i stands in the ring, and the way it points when the breathing starts (the same ring as the plan below)
+    static Vector2 RingSpot(int slot, int n) { return Plan.RingSpotOf(slot, n); }
+    static float TangentDeg(int slot, int n) { return Plan.TangentDegOf(slot, n); }
 
     // The next segment for robot i, chosen from where everybody stands now. The first legs are fixed (to its spot in the formation);
     // after that it is random: a sharp turn from its last direction, a random length, kept inside the play area, clear of every other robot's place and
@@ -270,7 +322,7 @@ public class V2StressRestless : SwarmRoutine
         {
             if (j == i) { continue; }
             Vector2 a = pos[j], c = bots[j].active ? bots[j].to : pos[j];
-            float need = Mathf.Min(MinGap, Vector2.Distance(p, a) - 2f);          // robots that start close (the line) only have to move apart
+            float need = Mathf.Min(MinGap, Vector2.Distance(p, a) - 0.5f);        // robots that already stand closer than MinGap (the line) must not come any closer
             for (int s = 0; s <= 10; s++)
             {
                 var q = Vector2.Lerp(p, e, s / 10f);
@@ -300,7 +352,7 @@ public class V2StressRestless : SwarmRoutine
     {
         const float SectorRadius = 118f, WideRadius = 128f, SmallRadius = 52f, WidenSecs = 12f, BreathSecs = 20f;
         const int Breaths = 4;
-        const float TurnUpSecs = 6f, RingRate0 = 0.11f, ReturnSecs = 12f, ExitRadius = 106f, GatherWithin = 20f;
+        const float TurnUpSecs = 1f, ReturnSecs = 12f, ExitRadius = 106f, GatherWithin = 20f;
         static readonly Vector2 Centre = new Vector2(250f, 250f);
 
         readonly Vector2[] start, line;
@@ -328,31 +380,26 @@ public class V2StressRestless : SwarmRoutine
             line = V2Show.OwnSpots(n);
             var order = V2Show.RingOrder(n);
             sectorTo = new float[n];
-            for (int i = 0; i < n; i++) { sectorTo[i] = 135f * Mathf.Deg2Rad + 2f * Mathf.PI * order[i] / n; }
+            for (int i = 0; i < n; i++) { sectorTo[i] = SectorOf(i, n); }
             // the way onto the ring: the slowest clear paths that arrive in time, so the swarm slows gradually as it comes in
             var targets = Enumerable.Range(0, n).Select(i => RingPoint(i, 0f)).ToArray();
-            way = V2Show.Approach(start, targets, GatherWithin);
-            gatherEnd = way != null ? way.Total + 0.3f : GatherWithin;
+            bool onRing = Enumerable.Range(0, n).All(i => Vector2.Distance(start[i], targets[i]) < 25f);   // the restless part has put every robot on its place already
+            way = onRing ? null : V2Show.Approach(start, targets, GatherWithin);
+            gatherEnd = onRing ? 0.3f : (way != null ? way.Total + 0.3f : GatherWithin);
             breatheFrom = gatherEnd + TurnUpSecs + WidenSecs;
             stopFrom = breatheFrom + Breaths * BreathSecs;
             ringStop = stopFrom + ReturnSecs;
             Total = ringStop + 0.3f;
-            // the ring turns gently and, half way through the final return, stands at the angle from which it flattens into the
-            // line without crossing: the turn rate is set to bring it there
-            float tMid = stopFrom + ReturnSecs / 2f;
-            Show.Eased RateFor(float c) { return new Show.Eased(gatherEnd, 0f, gatherEnd + TurnUpSecs, RingRate0, breatheFrom, c, stopFrom, c, ringStop, 0f); }
-            float unused; float opensAt = V2Show.BestAngle(order, 1, ExitRadius, line, out unused);
-            float needed = Mathf.Repeat(opensAt - 135f * Mathf.Deg2Rad, 2f * Mathf.PI);
-            float omega0 = RateFor(0f).Integral(tMid) - RateFor(0f).Integral(gatherEnd);
-            float perUnit = RateFor(1f).Integral(tMid) - RateFor(1f).Integral(gatherEnd) - omega0;
-            float chosen = 7f * Mathf.Deg2Rad;
-            for (int k = 0; k < 40; k++)
-            {
-                float c = (needed + 2f * Mathf.PI * k - omega0) / perUnit;
-                if (c >= 4f * Mathf.Deg2Rad && c <= 9f * Mathf.Deg2Rad) { chosen = c; break; }
-            }
-            turnRate = RateFor(chosen);
+            turnRate = new Show.Eased(gatherEnd, 0f, ringStop, 0f);      // the ring does not turn: it breathes in place
+
         }
+
+        public static Vector2 RingSpotOf(int slot, int n) { return Centre + SectorRadius * new Vector2(Mathf.Cos(SectorOf(slot, n)), Mathf.Sin(SectorOf(slot, n))); }
+        // the breathing moves a robot straight out and in, so it points along its own angle
+        public static float TangentDegOf(int slot, int n) { return SectorOf(slot, n) * Mathf.Rad2Deg; }   // pointing outward: the breathing moves the robots in and out along this line
+        static float SectorOf(int slot, int n) { return BaseAngle(n) + 2f * Mathf.PI * V2Show.RingOrder(n)[slot] / n; }
+        // the angle the ring stands at from which it flattens into the line without crossing: it breathes in place and does not turn
+        static float BaseAngle(int n) { float unused; return V2Show.BestAngle(V2Show.RingOrder(n), 1, ExitRadius, V2Show.OwnSpots(n), out unused); }
 
         Vector2 RingPoint(int slot, float turn, float r = SectorRadius)
         {

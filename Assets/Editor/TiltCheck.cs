@@ -52,6 +52,7 @@ public static class TiltCheck
         var pos = new Vector2[n]; var head = new float[n]; var rev = new bool[n]; var hold = new bool[n]; var hw = new Vector2[n];
         var queue = new System.Collections.Generic.Queue<Vector2>[n];     // delayed commands: (drive, turn rate)
         var lastDir = new float[n]; var lastAxis = new float[n];
+        var snap = new System.Collections.Generic.List<(float t, float[] head, Vector2[] pos)>(); int circling = 0; string circAt = ""; float nextSnap = 0f;
         for (int i = 0; i < n; i++)
         {
             pos[i] = plan.Position(i, 0f); head[i] = 0f; queue[i] = new System.Collections.Generic.Queue<Vector2>();
@@ -63,6 +64,13 @@ public static class TiltCheck
         var spin = new float[winCount]; var need = new float[winCount]; var flips = new int[winCount]; var maxErr = new float[winCount];
         for (float t = 0; t < plan.Total; t += Dt)
         {
+            if (t >= nextSnap)
+            {
+                nextSnap += 0.5f; snap.Add((t, (float[])head.Clone(), (Vector2[])pos.Clone()));
+                int back = snap.Count - 13;
+                if (back >= 0) for (int i = 0; i < n; i++)
+                    if (Mathf.Abs(head[i] - snap[back].head[i]) * Mathf.Rad2Deg > 300f && Vector2.Distance(pos[i], snap[back].pos[i]) < 25f) { circling++; if (circAt.Length < 60) { circAt += string.Format(" t={0:0} robot {1};", t, i); } snap.RemoveRange(0, 0); }
+            }
             int w = Mathf.Min(winCount - 1, (int)(t / win));
             for (int i = 0; i < n; i++)
             {
@@ -118,6 +126,7 @@ public static class TiltCheck
             if (sections != null) { foreach (var k in sections) { if (k.Key <= t0 + 0.01f) { sec = k.Value; } } }
             sb.AppendFormat("  {0,5:0}-{1,5:0} s  spin {2,6:0} deg  needed {3,6:0} deg  flips {4,2}  worst miss {5,4:0} deg   {6}\n", t0, t0 + win, spin[w] / n, need[w] / n, flips[w], maxErr[w], sec);
         }
+        sb.AppendFormat("  circling in place (300+ degrees within 6 s, moving under 25 units): {0} sightings{1}\n", circling, circAt);
         // summary per section: spin against needed, worst miss, flips
         if (sections != null)
         {

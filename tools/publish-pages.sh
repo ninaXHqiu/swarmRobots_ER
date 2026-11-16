@@ -49,6 +49,11 @@ fi
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 cp -R SimPreview/. "$STAGE/"
+# The Stroop task page rides along at /stroop/ (its untrimmed audio originals stay out)
+if [ -d stroop/public ]; then
+  mkdir -p "$STAGE/stroop"
+  rsync -a --exclude originals stroop/public/ "$STAGE/stroop/"
+fi
 touch "$STAGE/.nojekyll"   # serve the Unity files as they are
 git -C "$STAGE" init -q -b "$BRANCH"
 git -C "$STAGE" add -A

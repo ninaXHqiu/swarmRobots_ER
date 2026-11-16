@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stroop Task</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff;
+    font-family: Arial, Helvetica, sans-serif; user-select: none; }
+  .screen { position: fixed; inset: 0; display: none; }
+  .screen.on { display: block; }
+  .center { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+
+  /* Setup and end screens */
+  h1 { font-size: 48px; margin: 0 0 24px; }
+  .field { font-size: 22px; margin: 8px 0; }
+  .field input { font-size: 22px; width: 80px; margin-left: 10px; padding: 4px; text-align: center; }
+  button { font-size: 22px; padding: 12px 28px; margin: 8px; border-radius: 8px; border: 2px solid #888;
+    background: #222; color: #fff; cursor: pointer; }
+  .scores { font-size: 32px; margin-bottom: 24px; line-height: 1.6; }
+  .scores b { color: #ff2a2a; }
+
+  /* Intro screens */
+  #intro { cursor: none; }
+  .intro { max-width: 900px; padding: 0 40px; text-align: left; font-size: 26px; line-height: 1.5; }
+  .intro h2 { font-size: 34px; margin: 0 0 18px; }
+  .intro .example { font-size: 40px; font-weight: 900; margin: 14px 0 14px 40px; }
+  .intro .next { color: #c9a26b; font-style: italic; text-align: center; margin-top: 28px; }
+  .rows { display: grid; grid-template-columns: auto auto auto; justify-content: center; column-gap: 20px; row-gap: 6px; align-items: baseline; font-size: 32px; }
+  .rows .w { font-weight: bold; text-align: right; }
+  .rows .k { color: #fff; font-weight: bold; }
+  .rows span { color: #aaa; }
+
+  /* Task screen */
+  #task { cursor: none; }
+  #countdown { position: fixed; top: 2vh; left: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
+  #score { position: fixed; top: 3vh; right: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #word { font-size: 22vw; font-weight: 900; letter-spacing: 0.02em; }
+  #word.feedback { font-size: 16vw; }
+
+  #pausedNote { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center;
+    justify-content: center; flex-direction: column; font-size: 6vh; z-index: 5; }
+  #pausedNote.on { display: flex; }
+  #pausedNote small { font-size: 2.6vh; color: #aaa; margin-top: 2vh; }
+</style>
+</head>
+<body>
+
+<div id="setup" class="screen on">
+  <div class="center">
+    <h1>Stroop Task</h1>
+    <div class="field">Trials per round <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
+    <div class="field">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
+    <button id="startBtn">Begin (Space)</button>
+  </div>
+</div>
+
+<div id="intro" class="screen"><div class="center"><div class="intro" id="introBody"></div></div></div>
+
+<div id="task" class="screen">
+  <div id="countdown"></div>
+  <div id="score"></div>
+  <div class="center"><div id="word"></div></div>
+  <div id="pausedNote">Paused<small>Esc to resume · Q to quit to setup</small></div>
+</div>
+
+<div id="done" class="screen">
+  <div class="center">
+    <h1>Finished</h1>
+    <div class="scores" id="finalScores"></div>
+    <div>
+      <button id="exportBtn">Export CSV</button>
+      <button id="againBtn">New session</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// Ink colours, tuned to be readable on a black background.
+const INK = {
+  RED: '#ff1a1a',
+  BLUE: '#2f6bff',
+  GREEN: '#1fbf1f',
+  YELLOW: '#ffe100',
+  PURPLE: '#9b40ff',
+  ORANGE: '#ff8c00',
+  WHITE: '#ffffff',
+  CYAN: '#00e5ff',
+};
+const COLOURS = Object.keys(INK);
+
+// Each colour's key is its first letter, the same in both rounds.
+const KEYS = Object.fromEntries(COLOURS.map((c) => [c, c[0].toLowerCase()]));
+const ROUNDS = 2;
+const MAX_TRIALS = 50;
+const FEEDBACK_MS = 1000;
+
+// SOUND_FILES:BEGIN (written by `npm run trim` from the files in audio/)
+const SOUND_FILES = {
+  wrong: ["w_aww","w_boo","w_buzzer","w_kids_laugh","w_mocking"],
+  correct: ["c_correct","c_ding","c_yay"],
+};
+// SOUND_FILES:END
+
+// ---- Audio ----
+// Correct answers are silent. Wrong answers play one of the w_ clips, picked
+// evenly at random, at full volume.
+const audioEls = {};
+for (const id of SOUND_FILES.wrong) {
+  const a = new Audio(`audio/${id}.mp3`);
+  a.preload = 'auto';
+  audioEls[id] = a;
+}
+
+// Called from the Begin key/click so the browser allows audio later.
+function unlockAudio() {
+  for (const a of Object.values(audioEls)) {
+    a.muted = true;
+    a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; });
+  }
+}
+
+function playSound(id) {
+  const el = audioEls[id];
+  if (!el) return;
+  el.volume = 1;
+  el.currentTime = 0;
+  el.play().catch(() => {});
+}
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function wrongSound() {
+  return SOUND_FILES.wrong.length ? pick(SOUND_FILES.wrong) : '';
+}
+
+// ---- Trials ----
+// Every trial is incongruent, and no word or ink repeats back to back.
+function makeTrials(n) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const prev = out[out.length - 1];
+    let word, ink;
+    do {
+      word = pick(COLOURS);
+      ink = pick(COLOURS.filter((c) => c !== word));
+    } while (prev && (word === prev.word || ink === prev.ink));
+    out.push({ word, ink });
+  }
+  return out;
+}
+
+// ---- Intro screens ----
+function introPages(round) {
+  const first = round === 0
+    ? `<h2>Stroop task · Round 1</h2>
+       You will see colour words printed in a <b>different ink colour</b>.
+       Press the key for the <b>ink colour</b>, not the word. For example, if you see:
+       <div class="example" style="color:${INK.RED}">GREEN</div>
+       the ink is red, so press <b>R</b>.<br>
+       You have ${s.seconds} seconds for each word. Answer as fast and as accurately as you can.`
+    : `<h2>Round 2</h2>
+       Same task and same keys: press the key for the <b>ink colour</b>, not the word.<br>
+       You have ${s.seconds} seconds for each word.`;
+
+  const rows = COLOURS.map((c) =>
+    `<div class="w" style="color:${INK[c]}">${c.toLowerCase()}</div><span>=</span><div class="k">${KEYS[c].toUpperCase()}</div>`).join('');
+  const second = `<h2>The keys</h2><div class="rows">${rows}</div>`;
+
+  return [
+    first + '<div class="next">press space for the keys…</div>',
+    second + `<div class="next">press space to start round ${round + 1}…</div>`,
+  ];
+}
+
+// ---- Task state ----
+let s = null;
+let ticker = null;
+
+function show(id) {
+  for (const el of document.querySelectorAll('.screen')) el.classList.toggle('on', el.id === id);
+}
+
+// Active time on the current trial, excluding pauses.
+function elapsed() {
+  return s.activeMs + (s.paused ? 0 : performance.now() - s.clockStart);
+}
+
+function begin() {
+  const trials = Math.max(1, Math.min(MAX_TRIALS, parseInt($('trialsIn').value, 10) || MAX_TRIALS));
+  const seconds = Math.max(1, Math.min(30, parseInt($('secondsIn').value, 10) || 3));
+  try { localStorage.setItem('stroopSettings', JSON.stringify({ trials, seconds })); } catch (e) {}
+  unlockAudio();
+  s = { perRound: trials, seconds, round: -1, log: [], scores: [], paused: false };
+  startIntro(0);
+}
+
+function startIntro(round) {
+  s.round = round;
+  s.phase = 'intro';
+  s.pages = introPages(round);
+  s.page = 0;
+  $('introBody').innerHTML = s.pages[0];
+  show('intro');
+}
+
+function nextIntroPage() {
+  s.page += 1;
+  if (s.page < s.pages.length) {
+    $('introBody').innerHTML = s.pages[s.page];
+    return;
+  }
+  // Start the round.
+  s.keys = KEYS;
+  s.byKey = Object.fromEntries(Object.entries(s.keys).map(([colour, key]) => [key, colour]));
+  s.trials = makeTrials(s.perRound);
+  s.index = -1;
+  s.correct = 0;
+  s.tested = 0;
+  show('task');
+  nextTrial();
+  clearInterval(ticker);
+  ticker = setInterval(tick, 20);
+}
+
+function nextTrial() {
+  s.index += 1;
+  if (s.index >= s.trials.length) return endRound();
+  s.phase = 'running';
+  s.activeMs = 0;
+  s.clockStart = performance.now();
+  const t = s.trials[s.index];
+  const word = $('word');
+  word.className = '';
+  word.style.color = INK[t.ink];
+  word.textContent = t.word;
+  renderClock();
+}
+
+function remaining() {
+  return Math.max(0, s.seconds - Math.floor(elapsed() / 1000));
+}
+
+function renderClock() {
+  const left = remaining();
+  const cd = $('countdown');
+  cd.textContent = left;
+  cd.style.color = `hsl(${Math.round(120 * (left / s.seconds))}, 100%, 50%)`;
+  $('score').textContent = `${s.correct} / ${s.tested}`;
+}
+
+function tick() {
+  if (!s || s.phase !== 'running' || s.paused) return;
+  if (elapsed() >= s.seconds * 1000) {
+    resolve(null);
+    return;
+  }
+  renderClock();
+}
+
+// Scores the current trial once. key is the letter pressed, or null on timeout.
+function resolve(key) {
+  if (s.phase !== 'running' || s.paused) return;
+  s.phase = 'feedback';
+  const t = s.trials[s.index];
+  const rt = Math.round(elapsed());
+  const isCorrect = key !== null && s.byKey[key] === t.ink;
+  const sound = isCorrect ? '' : wrongSound();
+  s.tested += 1;
+  if (isCorrect) s.correct += 1;
+  s.log.push({
+    round: s.round + 1,
+    trial: s.index + 1,
+    word: t.word,
+    ink: t.ink,
+    answer_key: s.keys[t.ink].toUpperCase(),
+    key: key ? key.toUpperCase() : '',
+    response: key ? s.byKey[key] : '',
+    result: isCorrect ? 'correct' : 'wrong',
+    source: key ? 'response' : 'timeout',
+    sound,
+    rt_ms: key ? rt : '',
+  });
+
+  if (key === null) $('countdown').textContent = 0;
+  $('score').textContent = `${s.correct} / ${s.tested}`;
+  const word = $('word');
+  word.className = 'feedback';
+  word.style.color = isCorrect ? '#22dd22' : '#ff2222';
+  word.textContent = isCorrect ? 'CORRECT' : 'WRONG';
+  if (sound) playSound(sound);
+  s.feedbackLeft = FEEDBACK_MS;
+  s.feedbackStart = performance.now();
+  s.feedbackTimer = setTimeout(nextTrial, FEEDBACK_MS);
+}
+
+function endRound() {
+  clearInterval(ticker);
+  s.scores.push(`${s.correct} / ${s.tested}`);
+  if (s.round + 1 < ROUNDS) return startIntro(s.round + 1);
+  s.phase = 'done';
+  $('finalScores').innerHTML = s.scores.map((sc, i) => `Round ${i + 1}: <b>${sc}</b>`).join('<br>');
+  show('done');
+}
+
+function togglePause() {
+  if (!s.paused) {
+    s.activeMs = elapsed();
+    s.paused = true;
+    if (s.phase === 'feedback') {
+      clearTimeout(s.feedbackTimer);
+      s.feedbackLeft -= performance.now() - s.feedbackStart;
+    }
+  } else {
+    s.paused = false;
+    s.clockStart = performance.now();
+    if (s.phase === 'feedback') {
+      s.feedbackStart = performance.now();
+      s.feedbackTimer = setTimeout(nextTrial, Math.max(0, s.feedbackLeft));
+    }
+  }
+  $('pausedNote').classList.toggle('on', s.paused);
+}
+
+function quitToSetup() {
+  clearInterval(ticker);
+  clearTimeout(s.feedbackTimer);
+  s = null;
+  $('pausedNote').classList.remove('on');
+  show('setup');
+}
+
+function exportCsv() {
+  const cols = ['round', 'trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms'];
+  const header = ['round', 'trial', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
+    'correct_wrong', 'response_timeout', 'sound', 'response_time_ms'];
+  const lines = [header.join(','), ...s.log.map((r) => cols.map((c) => r[c]).join(','))];
+  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `stroop-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---- Input ----
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  const key = e.key.toLowerCase();
+  if (!s) {
+    if (key === ' ' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); begin(); }
+    return;
+  }
+  if (s.phase === 'done') return;
+  if (s.phase === 'intro') {
+    if (key === ' ') { e.preventDefault(); nextIntroPage(); }
+    return;
+  }
+  if (key === 'escape') return togglePause();
+  if (s.paused) {
+    if (key === 'q') quitToSetup();
+    return;
+  }
+  if (s.byKey[key]) resolve(key);
+});
+
+$('startBtn').onclick = begin;
+$('exportBtn').onclick = exportCsv;
+$('againBtn').onclick = () => { s = null; show('setup'); };
+
+try {
+  const saved = JSON.parse(localStorage.getItem('stroopSettings'));
+  if (saved) { $('trialsIn').value = saved.trials; $('secondsIn').value = saved.seconds; }
+} catch (e) {}
+</script>
+</body>
+</html>

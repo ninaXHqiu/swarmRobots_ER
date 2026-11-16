@@ -1,0 +1,9 @@
+{
+  "name": "stroop-stressor",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Keyboard Stroop stress task, a single page opened directly in the browser",
+  "scripts": {
+    "trim": "node trim.js"
+  }
+}

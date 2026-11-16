@@ -79,12 +79,14 @@
 
   // ---------------------------------------------------------------- Skin conductance
   class EdaFilter {
-    constructor() { this.smooth = null; this.tonic = null; }
+    constructor() { this.smooth = null; this.tonic = null; this.base = null; }
     push(us, dt) {
       if (this.smooth === null) { this.smooth = us; this.tonic = us; }
       this.smooth += (us - this.smooth) * Math.min(1, dt / (1.0 + dt));      // smooth over about a second
       this.tonic += (us - this.tonic) * Math.min(1, dt / (30 + dt));         // slow level over about half a minute
-      return { smooth: this.smooth, tonic: this.tonic, phasic: this.smooth - this.tonic };
+      // baseline: follows the level down quickly (about 20 s) and up very slowly (about 15 min), so a stress rise stays above it
+      if (this.base === null) { this.base = us; } else { const tau = us < this.base ? 20 : 900; this.base += (us - this.base) * Math.min(1, dt / (tau + dt)); }
+      return { smooth: this.smooth, tonic: this.tonic, phasic: this.smooth - this.tonic, base: this.base };
     }
   }
 
@@ -132,48 +134,19 @@
     now() { return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000; },
 
     // ---- connecting
-    // Plain-words reason for a failed connection (the browser's own messages are cryptic)
-    explain(e) {
-      const msg = e && e.message ? e.message : String(e);
-      const name = e && e.name ? e.name : '';
-      if (name === 'NotFoundError' || /cancel/i.test(msg)) { return 'No sensor was chosen. Switch the Shimmer on (green light blinking), click Connect again and pick it in the list.'; }
-      if (name === 'SecurityError' || /secure context|permissions policy/i.test(msg)) { return 'The browser blocks Bluetooth on this page. Open the page from https:// or http://localhost, not from a file.'; }
-      if (name === 'NetworkError' || /GATT|disconnected|connection attempt failed/i.test(msg)) { return 'The sensor did not accept the connection. Switch it off and on, make sure no other app or computer is connected to it, then try again. (' + msg + ')'; }
-      if (/ACK|timeout|timed out/i.test(msg)) { return 'The sensor connected but did not answer its setup commands. Check the firmware (1.0.22 or newer for Shimmer3R) and try again. (' + msg + ')'; }
-      return msg;
-    },
-    log(m) {
-      const line = new Date().toLocaleTimeString() + '  ' + m;
-      this.logLines.push(line); if (this.logLines.length > 60) { this.logLines.shift(); }
-      if (this.onLog) { this.onLog(this.logLines); }
-    },
-    preload() {
-      // Load the sensor code ahead of time, so the Bluetooth chooser opens right after the click (browsers only
-      // allow it for a few seconds after a click)
-      if (this._preloaded) { return; }
-      this._preloaded = import(this._base() + 'shimmer-source.js').then(
-        (m) => m.preloadSdk ? m.preloadSdk() : null).catch((e) => { this._preloaded = null; this.log('Could not load the sensor code: ' + (e && e.message || e)); });
-    },
     async connect(kind) {
       await this.disconnect();
       this._reset();
       try {
-        if (kind === 'shimmer3r-ble' && !(navigator && navigator.bluetooth)) {
-          throw new Error('This browser has no Web Bluetooth. Use Chrome or Edge on a computer (not Safari, not Firefox).');
-        }
-        if (kind === 'shimmer3-serial' && !(navigator && navigator.serial)) {
-          throw new Error('This browser has no Web Serial. Use Chrome or Edge on a computer.');
-        }
         if (kind === 'simulated') {
           this._sim = new SimulatedSource((s) => this._push(s), { bpm: this._simulatedBpm });
           this._sim.start();
           this._handle = { name: 'Simulated sensor', stop: async () => { this._sim.stop(); } };
         } else {
-          this._setStatus('Connecting...'); this.log('Connecting (' + kind + ')');
-          if (this._preloaded) { await this._preloaded; }
+          this._setStatus('Connecting...');
           const mod = await import(this._base() + 'shimmer-source.js');
           this._handle = await mod.connectShimmer(kind, {
-            status: (m) => { this.log(m); this._setStatus(m); },
+            status: (m) => this._setStatus(m),
             sample: (s) => this._push(s),
             closed: (why) => { this.connected = false; this._setStatus('Connection lost: ' + why); this._announce(); },
           });
@@ -183,9 +156,7 @@
         this._announce();
       } catch (e) {
         this.connected = false; this.source = null;
-        const why = this.explain(e);
-        this.log('FAILED: ' + (e && e.message ? e.message : e));
-        this._setStatus('Could not connect: ' + why);
+        this._setStatus('Could not connect: ' + (e && e.message ? e.message : e));
         this._announce();
         throw e;
       }
@@ -201,7 +172,9 @@
       return this._scriptBase || './';
     },
     _reset() { this._hr = new HeartRateEstimator(); this._eda = new EdaFilter(); this._lastT = null; this.latest = Object.assign({}, this.latest, { hr: NaN, hrValid: false, beats: 0, lastBeatT: -1 }); },
-    _setStatus(m) { this.status = m; if (this.onStatus) { this.onStatus(m); } this._post({ type: 'status', status: m, connected: this.connected, source: this.source }); },
+    // display only: the status lines, for the log box in the page
+    log(m) { this.logLines.push(new Date().toLocaleTimeString() + '  ' + m); if (this.logLines.length > 60) { this.logLines.shift(); } if (this.onLog) { this.onLog(this.logLines); } },
+    _setStatus(m) { this.log(m); this.status = m; if (this.onStatus) { this.onStatus(m); } this._post({ type: 'status', status: m, connected: this.connected, source: this.source }); },
 
     // ---- samples in
     _push(s) {
@@ -218,11 +191,11 @@
       }
       if (Number.isFinite(s.eda)) {
         const e = this._eda.push(s.eda, dt);
-        L.eda = s.eda; L.edaSmooth = e.smooth; L.edaTonic = e.tonic; L.edaPhasic = e.phasic;
+        L.eda = s.eda; L.edaSmooth = e.smooth; L.edaTonic = e.tonic; L.edaPhasic = e.phasic; L.edaBase = e.base;
       }
       L.t = t;
       const row = { t: t, ppg: L.ppg, eda: L.eda, hr: L.hrValid ? L.hr : NaN, beat: beat ? 1 : 0 };
-      if (this.recording) { this._record('sample', row, ''); }
+      this._record('sample', row, '');
       this._batch.push(row);
       if (this._batch.length > 4000) { this._batch.shift(); }
       this._hist.push(row); if (this._hist.length > 64 * 40) { this._hist.shift(); }
@@ -232,13 +205,15 @@
     _flush() {
       this._batchTimer = null;
       if (!this._batch.length) { return; }
-      this._post({ type: 'batch', samples: this._batch, latest: this.latest, routine: this.routine, section: this.section, recording: this.recording });
+      this._post({ type: 'batch', samples: this._batch, latest: this.latest, routine: this.routine, section: this.section, recording: this.recording, clockOffset: this.clockOffset() });
       this._batch = [];
     },
 
     // ---- what Unity reads
     hr() { return this.latest.hrValid ? this.latest.hr : -1; },
     eda() { return Number.isFinite(this.latest.edaSmooth) ? this.latest.edaSmooth : -1; },
+    // the participant's baseline skin conductance: from the latest marker named baseline, else the automatically tracked level (used by C23)
+    edaBaseline() { if (Number.isFinite(this.baselineValue)) { return this.baselineValue; } return Number.isFinite(this.latest.edaBase) ? this.latest.edaBase : -1; },
     edaPhasic() { return Number.isFinite(this.latest.edaPhasic) ? this.latest.edaPhasic : 0; },
     beatCount() { return this.latest.beats; },
     secondsSinceBeat() { return this.latest.lastBeatT < 0 ? -1 : this.now() - this.latest.lastBeatT; },
@@ -246,10 +221,39 @@
     // ---- markers and recording
     beginRoutine(code, name) { this.routine = code || ''; this.section = ''; this.marker('routine start: ' + (code || '') + ' ' + (name || '')); },
     endRoutine() { this.marker('routine end'); this.routine = ''; this.section = ''; },
-    marker(text) {
-      this._record('marker', null, text);
-      this._post({ type: 'marker', t: this.now(), text: text, routine: this.routine });
+    // clock offset: wall-clock seconds = now() + clockOffset()
+    clockOffset() { return Date.now() / 1000 - this.now(); },
+    markers: [], _markerSeq: 0,
+    marker(text, manual) {
+      const m = { id: ++this._markerSeq, t: this.now(), epochMs: Date.now(), text: text || '', manual: !!manual };
+      m.row = this._record('marker', null, m.text || ('marker ' + m.id));
+      this.markers.push(m); if (this.markers.length > 500) { this.markers.shift(); }
+      this._checkBaseline(m);
+      this._post({ type: 'marker', marker: this._pub(m), routine: this.routine });
+      return m.id;
     },
+    // instant, unnamed marker (button or key); name it later with renameMarker
+    addMarker() { return this.marker('', true); },
+    renameMarker(id, name) {
+      const m = this.markers.find((x) => x.id === id); if (!m) { return; }
+      m.text = String(name || '').trim();
+      this._checkBaseline(m);
+      if (m.row) { m.row.marker = m.text || ('marker ' + m.id); }
+      this._post({ type: 'marker-update', marker: this._pub(m) });
+    },
+    // A marker named "baseline" fixes the participant's baseline skin conductance: the average of the 10 s before it.
+    // The latest such marker counts. Routines (C23) read it through edaBaseline().
+    baselineValue: null,
+    _checkBaseline(m) {
+      if (m.text.toLowerCase() !== 'baseline') { return; }
+      const rows = this._hist.filter((r) => r.t >= m.t - 10 && r.t <= m.t + 0.01 && Number.isFinite(r.eda));
+      const v = rows.length ? rows.reduce((a, r) => a + r.eda, 0) / rows.length : this.latest.edaSmooth;
+      if (!Number.isFinite(v)) { this.log('Baseline marker dropped, but there is no skin conductance yet'); return; }
+      this.baselineValue = v;
+      if (m.row) { m.row.marker = 'baseline (' + v.toFixed(2) + ' uS)'; }
+      this.log('Baseline = ' + v.toFixed(2) + ' uS (average of the 10 s before the marker)');
+    },
+    _pub(m) { return { id: m.id, t: m.t, epochMs: m.epochMs, text: m.text, manual: m.manual }; },
     sectionStart(name) { this.section = name; this.marker('section: ' + name); },
     startRecording() {
       this.rows = []; this.recStart = this.now(); this.recording = true;
@@ -261,22 +265,39 @@
       this._record('marker', null, 'recording stop'); this.recording = false; this._announce();
     },
     _record(type, row, text) {
-      if (!this.recording && !(type === 'marker' && text === 'recording start')) { return; }
+      // Everything is logged from the moment a sensor connects, so Download always has the data even if
+      // Start recording was never pressed. Start recording just begins a fresh log.
+      if (!this.recording && !this.connected && !(type === 'marker' && text === 'recording start')) { return null; }
       const t = row ? row.t : this.now();
-      this.rows.push({
+      if (!this.rows.length && !this.recording) { this.recStart = t; }
+      if (this.rows.length > 800000) { this.rows.splice(0, 100000); }
+      const r = {
         type: type, epochMs: Date.now(), tS: +(t - this.recStart).toFixed(4), source: this.source || '', routine: this.routine, section: this.section,
         ppg: row ? row.ppg : '', eda: row ? row.eda : '', hr: row ? row.hr : '', beat: row ? row.beat : '', marker: text || '',
-      });
+      };
+      this.rows.push(r); return r;
     },
-    csv() {
+    csv(label) {
       const head = 'type,epoch_ms,t_s,source,routine,section,ppg_raw,eda_us,hr_bpm,beat,marker';
       const fmt = (v) => (v === '' || v === undefined || (typeof v === 'number' && !Number.isFinite(v))) ? '' : String(v);
       const esc = (v) => { const s = fmt(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
-      return [head].concat(this.rows.map((r) => [r.type, r.epochMs, r.tS, r.source, r.routine, r.section, r.ppg, r.eda, r.hr, r.beat, r.marker].map(esc).join(','))).join('\n') + '\n';
+      const meta = label ? [['meta', Date.now(), 0, '', '', '', '', '', '', '', 'experiment: ' + label].map(esc).join(',')] : [];
+      return [head].concat(meta, this.rows.map((r) => [r.type, r.epochMs, r.tS, r.source, r.routine, r.section, r.ppg, r.eda, r.hr, r.beat, r.marker].map(esc).join(','))).join('\n') + '\n';
     },
-    downloadCsv() {
-      const name = 'physio_' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.csv';
-      const blob = new Blob([this.csv()], { type: 'text/csv' });
+    // file-name-safe version of a label ('' if nothing usable is left)
+    cleanLabel(raw) {
+      return String(raw || '').replace(/[\\/:*?"<>|\x00-\x1f]/g, '').replace(/\s+/g, '_').replace(/^[._]+|[._]+$/g, '').slice(0, 80);
+    },
+    // label undefined: ask with a prompt; null (Cancel): do nothing
+    downloadCsv(label) {
+      if (label === undefined) { label = (typeof window !== 'undefined' && window.prompt) ? window.prompt('Experiment name or label for this file (leave empty for the default name):', '') : ''; }
+      if (label === null) { return ''; }
+      if (!this.rows.some((r) => r.type === 'sample')) { if (typeof window !== 'undefined' && window.alert) { window.alert('Nothing has been recorded yet: connect a sensor (or the simulated one) first, then download.'); } return ''; }
+      const clean = this.cleanLabel(label);
+      const d = new Date(), z = (n) => String(n).padStart(2, '0');
+      const stamp = d.getFullYear() + '-' + z(d.getMonth() + 1) + '-' + z(d.getDate()) + '_' + z(d.getHours()) + '-' + z(d.getMinutes()) + '-' + z(d.getSeconds());
+      const name = (clean || 'physio') + '_' + stamp + '.csv';
+      const blob = new Blob([this.csv(String(label).trim())], { type: 'text/csv' });
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
       document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
       return name;
@@ -292,11 +313,13 @@
       this._channel = new BroadcastChannel('swarm-physio');
       this._channel.onmessage = (ev) => {
         const m = ev.data || {};
-        if (m.type === 'hello') { this._post({ type: 'history', samples: this._hist.slice(-64 * 30), latest: this.latest, status: this.status, connected: this.connected, source: this.source, recording: this.recording, routine: this.routine }); }
+        if (m.type === 'hello') { this._post({ type: 'history', samples: this._hist.slice(-64 * 30), latest: this.latest, status: this.status, connected: this.connected, source: this.source, recording: this.recording, routine: this.routine, clockOffset: this.clockOffset(), markers: this.markers.map((x) => this._pub(x)) }); }
         else if (m.type === 'cmd') {
           if (m.cmd === 'record-start') { this.startRecording(); }
           else if (m.cmd === 'record-stop') { this.stopRecording(); }
-          else if (m.cmd === 'download') { this.downloadCsv(); }
+          else if (m.cmd === 'download') { this.downloadCsv(m.label === undefined ? null : m.label); }
+          else if (m.cmd === 'marker') { if (m.text) { this.marker(m.text, true); } else { this.addMarker(); } }
+          else if (m.cmd === 'rename-marker') { this.renameMarker(m.id, m.name); }
           else if (m.cmd === 'connect') { this.connect(m.kind).catch(() => {}); }
           else if (m.cmd === 'disconnect') { this.disconnect(); }
           else if (m.cmd === 'sim-bpm') { this.setSimulatedBpm(m.bpm); }
@@ -308,7 +331,15 @@
   // where this script was loaded from (for the module import and the monitor page)
   if (typeof document !== 'undefined' && document.currentScript && document.currentScript.src) { Physio._scriptBase = document.currentScript.src.replace(/[^/]*$/, ''); }
   Physio._startChannel();
+  // press M anywhere on the page (not while typing in a field) for an instant marker
+  if (typeof document !== 'undefined') {
+    document.addEventListener('keydown', (e) => {
+      if ((e.key === 'm' || e.key === 'M') && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const el = e.target; if (el && (/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || el.isContentEditable)) { return; }
+        Physio.addMarker();
+      }
+    });
+  }
   global.Physio = Physio;
-  if (typeof window !== 'undefined' && typeof document !== 'undefined') { window.addEventListener('DOMContentLoaded', () => Physio.preload()); }
   if (typeof module !== 'undefined' && module.exports) { module.exports = { Physio, HeartRateEstimator, PeakTracker, EdaFilter, SimulatedSource }; }
 })(typeof window !== 'undefined' ? window : globalThis);

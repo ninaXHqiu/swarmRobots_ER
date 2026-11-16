@@ -40,6 +40,9 @@ public static class V2TestCheck
             ("Zigzag", new V2ZigzagRelay.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
             ("HeartRing", new V2HeartRing.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
             ("HeartResonance", new V2HeartResonance.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("Cheerleading", new V2Cheerleading.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("CheerBreathing", new V2CheerBreathing.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
+            ("StressRestless", new V2StressRestless.Plan(V2StressRestless.BuildSteps(V2StressRestless.SpreadSpots(8), V2StressRestless.Steps, V2StressRestless.Seed).Last()), ""),
             ("Cuddling", new V2Cuddling.Plan(Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray()), ""),
         };
         foreach (var (name, plan, extra) in plans)

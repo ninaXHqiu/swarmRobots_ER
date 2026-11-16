@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 
-// v2 Heart Resonance (C20): a second version of Heart Ring. The ring does not beat with every heartbeat but
+// v2 Heart Resonance (C21): a second version of Heart Ring. The ring does not beat with every heartbeat but
 // resonates with the participant's heart rate at a factor (Resonance below): 0.5 = one swell for every two
 // heartbeats (a calm echo), 2 = two swells per heartbeat. The pace is the heart rate x the factor, kept between
 // 30 and 90 swells a minute so the robots can follow, and it changes smoothly as the heart rate changes.
@@ -14,7 +14,7 @@ using UnityEngine;
 public class V2HeartResonance : SwarmRoutine
 {
     public override string Name { get { return "v2 Heart Resonance"; } }
-    public override string Code { get { return "C20"; } }
+    public override string Code { get { return "C21"; } }
     public override string Note { get { return "Ring beats at a multiple of your heart rate"; } }
     public override int MinRobots { get { return 8; } }
 

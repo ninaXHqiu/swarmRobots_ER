@@ -29,21 +29,17 @@
       <div class="physio-body">
         <div class="physio-row">
           <button onclick="Physio.connect('shimmer3r-ble').catch(function(){})">Connect Shimmer3R (Bluetooth LE)</button>
-          <button onclick="Physio.connect('shimmer3-serial').catch(function(){})">Connect Shimmer3 (paired, serial)</button>
-          <button onclick="Physio.connect('simulated').catch(function(){})">Use simulated sensor</button>
           <button onclick="Physio.disconnect()">Disconnect</button>
         </div>
         <div class="physio-row">
-          <button onclick="Physio.startRecording()">Start recording</button>
-          <button onclick="Physio.stopRecording()">Stop</button>
           <button onclick="Physio.downloadCsv()">Download CSV</button>
           <button onclick="Physio.openMonitor()">Open the monitor in a new tab</button>
         </div>
-        <details class="physio-sub" open>
+        <details class="physio-sub">
           <summary>Connection log</summary>
           <pre id="physio-log">Nothing yet. Click a Connect button.</pre>
         </details>
-        <details class="physio-sub" open>
+        <details class="physio-sub">
           <summary>How to put the sensor on the person</summary>
           <p><a href="StreamingAssets/physio/guide.html" target="_blank">Open the picture guide (which part is which, where it goes) in a new tab</a></p>
           <div class="physio-guide">
@@ -87,9 +83,12 @@
       </div>
     </details>
     <style>
+      #unity-container, #unity-container.unity-desktop { position: relative; left: auto; top: auto; transform: none; width: fit-content; margin: 0 auto; }
+      #unity-footer { display: flow-root; margin-bottom: 32px; }
+      #unity-container.unity-mobile { width: 100%; height: 100%; }
       .physio-panel { width: min(1200px, 96vw); margin: 8px auto 24px; font: 15px/1.45 system-ui, sans-serif; color: #333; }
       .physio-panel > summary { cursor: pointer; padding: 8px 2px; font-weight: 600; font-size: 17px; }
-      .physio-body { border: 1px solid #ccc; border-radius: 8px; padding: 12px; background: #fafafa; }
+      .physio-body { border: 1px solid #ccc; border-radius: 8px; padding: 12px; background: #fafafa; resize: vertical; overflow: auto; min-height: 240px; }
       .physio-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
       .physio-row button { font: inherit; padding: 7px 14px; border: 1px solid #bbb; background: #fff; border-radius: 6px; cursor: pointer; }
       .physio-sub { margin: 8px 0; }

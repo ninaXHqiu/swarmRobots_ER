@@ -2,6 +2,7 @@
 mergeInto(LibraryManager.library, {
   PhysioHr: function () { return window.Physio ? window.Physio.hr() : -1; },
   PhysioEda: function () { return window.Physio ? window.Physio.eda() : -1; },
+  PhysioEdaBaseline: function () { return window.Physio ? window.Physio.edaBaseline() : -1; },
   PhysioEdaPhasic: function () { return window.Physio ? window.Physio.edaPhasic() : 0; },
   PhysioBeatCount: function () { return window.Physio ? window.Physio.beatCount() : 0; },
   PhysioSecondsSinceBeat: function () { return window.Physio ? window.Physio.secondsSinceBeat() : -1; },

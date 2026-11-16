@@ -11,6 +11,7 @@ public static class Physio
     [DllImport("__Internal")] static extern float PhysioHr();
     [DllImport("__Internal")] static extern float PhysioEda();
     [DllImport("__Internal")] static extern float PhysioEdaPhasic();
+    [DllImport("__Internal")] static extern float PhysioEdaBaseline();
     [DllImport("__Internal")] static extern int PhysioBeatCount();
     [DllImport("__Internal")] static extern float PhysioSecondsSinceBeat();
     [DllImport("__Internal")] static extern int PhysioConnected();
@@ -21,6 +22,7 @@ public static class Physio
     public static bool Connected { get { return PhysioConnected() == 1; } }
     public static float HeartRate { get { return PhysioHr(); } }                      // beats per minute, -1 when there is none
     public static float Eda { get { return PhysioEda(); } }                           // skin conductance in microsiemens, -1 when there is none
+    public static float EdaBaseline { get { return PhysioEdaBaseline(); } }           // the participant's baseline skin conductance, -1 when there is none
     public static float EdaPhasic { get { return PhysioEdaPhasic(); } }               // the quick part of it (positive = rising)
     public static int BeatCount { get { return PhysioBeatCount(); } }
     static float SecondsSinceBeat { get { return PhysioSecondsSinceBeat(); } }
@@ -32,6 +34,7 @@ public static class Physio
     public static bool Connected { get { return false; } }
     public static float HeartRate { get { return -1f; } }
     public static float Eda { get { return -1f; } }
+    public static float EdaBaseline { get { return -1f; } }
     public static float EdaPhasic { get { return 0f; } }
     public static int BeatCount { get { return 0; } }
     static float SecondsSinceBeat { get { return -1f; } }

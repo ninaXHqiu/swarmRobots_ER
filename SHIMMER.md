@@ -17,7 +17,7 @@ Version tag `without-shimmer` is the last commit before this work.
 | Panel | `Assets/WebGLTemplates/webble/index.html` | A collapsible "Sensor and monitor" panel **under the whole Control screen**, with the monitor inside it and a button to open the monitor in its own tab. |
 | Unity side | `Assets/Physio/Physio.cs`, `Assets/Plugins/WebGL/Physio.jslib` | `Physio.HeartRate`, `Physio.Eda`, beats, `Physio.Marker(...)`. |
 | Markers | `SimRoutinePlayer.cs`, `RoutineRunner.cs`, `V2Show.cs` | Routine start/end, "opening done", "ending", and the named sections of C13 to C19. |
-| Second feedback routine | `V2HeartResonance.cs` (C20) | The ring swells at the heart rate x a factor (`Resonance`, 0.5 = one swell per two beats), kept between 30 and 90 swells a minute. |
+| Second feedback routine | `V2HeartResonance.cs` (C21) | The ring swells at the heart rate x a factor (`Resonance`, 0.5 = one swell per two beats), kept between 30 and 90 swells a minute. |
 | First feedback routine | `V2HeartRing.cs` (C19) | The ring swells at every heartbeat and turns at base speed x skin conductance. |
 | Offline graph | `tools/plot_physio.py` | PNG of heart rate, skin conductance and pulse wave with the routine and its sections marked. |
 | Test | `tools/test-physio.mjs` | `node tools/test-physio.mjs` checks heart rate (55 to 150 bpm, upside-down wave), a flat signal, skin conductance and the CSV. |

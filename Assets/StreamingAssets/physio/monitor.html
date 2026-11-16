@@ -20,7 +20,7 @@
   button, .btn { font:inherit; padding:5px 10px; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:6px; cursor:pointer; text-decoration:none; }
   button:hover, .btn:hover { border-color:var(--accent); } button.rec { color:var(--bad); }
   .dot { display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--muted); margin-right:6px; } .dot.on { background:var(--ok); } .dot.recording { background:var(--bad); }
-  #markers { max-height:110px; overflow:auto; font-size:12px; } #markers div { padding:1px 0; border-bottom:1px solid var(--line); }
+  #markers { max-height:110px; overflow:auto; font-size:12px; } #markers div { padding:1px 0; border-bottom:1px solid var(--line); cursor:pointer; } #markers div:hover { background:var(--bg); } #markers .unnamed { color:var(--muted); font-style:italic; }
 </style>
 </head>
 <body>
@@ -31,16 +31,15 @@
   <div class="card" style="flex:1; min-width:220px"><div class="muted">Now</div>
     <div><span class="dot" id="dot"></span><span id="status">Waiting for the page that runs the robots...</span></div>
     <div>Routine: <b id="routine">-</b> &nbsp; Section: <b id="section">-</b></div>
-    <div class="muted" id="recinfo">Not recording</div></div>
+    <div class="muted" id="recinfo">Logging starts when a sensor connects</div></div>
 </div>
 <div class="row" style="margin-top:8px">
-  <button id="rec" class="rec">Start recording</button><button id="stop">Stop</button><button id="dl">Download CSV</button>
-  <a id="newtab" class="btn" target="swarm-physio-monitor">Open in a new tab</a>
+  <button id="mk" title="Shortcut: press M">Add marker (M)</button><button id="bl" title="A marker named baseline">Set baseline</button><button id="dl">Download CSV</button>
 </div>
-<h2>Pulse waveform (last 10 s)</h2><canvas id="cPpg" width="900" height="130"></canvas>
-<h2>Heart rate (last 5 min)</h2><canvas id="cHr" width="900" height="130"></canvas>
-<h2>Skin conductance (last 5 min)</h2><canvas id="cEda" width="900" height="130"></canvas>
-<h2>Markers</h2><div class="card" id="markers"></div>
+<h2>Pulse waveform (last 10 s, clock time)</h2><canvas id="cPpg" width="900" height="130"></canvas>
+<h2>Heart rate (last 5 min, clock time)</h2><canvas id="cHr" width="900" height="130"></canvas>
+<h2>Skin conductance (last 5 min, clock time)</h2><canvas id="cEda" width="900" height="130"></canvas>
+<h2>Markers <span class="muted" style="font-weight:400">(click one to name it)</span></h2><div class="card" id="markers"></div>
 <h2>Look at a recording</h2>
 <div class="row"><input type="file" id="file" accept=".csv"><span class="muted" id="fileinfo">Choose a CSV downloaded from this page.</span></div>
 <canvas id="rHr" width="900" height="150" style="margin-top:6px"></canvas>

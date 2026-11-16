@@ -56,11 +56,13 @@ public static class V2Show
     public static float Budget(float minutes) { return minutes * 60f - IntroSecs - EndSecs; }
 
     public static IEnumerator Run(RoutineContext ctx, Func<Vector2[], IPlan> makePlan, int maxSpeed = 60,
-                                  Func<int, float, bool> skip = null, Action<float> extra = null, float approachWithin = 0f)
+                                  Func<int, float, bool> skip = null, Action<float> extra = null, float approachWithin = 0f, Func<IEnumerator> between = null)
     {
         yield return Introduction(ctx);
         Physio.Marker("opening done");
         Show.StartedAt = Time.time;   // read by the simulator recorder
+        // `between`: a part that is not a plan (a routine that sends its own commands); the plan is made from where the robots stand after it
+        if (between != null) { yield return between(); }
         int n = ctx.Count;
         var start = new Vector2[n];
         for (int i = 0; i < n; i++) { start[i] = new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y); }
@@ -388,9 +390,11 @@ public static class V2Show
 
     // Paths from the opening to `targets` that keep clear of each other, as roomy and as slow as will arrive within `within` seconds.
     // Planned from the ideal start (not from where the robots happen to stand) so the plan is the same every time. Null if none is found.
-    public static WayToLine Approach(Vector2[] targets, float within)
+    public static WayToLine Approach(Vector2[] targets, float within) { return Approach(IdealStart(targets.Length), targets, within); }
+
+    // The same from any places the robots stand in
+    public static WayToLine Approach(Vector2[] ideal, Vector2[] targets, float within)
     {
-        var ideal = IdealStart(targets.Length);
         foreach (float keep in new[] { 58f, 50f, 42f })
         {
             foreach (float speed in new[] { 20f, 24f, 28f, 34f, 40f, 48f, 60f })

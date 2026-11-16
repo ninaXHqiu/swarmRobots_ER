@@ -460,7 +460,7 @@ public static class V2Show
     static float lowSpeed = LowSpeed, fullTurnSpeed = FullTurnSpeed, positionNoise;   // (the last three are only changed by the headless tests: PlayerPrefs V2LowSpeed, V2FullTurn, V2Noise)   // below LowSpeed a free robot does not turn, from FullTurnSpeed up it turns fully
     const float SteerTurnSecs = 0.25f; // how quickly free robots turn to the wanted direction (the same as Swarm.Flow)
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
-    const float HeadingSmoothSecs = 0.4f;   // the wanted direction a free robot turns to is smoothed over this long (not the driving speed)
+    const float HeadingSmoothSecs = 0.2f;   // the wanted direction a free robot turns to is smoothed over this long (not the driving speed)
     static Vector2[] headingWant;
     const float FlowTurnSpeed = 40f;  // below this speed robots turn more gently
     const float LaneLeanDeg = 4f;     // most a lane robot leans off its lane to drift back onto it

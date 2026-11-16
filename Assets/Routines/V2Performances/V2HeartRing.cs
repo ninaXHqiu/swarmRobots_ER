@@ -86,9 +86,10 @@ public class V2HeartRing : SwarmRoutine
 
         // the ring's turn: base speed x skin conductance until the settle time, then eases round to the
         // angle from which the ring flattens into the line without crossing
+        float curRate; const float TurnUpSecs = 4f;
         float Turn(float t)
         {
-            if (t < lastT - 1f) { lastT = -1f; angle = 0f; locked = false; extraTurn = 0f; }   // a new run through the plan (checks play it several times)
+            if (t < lastT - 1f) { lastT = -1f; angle = 0f; curRate = 0f; locked = false; extraTurn = 0f; }   // a new run through the plan (checks play it several times)
             if (t > lastT + 1e-4f)
             {
                 float dt = lastT < 0f ? 0f : Mathf.Min(0.2f, t - lastT);
@@ -96,8 +97,8 @@ public class V2HeartRing : SwarmRoutine
                 float settleFrom = beatEnd - LockSecs;
                 if (t <= settleFrom && t > FormEnd)
                 {
-                    float rate = Mathf.Clamp(BaseSpeed * Physio.EdaOr(FallbackEda), RateMin, RateMax);
-                    angle += rate * dt;
+                    float rate = Mathf.Clamp(BaseSpeed * Physio.EdaOr(FallbackEda), RateMin, RateMax) * Shapes.Ease((t - FormEnd) / TurnUpSecs);   // eased in: the ring does not jump from rest to full turn
+                    curRate = rate; angle += rate * dt;
                 }
                 if (t > settleFrom && !locked)
                 {
@@ -106,7 +107,7 @@ public class V2HeartRing : SwarmRoutine
                     extraTurn = Mathf.Repeat(target - lockedAngle, 2f * Mathf.PI);
                 }
             }
-            if (!locked) { return angle; }
+            if (!locked) { return angle + curRate * (t - lastT); }   // the turn is carried on at its rate, so the path's speed (Position at t+h minus at t-h) includes it
             float settleFrom2 = beatEnd - LockSecs;
             return lockedAngle + extraTurn * Shapes.Ease((t - settleFrom2) / (LockSecs + ReturnSecs / 2f));
         }

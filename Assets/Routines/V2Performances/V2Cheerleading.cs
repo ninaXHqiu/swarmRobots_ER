@@ -8,7 +8,7 @@ using toio.Navigation;
 
 // v2 Cheerleading / happiness (C22). The robots circle along a wavy circle, as in the happiness behaviour of
 // "From Motions to Emotions" (Santos & Egerstedt, Appendix A.1, Fig. 15a): robot i is at angle theta = theta_i + w t
-// on the path r(theta) = R + A sin(f theta), the theta_i evenly spaced round the circle. The wave is on the path the
+// on the path r(theta) = R + A cos(f theta), the theta_i evenly spaced round the circle. The wave is on the path the
 // robots follow (it stays where it is while the robots travel round it); the ring is not a perfect circle, and it
 // does not expand or contract as a whole.
 //   1. After the standard opening the robots form an evenly spaced ring round the middle of the mat.
@@ -38,11 +38,12 @@ public class V2Cheerleading : SwarmRoutine
     {
         // ---- the wavy circle (settings to calibrate)
         const float RingR = 100f;           // R: main circle radius
-        const float Ripple = 12f;           // A: ripple amplitude (mat units)
-        const float Ripples = 6f;           // f: ripples per revolution (with 8 robots, 6 puts them at four different phases of the wave)
+        const float Ripple = 16f;           // A: ripple amplitude (mat units)
+        const float Ripples = 4f;           // f: ripples per revolution. 4 with the phase below puts neighbouring robots on opposite sides: 4 out, 4 in, one in and one out alternately
         const float TurnRate = 0.14f;       // w: how fast the robots travel round (rad/s; one lap in about 45 s)
         const float MiddleSecs = 72f;       // length of the wavy-circle part
-        const float RampSecs = 6f;          // the ripples grow in over this long when the part starts
+        const float TurnUpSecs = 5f;       // the turn eases in over this long
+        const float RampSecs = 8f;          // the ripples grow in over this long when the part starts
         const float SegDeg = 15f;           // a waypoint every this many degrees (24 per lap)
         // ---- the start and the end (as planned before)
         const float SlowSecs = 16f, ReturnSecs = 12f, ExitRadius = 106f;
@@ -91,7 +92,7 @@ public class V2Cheerleading : SwarmRoutine
             ringStop = slowEnd + ReturnSecs;
             Total = ringStop + 0.3f;
             // the turn is eased to a stop at exactly the angle the ring needs to flatten into the line without crossing
-            float reached = TurnRate * (MiddleSecs + 0.5f * SlowSecs);
+            float reached = TurnRate * (MiddleSecs - 0.5f * TurnUpSecs + 0.5f * SlowSecs);
             extraTurn = Mathf.DeltaAngle(reached * Mathf.Rad2Deg, (opensAt - 135f * Mathf.Deg2Rad) * Mathf.Rad2Deg) * Mathf.Deg2Rad;
         }
 
@@ -106,18 +107,19 @@ public class V2Cheerleading : SwarmRoutine
         {
             float u = Mathf.Clamp01((t - midEnd) / SlowSecs);
             float run = Mathf.Clamp(t - FormEnd, 0f, MiddleSecs);
+            run = TurnUpSecs * Shapes.EaseIntegral(run / TurnUpSecs);        // the turn eases in: no jump from rest to full speed when the ring has formed
             return TurnRate * (run + SlowSecs * (u - Shapes.EaseIntegral(u))) + extraTurn * Shapes.Ease(u);
         }
 
         // 1 while the wave is on: grows in at the start of the wavy-circle part, fades during the slow part
-        float Wave(float t) { return Shapes.Ease((t - FormEnd) / RampSecs) * (1f - Shapes.Ease((t - midEnd) / SlowSecs)); }
+        float Wave(float t) { return Shapes.Ease((t - FormEnd - TurnUpSecs) / RampSecs) * (1f - Shapes.Ease((t - midEnd) / SlowSecs)); }
 
-        // r(theta) = R + A sin(f theta), theta = theta_i + the turn: the path itself does not move, the robots travel round it
+        // r(theta) = R + A cos(f theta), theta = theta_i + the turn: the path itself does not move, the robots travel round it
         Vector2 OnWave(int slot, float t)
         {
             float turn = Turn(t);
             float theta = sectorTo[slot] + turn;
-            float r = RingR + Ripple * Wave(t) * Mathf.Sin(Ripples * theta);
+            float r = RingR + Ripple * Wave(t) * Mathf.Cos(Ripples * theta);
             return Ring(slot, r, turn);
         }
 

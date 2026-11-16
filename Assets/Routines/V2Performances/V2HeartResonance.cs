@@ -85,9 +85,10 @@ public class V2HeartResonance : SwarmRoutine
 
         // the ring's turn: follows the heart (slower when it is faster) until the settle time, then eases round to the
         // angle from which the ring flattens into the line without crossing
+        float curRate; const float TurnUpSecs = 4f;
         float Turn(float t)
         {
-            if (t < lastT - 1f) { lastT = -1f; angle = 0f; locked = false; extraTurn = 0f; swellPhase = 0f; }   // a new run through the plan (checks play it several times)
+            if (t < lastT - 1f) { lastT = -1f; angle = 0f; curRate = 0f; locked = false; extraTurn = 0f; swellPhase = 0f; }   // a new run through the plan (checks play it several times)
             if (t > lastT + 1e-4f)
             {
                 float dt = lastT < 0f ? 0f : Mathf.Min(0.2f, t - lastT);
@@ -97,8 +98,8 @@ public class V2HeartResonance : SwarmRoutine
                 float settleFrom = beatEnd - LockSecs;
                 if (t <= settleFrom && t > FormEnd)
                 {
-                    float rate = Mathf.Clamp(RateAt60 - RatePerBpm * (Physio.HeartRateOr(FallbackBpm) - 60f), RateMin, RateAt60);
-                    angle += rate * dt;
+                    float rate = Mathf.Clamp(RateAt60 - RatePerBpm * (Physio.HeartRateOr(FallbackBpm) - 60f), RateMin, RateAt60) * Shapes.Ease((t - FormEnd) / TurnUpSecs);   // eased in
+                    curRate = rate; angle += rate * dt;
                 }
                 if (t > settleFrom && !locked)
                 {
@@ -107,7 +108,7 @@ public class V2HeartResonance : SwarmRoutine
                     extraTurn = Mathf.Repeat(target - lockedAngle, 2f * Mathf.PI);
                 }
             }
-            if (!locked) { return angle; }
+            if (!locked) { return angle + curRate * (t - lastT); }   // carried on at its rate, so the path's speed includes the turn
             float settleFrom2 = beatEnd - LockSecs;
             return lockedAngle + extraTurn * Shapes.Ease((t - settleFrom2) / (LockSecs + ReturnSecs / 2f));
         }

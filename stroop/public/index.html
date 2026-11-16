@@ -49,7 +49,7 @@
 <div id="setup" class="screen on">
   <div class="center">
     <h1>Stroop Task</h1>
-    <div class="field">Trials per round <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
+    <div class="field">Trials <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
     <div class="field">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
     <button id="startBtn">Begin (Space)</button>
   </div>
@@ -91,9 +91,8 @@ const INK = {
 };
 const COLOURS = Object.keys(INK);
 
-// Each colour's key is its first letter, the same in both rounds.
+// Each colour's key is its first letter.
 const KEYS = Object.fromEntries(COLOURS.map((c) => [c, c[0].toLowerCase()]));
-const ROUNDS = 2;
 const MAX_TRIALS = 50;
 const FEEDBACK_MS = 1000;
 
@@ -157,17 +156,13 @@ function makeTrials(n) {
 }
 
 // ---- Intro screens ----
-function introPages(round) {
-  const first = round === 0
-    ? `<h2>Stroop task · Round 1</h2>
+function introPages() {
+  const first = `<h2>Stroop task</h2>
        You will see colour words printed in a <b>different ink colour</b>.
        Press the key for the <b>ink colour</b>, not the word. For example, if you see:
        <div class="example" style="color:${INK.RED}">GREEN</div>
        the ink is red, so press <b>R</b>.<br>
-       You have ${s.seconds} seconds for each word. Answer as fast and as accurately as you can.`
-    : `<h2>Round 2</h2>
-       Same task and same keys: press the key for the <b>ink colour</b>, not the word.<br>
-       You have ${s.seconds} seconds for each word.`;
+       You have ${s.seconds} seconds for each word. Answer as fast and as accurately as you can.`;
 
   const rows = COLOURS.map((c) =>
     `<div class="w" style="color:${INK[c]}">${c.toLowerCase()}</div><span>=</span><div class="k">${KEYS[c].toUpperCase()}</div>`).join('');
@@ -175,7 +170,7 @@ function introPages(round) {
 
   return [
     first + '<div class="next">press space for the keys…</div>',
-    second + `<div class="next">press space to start round ${round + 1}…</div>`,
+    second + `<div class="next">press space to start…</div>`,
   ];
 }
 
@@ -197,14 +192,13 @@ function begin() {
   const seconds = Math.max(1, Math.min(30, parseInt($('secondsIn').value, 10) || 3));
   try { localStorage.setItem('stroopSettings', JSON.stringify({ trials, seconds })); } catch (e) {}
   unlockAudio();
-  s = { perRound: trials, seconds, round: -1, log: [], scores: [], paused: false };
-  startIntro(0);
+  s = { count: trials, seconds, log: [], paused: false };
+  startIntro();
 }
 
-function startIntro(round) {
-  s.round = round;
+function startIntro() {
   s.phase = 'intro';
-  s.pages = introPages(round);
+  s.pages = introPages();
   s.page = 0;
   $('introBody').innerHTML = s.pages[0];
   show('intro');
@@ -216,10 +210,10 @@ function nextIntroPage() {
     $('introBody').innerHTML = s.pages[s.page];
     return;
   }
-  // Start the round.
+  // Start the trials.
   s.keys = KEYS;
   s.byKey = Object.fromEntries(Object.entries(s.keys).map(([colour, key]) => [key, colour]));
-  s.trials = makeTrials(s.perRound);
+  s.trials = makeTrials(s.count);
   s.index = -1;
   s.correct = 0;
   s.tested = 0;
@@ -231,7 +225,7 @@ function nextIntroPage() {
 
 function nextTrial() {
   s.index += 1;
-  if (s.index >= s.trials.length) return endRound();
+  if (s.index >= s.trials.length) return finish();
   s.phase = 'running';
   s.activeMs = 0;
   s.clockStart = performance.now();
@@ -275,7 +269,6 @@ function resolve(key) {
   s.tested += 1;
   if (isCorrect) s.correct += 1;
   s.log.push({
-    round: s.round + 1,
     trial: s.index + 1,
     word: t.word,
     ink: t.ink,
@@ -300,12 +293,10 @@ function resolve(key) {
   s.feedbackTimer = setTimeout(nextTrial, FEEDBACK_MS);
 }
 
-function endRound() {
+function finish() {
   clearInterval(ticker);
-  s.scores.push(`${s.correct} / ${s.tested}`);
-  if (s.round + 1 < ROUNDS) return startIntro(s.round + 1);
   s.phase = 'done';
-  $('finalScores').innerHTML = s.scores.map((sc, i) => `Round ${i + 1}: <b>${sc}</b>`).join('<br>');
+  $('finalScores').innerHTML = `Score: <b>${s.correct} / ${s.tested}</b>`;
   show('done');
 }
 
@@ -337,8 +328,8 @@ function quitToSetup() {
 }
 
 function exportCsv() {
-  const cols = ['round', 'trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms'];
-  const header = ['round', 'trial', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
+  const cols = ['trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms'];
+  const header = ['trial', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
     'correct_wrong', 'response_timeout', 'sound', 'response_time_ms'];
   const lines = [header.join(','), ...s.log.map((r) => cols.map((c) => r[c]).join(','))];
   const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });

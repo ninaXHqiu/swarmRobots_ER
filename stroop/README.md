@@ -15,12 +15,12 @@ The participant presses the first letter of the **ink colour**, not the word:
 | G | green | W | white |
 | Y | yellow | C | cyan |
 
-- Start screen: trials per round (max 50) and countdown seconds. Space or the Begin button starts.
-- Each round opens with two intro screens: the task with an example, then the key list. The keys are not shown during trials.
-- Two rounds, same keys. Each trial is scored on the key press; a wrong key or running out of time counts as Wrong.
+- Start screen: number of trials (max 50) and countdown seconds. Space or the Begin button starts.
+- Two intro screens: the task with an example, then the key list. The keys are not shown during trials.
+- Each trial is scored on the key press; a wrong key or running out of time counts as Wrong.
 - `CORRECT` / `WRONG` shows for 1 s, then the next trial.
 - Esc pauses and resumes. While paused, Q quits to the start screen.
-- At the end: score per round and Export CSV.
+- At the end: the score and Export CSV.
 
 ## Sounds
 

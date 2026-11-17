@@ -69,11 +69,6 @@ public static class V2Show
         var plan = makePlan(start);
         if (approachWithin > 0f) { plan = WithApproach.Wrap(plan, approachWithin, n); }
         yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
-        // Safety net: the path ends every robot on its own line spot. If one is still well away from it (it fell behind or was shoved), it is
-        // brought in now, so the next routine starts from the line and nobody has to restart. Nothing happens when they are all on their spots.
-        bool off = false;
-        for (int i = 0; i < n; i++) { if (Vector2.Distance(new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y), plan.LineSpot(i)) > 30f) { off = true; } }
-        if (off) { Physio.Marker("ending: robots not on the line, bringing them in"); yield return ToOwnSlots(ctx); }
         // The ending: the path itself brings every robot onto its own spot and it holds there while the steering closes the last
         // few units smoothly (no separate stop-and-go settle: that made the robots shake), then all turn in place to face the participant
         Physio.Marker("ending");
@@ -434,7 +429,6 @@ public static class V2Show
     {
         var reverse = new bool[ctx.Count];
         var holding = new bool[ctx.Count];
-        headingWant = new Vector2[ctx.Count];
         lowSpeed = PlayerPrefs.GetFloat("V2LowSpeed", LowSpeed); fullTurnSpeed = PlayerPrefs.GetFloat("V2FullTurn", FullTurnSpeed); positionNoise = PlayerPrefs.GetFloat("V2Noise", 0f);
         safetyOn = !(plan is INoSafetyPush);
         var sections = (plan as ISections) != null ? System.Linq.Enumerable.ToList(System.Linq.Enumerable.OrderBy(((ISections)plan).Sections, k => k.Key)) : null;
@@ -465,8 +459,6 @@ public static class V2Show
     static float lowSpeed = LowSpeed, fullTurnSpeed = FullTurnSpeed, positionNoise;   // (the last three are only changed by the headless tests: PlayerPrefs V2LowSpeed, V2FullTurn, V2Noise)   // below LowSpeed a free robot does not turn, from FullTurnSpeed up it turns fully
     const float SteerTurnSecs = 0.25f; // how quickly free robots turn to the wanted direction (the same as Swarm.Flow)
     const float FlowFlipDeg = 110f;   // switch between forward and reverse past this angle
-    const float HeadingSmoothSecs = 0.2f;   // the wanted direction a free robot turns to is smoothed over this long (not the driving speed)
-    static Vector2[] headingWant;
     const float FlowTurnSpeed = 40f;  // below this speed robots turn more gently
     const float LaneLeanDeg = 4f;     // most a lane robot leans off its lane to drift back onto it
     const float LaneLeanPerUnit = 0.8f;
@@ -532,19 +524,13 @@ public static class V2Show
         Vector2 here = new Vector2((float)handle.xPred, (float)handle.yPred);
         if (positionNoise > 0f) { here += positionNoise * new Vector2(UnityEngine.Random.Range(-1f, 1f), UnityEngine.Random.Range(-1f, 1f)); }
         Vector2 want = pathVelocity + FlowGain * (target - here);
-        if (Holds(ref holding, pathVelocity, target, here)) { handle.Move(0, 0, 100, false); headingWant[i] = Vector2.zero; return; }
+        if (Holds(ref holding, pathVelocity, target, here)) { handle.Move(0, 0, 100, false); return; }
 
         float limit = maxSpeed * (float)CubeHandle.VDotOverU;
         if (want.magnitude > limit) { want = want.normalized * limit; }
         if (want.magnitude < 2f) { handle.Move(0, 0, 100, false); return; }
 
-        // Which way to face is decided from the wanted direction smoothed over HeadingSmoothSecs: the position sensor's noise (a unit or two,
-        // times the gain) swings the instant direction by tens of degrees when the path is slow (the ring closing in and opening out, the turning
-        // points of a breath), and the robots tilted to follow it. The driving speed still uses the instant value, so position holding is as before.
-        if (headingWant == null || headingWant.Length <= i) { headingWant = new Vector2[ctx.Count]; }
-        headingWant[i] = headingWant[i] == Vector2.zero ? want : Vector2.Lerp(headingWant[i], want, 1f - Mathf.Exp(-Time.deltaTime / HeadingSmoothSecs));
-        Vector2 headWant = headingWant[i];
-        float wantDeg = Mathf.Atan2(headWant.y, headWant.x) * Mathf.Rad2Deg;
+        float wantDeg = Mathf.Atan2(want.y, want.x) * Mathf.Rad2Deg;
         float facingDeg = (float)handle.radPred * Mathf.Rad2Deg + (reverse ? 180f : 0f);
         float turnDeg = Mathf.DeltaAngle(facingDeg, wantDeg);
         if (Mathf.Abs(turnDeg) > FlowFlipDeg)
@@ -558,7 +544,7 @@ public static class V2Show
         // that the position sensor's noise (a unit or two, times the gain) is as big as the wanted movement itself is the direction not
         // believed: below 6 units per second the robot keeps its heading and only creeps along it, and the turn comes in fully by 20. Without
         // this the robots spin about on the noise as they start to move.
-        float believe = Mathf.Clamp01((headWant.magnitude - lowSpeed) / Mathf.Max(0.01f, fullTurnSpeed - lowSpeed));
+        float believe = Mathf.Clamp01((want.magnitude - lowSpeed) / Mathf.Max(0.01f, fullTurnSpeed - lowSpeed));
         double rotate = believe * turnDeg * Mathf.Deg2Rad / SteerTurnSecs * CubeHandle.TireWidthDot / CubeHandle.VDotOverU;
         handle.Move(translate, rotate, 200, false);
     }

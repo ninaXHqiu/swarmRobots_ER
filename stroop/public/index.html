@@ -19,6 +19,12 @@
     background: #222; color: #fff; cursor: pointer; }
   .scores { font-size: 32px; margin-bottom: 24px; line-height: 1.6; }
   .scores b { color: #ff2a2a; }
+  .modes { margin-bottom: 16px; }
+  .modes button.on { background: #fff; color: #000; border-color: #fff; }
+  .fixedNote { font-size: 20px; color: #aaa; margin: 8px 0; }
+  #doneTitle.fail, #doneTitle.success { font-size: 16vw; font-weight: 900; margin-bottom: 2vh; }
+  #doneTitle.fail { color: #ff2222; }
+  #doneTitle.success { color: #22dd22; }
 
   /* Intro screens */
   #intro { cursor: none; }
@@ -50,8 +56,15 @@
 <div id="setup" class="screen on">
   <div class="center">
     <h1>Stroop Task</h1>
-    <div class="field">Trials <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
-    <div class="field">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
+    <div class="modes">
+      <button id="modeFixed" data-mode="fixed">Fixed trials</button>
+      <button id="modeChallenge" data-mode="challenge">Streak challenge</button>
+      <button id="modeHard" data-mode="hard">Hard challenge</button>
+    </div>
+    <div class="field" data-for="fixed">Trials <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
+    <div class="field" data-for="fixed">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
+    <div class="fixedNote" data-for="challenge hard" id="challengeNote"></div>
+    <div class="fixedNote" data-for="hard" id="hardSetNote"></div>
     <button id="startBtn">Begin (Space)</button>
   </div>
 </div>
@@ -67,7 +80,7 @@
 
 <div id="done" class="screen">
   <div class="center">
-    <h1>Finished</h1>
+    <h1 id="doneTitle">Finished</h1>
     <div class="scores" id="finalScores"></div>
     <div>
       <button id="exportBtn">Export CSV</button>
@@ -79,8 +92,9 @@
 <script>
 const $ = (id) => document.getElementById(id);
 
-// Ink colours, tuned to be readable on a black background.
-const INK = {
+// Ink colours, tuned to be readable on a black background. Each colour's key is
+// its first letter, so the first letters within a set must all differ.
+const STANDARD = {
   RED: '#ff1a1a',
   BLUE: '#2f6bff',
   GREEN: '#1fbf1f',
@@ -90,11 +104,24 @@ const INK = {
   WHITE: '#ffffff',
   CYAN: '#00e5ff',
 };
-const COLOURS = Object.keys(INK);
+// The hard challenge uses one of these per session, taking the next set each
+// session. Each set has at least two colours of the same shade
+// (red/pink; green/lime and brown/orange; purple/violet).
+const HARD_SETS = [
+  { RED: '#ff1a1a', PINK: '#ff7ab8', BLUE: '#2f6bff', YELLOW: '#ffe100', WHITE: '#ffffff', CYAN: '#00e5ff' },
+  { BROWN: '#a0522d', ORANGE: '#ff8c00', GREEN: '#1fbf1f', LIME: '#9dff00', CYAN: '#00e5ff', MAGENTA: '#ff00ff' },
+  { ROSE: '#ff4d7a', PURPLE: '#9b40ff', VIOLET: '#c77dff', MINT: '#7dffb0', GREY: '#8a8a8a', NAVY: '#2b3fae' },
+];
 
-// Each colour's key is its first letter.
-const KEYS = Object.fromEntries(COLOURS.map((c) => [c, c[0].toLowerCase()]));
+// Three modes: 'fixed' runs a set number of trials; 'challenge' keeps going
+// until the streak reaches the target, and fails if the time limit runs out
+// first; 'hard' is the challenge with rotating colour sets, and the answer
+// after a streak of RIG_AT is always marked wrong, even when it is right.
 const MAX_TRIALS = 50;
+const CHALLENGE = { target: 25, minutes: 3, seconds: 1 };
+const RIG_AT = 16;
+let mode = 'fixed';
+const isChallenge = (m) => m === 'challenge' || m === 'hard';
 const FEEDBACK_MS = 1000;
 // The countdown still runs and times trials out; this only controls whether it is shown.
 const SHOW_TIMER = false;
@@ -144,37 +171,62 @@ function wrongSound() {
 
 // ---- Trials ----
 // Every trial is incongruent, and no word or ink repeats back to back.
+function makeTrial(prev) {
+  const colours = Object.keys(s.ink);
+  let word, ink;
+  do {
+    word = pick(colours);
+    ink = pick(colours.filter((c) => c !== word));
+  } while (prev && (word === prev.word || ink === prev.ink));
+  return { word, ink };
+}
+
 function makeTrials(n) {
   const out = [];
-  for (let i = 0; i < n; i++) {
-    const prev = out[out.length - 1];
-    let word, ink;
-    do {
-      word = pick(COLOURS);
-      ink = pick(COLOURS.filter((c) => c !== word));
-    } while (prev && (word === prev.word || ink === prev.ink));
-    out.push({ word, ink });
-  }
+  for (let i = 0; i < n; i++) out.push(makeTrial(out[out.length - 1]));
   return out;
 }
 
 // ---- Intro screens ----
 function introPages() {
+  // Example word for the intro: the set's first colour as the ink, a different colour as the word.
+  const names = Object.keys(s.ink);
+  const exInk = names[0];
+  const exWord = names.includes('GREEN') && exInk !== 'GREEN' ? 'GREEN' : names[2];
   const first = `<h2>Stroop task</h2>
        You will see colour words printed in a <b>different ink colour</b>.
        Press the key for the <b>ink colour</b>, not the word. For example, if you see:
-       <div class="example" style="color:${INK.RED}">GREEN</div>
-       the ink is red, so press <b>R</b>.<br>
-       You have ${s.seconds} seconds for each word. Answer as fast and as accurately as you can.`;
+       <div class="example" style="color:${s.ink[exInk]}">${exWord}</div>
+       the ink is ${exInk.toLowerCase()}, so press <b>${exInk[0]}</b>.<br>
+       You have ${s.seconds} ${s.seconds === 1 ? 'second' : 'seconds'} for each word. Answer as fast and as accurately as you can.` +
+    (isChallenge(s.mode)
+      ? `<br><br>Goal: get <b>${s.target} correct in a row</b> within <b>${formatMinutes(s.limitMs)}</b>.
+         A wrong answer, or running out of time on a word, resets your streak to 0.`
+      : '');
 
-  const rows = COLOURS.map((c) =>
-    `<div class="w" style="color:${INK[c]}">${c.toLowerCase()}</div><span>=</span><div class="k">${KEYS[c].toUpperCase()}</div>`).join('');
-  const second = `<h2>The keys</h2><div class="rows">${rows}</div>`;
+  const second = `<h2>The keys</h2>${keyRows()}`;
 
   return [
     first + '<div class="next">press space for the keys…</div>',
     second + `<div class="next">press space to start…</div>`,
   ];
+}
+
+// Each colour of the current set with its key.
+function keyRows() {
+  const rows = Object.entries(s.ink).map(([c, hex]) =>
+    `<div class="w" style="color:${hex}">${c.toLowerCase()}</div><span>=</span><div class="k">${c[0]}</div>`).join('');
+  return `<div class="rows">${rows}</div>`;
+}
+
+// Hard challenge: the colour set for the next session (1, 2, 3, 1, ...).
+let hardSet = 0;
+try { hardSet = (parseInt(localStorage.getItem('stroopHardSet'), 10) || 0) % HARD_SETS.length; } catch (e) {}
+
+function useSet(i) {
+  s.setIndex = i;
+  s.ink = s.mode === 'hard' ? HARD_SETS[i] : STANDARD;
+  s.byKey = Object.fromEntries(Object.keys(s.ink).map((c) => [c[0].toLowerCase(), c]));
 }
 
 // ---- Task state ----
@@ -190,12 +242,36 @@ function elapsed() {
   return s.activeMs + (s.paused ? 0 : performance.now() - s.clockStart);
 }
 
+// Time since the trials started, excluding pauses. Used for the challenge time limit.
+function sessionElapsed() {
+  return s.sessionMs + (s.paused ? 0 : performance.now() - s.sessionStart);
+}
+
+function formatMinutes(ms) {
+  const total = Math.round(ms / 1000);
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
+}
+
+function setMode(m) {
+  mode = m;
+  $('hardSetNote').textContent = `Colour set ${hardSet + 1} of ${HARD_SETS.length}: ` +
+    Object.keys(HARD_SETS[hardSet]).map((c) => c.toLowerCase()).join(', ');
+  for (const b of document.querySelectorAll('.modes button')) b.classList.toggle('on', b.dataset.mode === m);
+  for (const f of document.querySelectorAll('[data-for]')) f.hidden = !f.dataset.for.split(' ').includes(m);
+}
+
 function begin() {
   const trials = Math.max(1, Math.min(MAX_TRIALS, parseInt($('trialsIn').value, 10) || MAX_TRIALS));
-  const seconds = Math.max(1, Math.min(30, parseInt($('secondsIn').value, 10) || 3));
-  try { localStorage.setItem('stroopSettings', JSON.stringify({ trials, seconds })); } catch (e) {}
+  const fixedSeconds = Math.max(1, Math.min(30, parseInt($('secondsIn').value, 10) || 3));
+  try { localStorage.setItem('stroopSettings', JSON.stringify({ mode, trials, seconds: fixedSeconds })); } catch (e) {}
   unlockAudio();
-  s = { count: trials, seconds, log: [], paused: false };
+  const seconds = isChallenge(mode) ? CHALLENGE.seconds : fixedSeconds;
+  s = { mode, count: trials, seconds, target: CHALLENGE.target, limitMs: CHALLENGE.minutes * 60000, log: [], paused: false };
+  useSet(mode === 'hard' ? hardSet : 0);
+  if (mode === 'hard') {
+    hardSet = (hardSet + 1) % HARD_SETS.length;
+    try { localStorage.setItem('stroopHardSet', hardSet); } catch (e) {}
+  }
   startIntro();
 }
 
@@ -214,10 +290,10 @@ function nextIntroPage() {
     return;
   }
   // Start the trials.
-  s.keys = KEYS;
-  s.byKey = Object.fromEntries(Object.entries(s.keys).map(([colour, key]) => [key, colour]));
-  s.trials = makeTrials(s.count);
+  s.trials = s.mode === 'fixed' ? makeTrials(s.count) : [];
   s.index = -1;
+  s.sessionMs = 0;
+  s.sessionStart = performance.now();
   // The score on screen is a streak: +1 per correct answer, back to 0 on a wrong one.
   s.streak = 0;
   s.best = 0;
@@ -229,6 +305,7 @@ function nextIntroPage() {
 
 function nextTrial() {
   s.index += 1;
+  if (isChallenge(s.mode)) s.trials.push(makeTrial(s.trials[s.index - 1]));
   if (s.index >= s.trials.length) return finish();
   s.phase = 'running';
   s.activeMs = 0;
@@ -236,10 +313,12 @@ function nextTrial() {
   const t = s.trials[s.index];
   const word = $('word');
   word.className = '';
-  word.style.color = INK[t.ink];
+  word.style.color = s.ink[t.ink];
+  word.style.fontSize = `${Math.min(22, 132 / t.word.length)}vw`;  // long names still fit
   word.textContent = t.word;
   renderClock();
 }
+
 
 function remaining() {
   return Math.max(0, s.seconds - Math.floor(elapsed() / 1000));
@@ -250,11 +329,21 @@ function renderClock() {
   const cd = $('countdown');
   cd.textContent = left;
   cd.style.color = `hsl(${Math.round(120 * (left / s.seconds))}, 100%, 50%)`;
-  $('score').textContent = `${s.streak} / ${s.trials.length}`;
+  $('score').textContent = scoreText();
+}
+
+// Streak over the goal: the number of trials, or the target streak in a challenge.
+function scoreText() {
+  return `${s.streak} / ${isChallenge(s.mode) ? s.target : s.trials.length}`;
 }
 
 function tick() {
-  if (!s || s.phase !== 'running' || s.paused) return;
+  if (!s || s.paused) return;
+  if (isChallenge(s.mode) && (s.phase === 'running' || s.phase === 'feedback') && sessionElapsed() >= s.limitMs) {
+    finish('fail');
+    return;
+  }
+  if (s.phase !== 'running') return;
   if (elapsed() >= s.seconds * 1000) {
     resolve(null);
     return;
@@ -268,7 +357,10 @@ function resolve(key) {
   s.phase = 'feedback';
   const t = s.trials[s.index];
   const rt = Math.round(elapsed());
-  const isCorrect = key !== null && s.byKey[key] === t.ink;
+  const right = key !== null && s.byKey[key] === t.ink;
+  // Hard challenge: the answer after a streak of RIG_AT is marked wrong anyway.
+  const rigged = s.mode === 'hard' && right && s.streak === RIG_AT;
+  const isCorrect = right && !rigged;
   const sound = isCorrect ? '' : wrongSound();
   s.streak = isCorrect ? s.streak + 1 : 0;
   s.best = Math.max(s.best, s.streak);
@@ -276,20 +368,28 @@ function resolve(key) {
     trial: s.index + 1,
     word: t.word,
     ink: t.ink,
-    answer_key: s.keys[t.ink].toUpperCase(),
+    colour_set: s.mode === 'hard' ? s.setIndex + 1 : '',
+    answer_key: t.ink[0],
     key: key ? key.toUpperCase() : '',
     response: key ? s.byKey[key] : '',
     result: isCorrect ? 'correct' : 'wrong',
+    rigged: rigged ? 'yes' : '',
     source: key ? 'response' : 'timeout',
     sound,
     rt_ms: key ? rt : '',
     streak: s.streak,
+    session_ms: Math.round(sessionElapsed()),
   });
+  if (isChallenge(s.mode) && s.streak >= s.target) {
+    finish('success');
+    return;
+  }
 
   if (key === null) $('countdown').textContent = 0;
-  $('score').textContent = `${s.streak} / ${s.trials.length}`;
+  $('score').textContent = scoreText();
   const word = $('word');
   word.className = 'feedback';
+  word.style.fontSize = '';
   word.style.color = isCorrect ? '#22dd22' : '#ff2222';
   word.textContent = isCorrect ? 'CORRECT' : 'WRONG';
   if (sound) playSound(sound);
@@ -298,16 +398,30 @@ function resolve(key) {
   s.feedbackTimer = setTimeout(nextTrial, FEEDBACK_MS);
 }
 
-function finish() {
+// outcome is 'success' or 'fail' in a challenge; nothing in fixed mode.
+function finish(outcome) {
   clearInterval(ticker);
+  clearTimeout(s.feedbackTimer);
   s.phase = 'done';
-  $('finalScores').innerHTML = `Best streak: <b>${s.best} / ${s.trials.length}</b>`;
+  s.outcome = outcome || '';
+  const title = $('doneTitle');
+  title.className = s.outcome;
+  if (isChallenge(s.mode)) {
+    title.textContent = outcome === 'success' ? 'SUCCESS' : 'FAIL';
+    $('finalScores').innerHTML = outcome === 'success'
+      ? `${s.target} in a row in <b>${formatMinutes(sessionElapsed())}</b>`
+      : `Best streak: <b>${s.best} / ${s.target}</b>`;
+  } else {
+    title.textContent = 'Finished';
+    $('finalScores').innerHTML = `Best streak: <b>${s.best} / ${s.trials.length}</b>`;
+  }
   show('done');
 }
 
 function togglePause() {
   if (!s.paused) {
     s.activeMs = elapsed();
+    s.sessionMs = sessionElapsed();
     s.paused = true;
     if (s.phase === 'feedback') {
       clearTimeout(s.feedbackTimer);
@@ -316,6 +430,7 @@ function togglePause() {
   } else {
     s.paused = false;
     s.clockStart = performance.now();
+    s.sessionStart = performance.now();
     if (s.phase === 'feedback') {
       s.feedbackStart = performance.now();
       s.feedbackTimer = setTimeout(nextTrial, Math.max(0, s.feedbackLeft));
@@ -328,24 +443,29 @@ function quitToSetup() {
   clearInterval(ticker);
   clearTimeout(s.feedbackTimer);
   s = null;
+  setMode(mode);
   $('pausedNote').classList.remove('on');
   show('setup');
 }
 
 function exportCsv() {
-  const cols = ['trial', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'source', 'sound', 'rt_ms', 'streak'];
-  const header = ['trial', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
-    'correct_wrong', 'response_timeout', 'sound', 'response_time_ms', 'streak'];
+  const cols = ['trial', 'colour_set', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'rigged', 'source', 'sound',
+    'rt_ms', 'streak', 'session_ms'];
+  const header = ['trial', 'colour_set', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
+    'correct_wrong', 'marked_wrong_on_purpose', 'response_timeout', 'sound', 'response_time_ms', 'streak', 'time_since_start_ms'];
   const lines = [header.join(','), ...s.log.map((r) => cols.map((c) => r[c]).join(','))];
   const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `stroop-${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
+  const tag = isChallenge(s.mode) ? `${s.mode}-${s.outcome}-` : '';
+  a.download = `stroop-${tag}${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 $('countdown').hidden = !SHOW_TIMER;
+$('challengeNote').textContent =
+  `${CHALLENGE.target} in a row · ${CHALLENGE.minutes} min limit · ${CHALLENGE.seconds} s per word`;
 
 // ---- Input ----
 document.addEventListener('keydown', (e) => {
@@ -368,14 +488,20 @@ document.addEventListener('keydown', (e) => {
   if (s.byKey[key]) resolve(key);
 });
 
+for (const b of document.querySelectorAll('.modes button')) b.onclick = () => { setMode(b.dataset.mode); b.blur(); };  // blur so Space still begins
 $('startBtn').onclick = begin;
 $('exportBtn').onclick = exportCsv;
-$('againBtn').onclick = () => { s = null; show('setup'); };
+$('againBtn').onclick = () => { s = null; setMode(mode); show('setup'); };
 
 try {
   const saved = JSON.parse(localStorage.getItem('stroopSettings'));
-  if (saved) { $('trialsIn').value = saved.trials; $('secondsIn').value = saved.seconds; }
+  if (saved) {
+    $('trialsIn').value = saved.trials;
+    $('secondsIn').value = saved.seconds;
+    if (saved.mode) mode = saved.mode;
+  }
 } catch (e) {}
+setMode(mode);
 </script>
 </body>
 </html>

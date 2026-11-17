@@ -213,9 +213,7 @@ function introPages() {
 
   // Challenges get a third screen with what it takes to pass.
   const third = `<h2>To pass the test</h2>
-       You need a score of <b>${s.target}</b>: ${s.target} correct answers <b>in a row</b>,
-       within <b>${formatMinutes(s.limitMs)}</b>.<br><br>
-       A wrong answer, or running out of time on a word, resets your score to 0.`;
+       You need a score of <b>${s.target}</b>.`;
   return [
     first + '<div class="next">press space for the keys…</div>',
     second + '<div class="next">press space to continue…</div>',

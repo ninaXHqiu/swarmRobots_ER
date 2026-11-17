@@ -21,7 +21,6 @@
   .scores b { color: #ff2a2a; }
   .modes { margin-bottom: 16px; }
   .modes button.on { background: #fff; color: #000; border-color: #fff; }
-  .fixedNote { font-size: 20px; color: #aaa; margin: 8px 0; }
   #doneTitle.fail, #doneTitle.success { font-size: 16vw; font-weight: 900; margin-bottom: 2vh; }
   #doneTitle.fail { color: #ff2222; }
   #doneTitle.success { color: #22dd22; }
@@ -42,7 +41,6 @@
   #countdown[hidden] { display: none; }
   #countdown { position: fixed; top: 2vh; right: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
   #score { position: fixed; top: 3vh; left: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
-  #goal { position: fixed; top: 14.5vh; left: 3vw; font-size: 3.2vh; color: #ccc; }
   #word { font-size: 22vw; font-weight: 900; letter-spacing: 0.02em; }
   #word.feedback { font-size: 16vw; }
 
@@ -64,8 +62,6 @@
     </div>
     <div class="field" data-for="fixed">Trials <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
     <div class="field" data-for="fixed">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
-    <div class="fixedNote" data-for="challenge hard" id="challengeNote"></div>
-    <div class="fixedNote" data-for="hard" id="hardSetNote"></div>
     <button id="startBtn">Begin (Space)</button>
   </div>
 </div>
@@ -75,7 +71,6 @@
 <div id="task" class="screen">
   <div id="countdown"></div>
   <div id="score"></div>
-  <div id="goal"></div>
   <div class="center"><div id="word"></div></div>
   <div id="pausedNote">Paused<small>Esc to resume · Q to quit to setup</small></div>
 </div>
@@ -191,15 +186,11 @@ function makeTrials(n) {
 
 // ---- Intro screens ----
 function introPages() {
-  // Example word for the intro: the set's first colour as the ink, a different colour as the word.
-  const names = Object.keys(s.ink);
-  const exInk = names[0];
-  const exWord = names.includes('GREEN') && exInk !== 'GREEN' ? 'GREEN' : names[2];
   const first = `<h2>Stroop task</h2>
        You will see colour words printed in a <b>different ink colour</b>.
        Press the key for the <b>ink colour</b>, not the word. For example, if you see:
-       <div class="example" style="color:${s.ink[exInk]}">${exWord}</div>
-       the ink is ${exInk.toLowerCase()}, so press <b>${exInk[0]}</b>.<br>
+       <div class="example" style="color:${STANDARD.RED}">GREEN</div>
+       the ink is red, so press <b>R</b>.<br>
        You have ${s.seconds} ${s.seconds === 1 ? 'second' : 'seconds'} for each word. Answer as fast and as accurately as you can.`;
 
   const second = `<h2>The keys</h2>${keyRows()}`;
@@ -263,8 +254,6 @@ function formatMinutes(ms) {
 
 function setMode(m) {
   mode = m;
-  $('hardSetNote').textContent = `Colour set ${hardSet + 1} of ${HARD_SETS.length}: ` +
-    Object.keys(HARD_SETS[hardSet]).map((c) => c.toLowerCase()).join(', ');
   for (const b of document.querySelectorAll('.modes button')) b.classList.toggle('on', b.dataset.mode === m);
   for (const f of document.querySelectorAll('[data-for]')) f.hidden = !f.dataset.for.split(' ').includes(m);
 }
@@ -306,7 +295,6 @@ function nextIntroPage() {
   // The score on screen is a streak: +1 per correct answer, back to 0 on a wrong one.
   s.streak = 0;
   s.best = 0;
-  $('goal').textContent = isChallenge(s.mode) ? `Get ${s.target} in a row to pass` : '';
   show('task');
   nextTrial();
   clearInterval(ticker);
@@ -324,7 +312,6 @@ function nextTrial() {
   const word = $('word');
   word.className = '';
   word.style.color = s.ink[t.ink];
-  word.style.fontSize = `${Math.min(22, 132 / t.word.length)}vw`;  // long names still fit
   word.textContent = t.word;
   renderClock();
 }
@@ -399,7 +386,6 @@ function resolve(key) {
   $('score').textContent = scoreText();
   const word = $('word');
   word.className = 'feedback';
-  word.style.fontSize = '';
   word.style.color = isCorrect ? '#22dd22' : '#ff2222';
   word.textContent = isCorrect ? 'CORRECT' : 'WRONG';
   if (sound) playSound(sound);
@@ -474,8 +460,6 @@ function exportCsv() {
 }
 
 $('countdown').hidden = !SHOW_TIMER;
-$('challengeNote').textContent =
-  `${CHALLENGE.target} in a row · ${CHALLENGE.minutes} min limit · ${CHALLENGE.seconds} s per word`;
 
 // ---- Input ----
 document.addEventListener('keydown', (e) => {

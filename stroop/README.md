@@ -18,7 +18,7 @@ The participant presses the first letter of the **ink colour**, not the word:
 - Start screen: pick a mode. Space or the Begin button starts.
   - **Fixed trials**: a set number of trials (max 50) with a chosen countdown per word; the end screen shows the best streak.
   - **Streak challenge**: fixed at 25 in a row, a 3 minute limit and 1 s per word (`CHALLENGE` in `index.html`). Trials keep coming until the streak reaches 25, which ends with a big green **SUCCESS**; if the 3 minutes run out first, it ends with a same-size red **FAIL**. Paused time doesn't count. The intro tells the participant the goal and the limit.
-  - **Hard challenge**: the streak challenge with two extras. Each session uses one of three colour sets (`HARD_SETS`), taking the next set each session (1, 2, 3, 1, ...; remembered by the browser); the start screen shows which set is next. Each set has two colours of the same shade:
+  - **Hard challenge**: the streak challenge with two extras. Each session uses one of three colour sets (`HARD_SETS`), taking the next set each session (1, 2, 3, 1, ...; remembered by the browser). Each set has two colours of the same shade:
     1. red, pink, blue, yellow, white, cyan
     2. brown, orange, green, lime, cyan, magenta
     3. rose, purple, violet, mint, grey, navy

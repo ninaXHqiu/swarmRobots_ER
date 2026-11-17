@@ -42,6 +42,7 @@
   #countdown[hidden] { display: none; }
   #countdown { position: fixed; top: 2vh; right: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
   #score { position: fixed; top: 3vh; left: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #goal { position: fixed; top: 14.5vh; left: 3vw; font-size: 3.2vh; color: #ccc; }
   #word { font-size: 22vw; font-weight: 900; letter-spacing: 0.02em; }
   #word.feedback { font-size: 16vw; }
 
@@ -74,6 +75,7 @@
 <div id="task" class="screen">
   <div id="countdown"></div>
   <div id="score"></div>
+  <div id="goal"></div>
   <div class="center"><div id="word"></div></div>
   <div id="pausedNote">Paused<small>Esc to resume · Q to quit to setup</small></div>
 </div>
@@ -198,17 +200,26 @@ function introPages() {
        Press the key for the <b>ink colour</b>, not the word. For example, if you see:
        <div class="example" style="color:${s.ink[exInk]}">${exWord}</div>
        the ink is ${exInk.toLowerCase()}, so press <b>${exInk[0]}</b>.<br>
-       You have ${s.seconds} ${s.seconds === 1 ? 'second' : 'seconds'} for each word. Answer as fast and as accurately as you can.` +
-    (isChallenge(s.mode)
-      ? `<br><br>Goal: get <b>${s.target} correct in a row</b> within <b>${formatMinutes(s.limitMs)}</b>.
-         A wrong answer, or running out of time on a word, resets your streak to 0.`
-      : '');
+       You have ${s.seconds} ${s.seconds === 1 ? 'second' : 'seconds'} for each word. Answer as fast and as accurately as you can.`;
 
   const second = `<h2>The keys</h2>${keyRows()}`;
 
+  if (!isChallenge(s.mode)) {
+    return [
+      first + '<div class="next">press space for the keys…</div>',
+      second + '<div class="next">press space to start…</div>',
+    ];
+  }
+
+  // Challenges get a third screen with what it takes to pass.
+  const third = `<h2>To pass the test</h2>
+       You need a score of <b>${s.target}</b>: ${s.target} correct answers <b>in a row</b>,
+       within <b>${formatMinutes(s.limitMs)}</b>.<br><br>
+       A wrong answer, or running out of time on a word, resets your score to 0.`;
   return [
     first + '<div class="next">press space for the keys…</div>',
-    second + `<div class="next">press space to start…</div>`,
+    second + '<div class="next">press space to continue…</div>',
+    third + '<div class="next">press space to start…</div>',
   ];
 }
 
@@ -297,6 +308,7 @@ function nextIntroPage() {
   // The score on screen is a streak: +1 per correct answer, back to 0 on a wrong one.
   s.streak = 0;
   s.best = 0;
+  $('goal').textContent = isChallenge(s.mode) ? `Get ${s.target} in a row to pass` : '';
   show('task');
   nextTrial();
   clearInterval(ticker);

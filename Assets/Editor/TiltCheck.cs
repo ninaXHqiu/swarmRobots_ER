@@ -35,7 +35,7 @@ public static class TiltCheck
             ("smooth 0.2 + gate 10/28 + flip only above 14", 0.2f, 10f, 28f, 14f),
             ("smooth 0.2 + gate 14/34 + flip only above 18", 0.2f, 14f, 34f, 18f),
         };
-        foreach (var (name, plan) in plans.Skip(1))
+        foreach (var (name, plan) in plans)
             foreach (var v in variants)
             {
                 LowSpeed = v.Item3; FullTurn = v.Item4; FlipMinSpeed = v.Item5;
@@ -52,7 +52,7 @@ public static class TiltCheck
         var pos = new Vector2[n]; var head = new float[n]; var rev = new bool[n]; var hold = new bool[n]; var hw = new Vector2[n];
         var queue = new System.Collections.Generic.Queue<Vector2>[n];     // delayed commands: (drive, turn rate)
         var lastDir = new float[n]; var lastAxis = new float[n];
-        var snap = new System.Collections.Generic.List<(float t, float[] head, Vector2[] pos)>(); int circling = 0; string circAt = ""; float nextSnap = 0f;
+        var snap = new System.Collections.Generic.List<(float t, float[] head, Vector2[] pos)>(); int circling = 0, orbit = 0; string circAt = "", orbAt = ""; float nextSnap = 0f;
         for (int i = 0; i < n; i++)
         {
             pos[i] = plan.Position(i, 0f); head[i] = 0f; queue[i] = new System.Collections.Generic.Queue<Vector2>();
@@ -69,7 +69,14 @@ public static class TiltCheck
                 nextSnap += 0.5f; snap.Add((t, (float[])head.Clone(), (Vector2[])pos.Clone()));
                 int back = snap.Count - 13;
                 if (back >= 0) for (int i = 0; i < n; i++)
-                    if (Mathf.Abs(head[i] - snap[back].head[i]) * Mathf.Rad2Deg > 300f && Vector2.Distance(pos[i], snap[back].pos[i]) < 25f) { circling++; if (circAt.Length < 60) { circAt += string.Format(" t={0:0} robot {1};", t, i); } snap.RemoveRange(0, 0); }
+                {
+                    for (int j = i + 1; j < n; j++)
+                    {
+                        float b0 = Mathf.Atan2(snap[back].pos[j].y - snap[back].pos[i].y, snap[back].pos[j].x - snap[back].pos[i].x), b1 = Mathf.Atan2(pos[j].y - pos[i].y, pos[j].x - pos[i].x);
+                        if (Vector2.Distance(pos[i], pos[j]) < 80f && Vector2.Distance(snap[back].pos[i], snap[back].pos[j]) < 80f && Mathf.Abs(Mathf.DeltaAngle(b0 * Mathf.Rad2Deg, b1 * Mathf.Rad2Deg)) > 120f) { orbit++; if (orbAt.Length < 60) { orbAt += string.Format(" t={0:0} robots {1},{2};", t, i, j); } }
+                    }
+                    if (Mathf.Abs(head[i] - snap[back].head[i]) * Mathf.Rad2Deg > 100f && Vector2.Distance(pos[i], snap[back].pos[i]) < 30f) { circling++; if (circAt.Length < 60) { circAt += string.Format(" t={0:0} robot {1};", t, i); } snap.RemoveRange(0, 0); }
+                }
             }
             int w = Mathf.Min(winCount - 1, (int)(t / win));
             for (int i = 0; i < n; i++)
@@ -126,7 +133,9 @@ public static class TiltCheck
             if (sections != null) { foreach (var k in sections) { if (k.Key <= t0 + 0.01f) { sec = k.Value; } } }
             sb.AppendFormat("  {0,5:0}-{1,5:0} s  spin {2,6:0} deg  needed {3,6:0} deg  flips {4,2}  worst miss {5,4:0} deg   {6}\n", t0, t0 + win, spin[w] / n, need[w] / n, flips[w], maxErr[w], sec);
         }
-        sb.AppendFormat("  circling in place (300+ degrees within 6 s, moving under 25 units): {0} sightings{1}\n", circling, circAt);
+        { float worst = 0f, startWorst = 0f; var own = V2Show.OwnSpots(n); for (int i = 0; i < n; i++) { worst = Mathf.Max(worst, Vector2.Distance(plan.Position(i, plan.Total), own[i])); } sb.AppendFormat("  ends within {0:0.0} units of the own line spots (the line at y={1})\n", worst, own[0].y); }
+        sb.AppendFormat("  circling in place (over 100 degrees within 6 s, moving under 30 units): {0} sightings{1}\n", circling, circAt);
+        sb.AppendFormat("  two robots going round each other (close, bearing turned over 120 degrees in 6 s): {0} sightings{1}\n", orbit, orbAt);
         // summary per section: spin against needed, worst miss, flips
         if (sections != null)
         {

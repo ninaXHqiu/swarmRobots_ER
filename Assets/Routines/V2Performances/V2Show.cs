@@ -69,6 +69,11 @@ public static class V2Show
         var plan = makePlan(start);
         if (approachWithin > 0f) { plan = WithApproach.Wrap(plan, approachWithin, n); }
         yield return Flow(ctx, plan, plan.Total + HoldSecs, maxSpeed, skip, extra);
+        // Safety net: the path ends every robot on its own line spot. If one is still well away from it (it fell behind or was shoved), it is
+        // brought in now, so the next routine starts from the line and nobody has to restart. Nothing happens when they are all on their spots.
+        bool off = false;
+        for (int i = 0; i < n; i++) { if (Vector2.Distance(new Vector2(ctx.Cubes[i].x, ctx.Cubes[i].y), plan.LineSpot(i)) > 30f) { off = true; } }
+        if (off) { Physio.Marker("ending: robots not on the line, bringing them in"); yield return ToOwnSlots(ctx); }
         // The ending: the path itself brings every robot onto its own spot and it holds there while the steering closes the last
         // few units smoothly (no separate stop-and-go settle: that made the robots shake), then all turn in place to face the participant
         Physio.Marker("ending");

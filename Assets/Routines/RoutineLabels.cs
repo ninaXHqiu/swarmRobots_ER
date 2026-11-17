@@ -27,7 +27,9 @@ public static class RoutineLabels
         {
             Debug.LogWarning("RoutineLabels: label " + g.Key + " is used by " + string.Join(", ", g.Select(r => r.Name).ToArray()));
         }
-        return routines.OrderBy(r => Key(r)).ThenBy(r => r.Name).ToList();
+        var sorted = routines.OrderBy(r => Key(r)).ThenBy(r => r.Name).ToList();
+        sorted.Reverse();   // newest first: the list is shown in reverse order
+        return sorted;
     }
 
     // A01 < A02 < ... < B01 < ... ; C06.n < C06.3 < C06.5

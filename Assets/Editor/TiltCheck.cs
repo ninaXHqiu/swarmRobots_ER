@@ -21,6 +21,7 @@ public static class TiltCheck
         var start = Enumerable.Range(0, 8).Select(i => i == V2Show.MessengerSlot(8) ? V2Show.TalkSpot : line[i]).ToArray();
         var plans = new (string, V2Show.IPlan)[]
         {
+            ("C13 FightBreathing (approved, for comparison)", new V2FightBreathing.Plan(start)),
             ("C22 Cheerleading", new V2Cheerleading.Plan(start)),
             ("C24 CheerBreathing", new V2CheerBreathing.Plan(start)),
         };

@@ -80,8 +80,7 @@
 <script>
 // Stroop study: participant ID, welcome, then three sections of
 // Stroop -> FAIL -> timed eval -> instructions -> eval, then the end page.
-// The 6th eval's Submit uploads one CSV per participant to the Drive folder.
-const UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbwK281UiBzNMpsnoopaXs3mcaizX3VkLFD1v_xhIHK6yG4dJXDpAiQE-W1IW1TuY787RA/exec';
+// The 6th eval's Submit downloads one CSV per participant.
 const STROOP_MS = 3 * 60 * 1000;   // each Stroop runs this long
 const WORD_MS = 1000;              // time per word
 // A correct answer that would bring the streak to one of these is marked wrong
@@ -99,7 +98,7 @@ const INSTRUCTIONS = [
   'Now look at the robots.',
   'Now look at the robots.',
 ];
-const ROBOT_MS = 4 * 60 * 1000;   // the Next button shows this long after "Now look at the robots."
+const ROBOT_MS = 2 * 60 * 1000;   // the Next button shows this long after "Now look at the robots."
 const SAM = [
   { id: 'sam_valence', img: 'valence', left: 'Unhappy', right: 'Happy' },
   { id: 'sam_arousal', img: 'arousal', left: 'Calm', right: 'Excited' },
@@ -329,11 +328,18 @@ function startTimer() {
   ticker = setInterval(tick, 50);
 }
 
+// Local clock time, e.g. 2026-11-18 14:32:05
+function clockTime() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 function submitEval(e) {
   e.preventDefault();
   const value = (name) => $('form').querySelector(`input[name="${name}"]:checked`)?.value || '';
   const row = {
-    participant_id: st.id, section: st.section + 1, eval: evalTimed ? 'after_stroop' : 'after_instructions',
+    participant_id: st.id, timestamp: clockTime(), section: st.section + 1, eval: evalTimed ? 'after_stroop' : 'after_instructions',
     stroop_score: st.score,
   };
   for (const it of SAM) row[it.id] = value(it.id);
@@ -341,8 +347,8 @@ function submitEval(e) {
   st.rows.push(row);
 
   if (evalTimed) return instructions();
-  if (st.section === SETS.length - 1) {   // the 6th eval's Submit sends the data
-    upload();
+  if (st.section === SETS.length - 1) {   // the 6th eval's Submit saves the data
+    download();
     return end();
   }
   ready();
@@ -365,15 +371,18 @@ function instructions() {
 }
 
 // One CSV per participant: a row per eval, with that section's final Stroop score.
-function upload() {
+function download() {
   const cols = [];
   for (const r of st.rows) for (const c of Object.keys(r)) if (!cols.includes(c)) cols.push(c);
   const csv = [cols.join(','), ...st.rows.map((r) => cols.map((c) => r[c] ?? '').join(','))].join('\n') + '\n';
   const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
-  fetch(UPLOAD_URL, {
-    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ filename: `${st.id || 'noid'}_${stamp}.csv`, csv }),
-  }).catch(() => {});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${st.id || 'noid'}_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ---- End page: fireworks into a heart, then a smile ----
@@ -382,7 +391,7 @@ const HEART = [[1, 0], [3, 0], [0, 1], [2, 1], [4, 1], [1, 2], [3, 2], [2, 3]].m
 // SMILE[i] is where heart square i goes: 2-square eyes and an evenly spaced mouth.
 const SMILE = [[1, 0], [4, 0], [1, 1], [10 / 3, 4], [4, 1], [0, 3], [5, 3], [5 / 3, 4]].map(([x, y]) => [x + 0.5, y + 0.25]);
 const FIREWORKS_MS = 2600;
-const HOLD_MS = 1000;
+const BEAT_MS = 1600;   // the heart beats twice (bigger, smaller) in this time, then turns into the smile
 const MORPH_MS = 800;
 
 function end() {
@@ -416,12 +425,18 @@ function fireworks() {
     ], { duration: FIREWORKS_MS, fill: 'forwards', easing: 'ease-in-out' });
   });
   setTimeout(() => {
+    box.animate([
+      { transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' },
+      { transform: 'scale(1.25)' }, { transform: 'scale(1)' },
+    ], { duration: BEAT_MS, easing: 'ease-in-out' });
+  }, FIREWORKS_MS);
+  setTimeout(() => {
     squares.forEach((sq, i) => sq.animate([
       { transform: `translate(${HEART[i][0] * STEP}px, ${HEART[i][1] * STEP}px)` },
       { transform: `translate(${SMILE[i][0] * STEP}px, ${SMILE[i][1] * STEP}px)` },
     ], { duration: MORPH_MS, fill: 'forwards', easing: 'ease-in-out' }));
-  }, FIREWORKS_MS + HOLD_MS);
-  setTimeout(() => { $('byeBtn').style.visibility = 'visible'; }, FIREWORKS_MS + HOLD_MS + MORPH_MS);
+  }, FIREWORKS_MS + BEAT_MS);
+  setTimeout(() => { $('byeBtn').style.visibility = 'visible'; }, FIREWORKS_MS + BEAT_MS + MORPH_MS);
 }
 
 document.addEventListener('keydown', (e) => {

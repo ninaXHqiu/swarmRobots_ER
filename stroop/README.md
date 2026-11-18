@@ -14,11 +14,11 @@ Publishing: `tools/publish-pages.sh` copies `stroop/public/` (without `audio/ori
    - the Stroop task page and the goal page ("Lowest score was 25! Your goal is to beat it!") in section 1 only, and the colours page;
    - the Stroop: 3 minutes, 1 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. A correct answer that would bring the streak to 5, 10, 15 or 20 is marked wrong with a 50, 65, 80 or 95% chance, and to 24 always (`FORCED_WRONG`), so 25 is never reached;
    - FAIL flashes, then the eval with a 25 s countdown bar (SAM valence and arousal with the SAM pictures, STAI-6);
-   - an instructions page (section 1: baseline; sections 2 and 3: "Now look at the robots.", where Next only appears after 4 minutes, `ROBOT_MS`), then the same eval again without a timer and "How do you feel now?";
+   - an instructions page (section 1: baseline; sections 2 and 3: "Now look at the robots.", where Next only appears after 2 minutes, `ROBOT_MS`), then the same eval again without a timer and "How do you feel now?";
    - after sections 1 and 2: "Ready for the next test?".
 
    Every eval question must be answered before Submit works. SAM pictures are in `public/image/`.
-4. The 6th eval's Submit uploads one CSV to the Google Drive folder (through the Apps Script web app in `UPLOAD_URL`), named `<ID>_<date>.csv`, with one row per eval (6 rows): section, which eval, that section's final Stroop score, and the SAM and STAI-6 answers.
+4. The 6th eval's Submit downloads one CSV, named `<ID>_<date>.csv` (to save straight into OneDrive, set the browser's download folder to a OneDrive-synced folder and turn off "ask where to save"), with one row per eval (6 rows): the time it was submitted, section, which eval, that section's final Stroop score, and the SAM and STAI-6 answers.
 5. End page: fireworks into a heart, then a smile; Bye Bye! turns the screen off like an old TV.
 
 Colour sets, one per section (`SETS`):

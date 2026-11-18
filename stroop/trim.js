@@ -2,9 +2,11 @@
 // It measures loudness every 50 ms, finds where the sound actually is (so
 // silence at the start or end is dropped), and if the sound is longer than
 // MAX_SEC keeps the loudest MAX_SEC window. Short fades avoid clicks.
-// Each clip is brought to the same peak loudness (PEAK_DB).
+// Every clip is brought to the same perceived loudness (LOUDNESS_LUFS), with a
+// limiter so the peaks stay at PEAK_DB and nothing distorts.
 // Clips in FULL_LENGTH keep their whole sound (only silence at the ends is
-// dropped); clips in AS_IS are used exactly as downloaded.
+// dropped); clips in AS_IS keep their whole downloaded length (only the
+// loudness is changed).
 // Writes <name>.mp3; originals are kept in public/audio/originals/. Needs ffmpeg.
 // Safe to re-run: trimmed outputs are tagged, so they're re-cut from the
 // original instead of being treated as new files.
@@ -20,7 +22,8 @@ const FRAME_SEC = 0.05;
 const SILENCE_BELOW_PEAK_DB = 30; // quieter than peak minus this counts as silence
 const FADE_IN_SEC = 0.015;
 const FADE_OUT_SEC = 0.12;
-const PEAK_DB = -1; // every clip is brought to the same peak, just under full scale
+const PEAK_DB = -1;          // limiter ceiling, just under full scale
+const LOUDNESS_LUFS = -5;    // every clip ends up this loud (the buzzer, the loudest clip, was -4.9)
 const FULL_LENGTH = ['w_boo'];
 const AS_IS = ['w_mocking'];
 const TAG = 'stroop-trimmed';
@@ -44,11 +47,25 @@ function envelope(file) {
   return [...out.matchAll(/RMS_level=(\S+)/g)].map((m) => (m[1] === '-inf' ? -120 : parseFloat(m[1])));
 }
 
-// Loudest sample level in dB of the file after the given filter.
-function peakDb(file, filter) {
-  const res = spawnSync('ffmpeg', ['-i', file, '-af', `${filter},volumedetect`, '-f', 'null', '-']);
-  const m = res.stderr.toString().match(/max_volume: (-?[\d.]+) dB/);
-  return m ? parseFloat(m[1]) : PEAK_DB;
+// Integrated loudness (LUFS) of the file after the given filters.
+function loudness(file, filters) {
+  const res = spawnSync('ffmpeg', ['-hide_banner', '-i', file, '-af', [...filters, 'ebur128'].join(','), '-f', 'null', '-']);
+  const m = [...res.stderr.toString().matchAll(/I:\s+(-?[\d.]+) LUFS/g)].pop();
+  return m ? parseFloat(m[1]) : LOUDNESS_LUFS;
+}
+
+// Gain plus limiter that brings the clip to LOUDNESS_LUFS. The limiter takes
+// some loudness back off peaky clips, so the gain is corrected a few times.
+function loudnessFilters(file, cut) {
+  const limit = Math.pow(10, PEAK_DB / 20).toFixed(3);
+  const chain = (g) => [...cut, `volume=${g.toFixed(2)}dB`, `alimiter=limit=${limit}:attack=1:release=50:level=disabled`];
+  let gain = LOUDNESS_LUFS - loudness(file, cut);
+  for (let i = 0; i < 12; i++) {
+    const off = LOUDNESS_LUFS - loudness(file, chain(gain));
+    if (Math.abs(off) < 0.3) break;
+    gain += off;
+  }
+  return chain(gain);
 }
 
 // Returns [start, end] in seconds of the part worth keeping.
@@ -96,25 +113,23 @@ for (const f of files) {
   const out = path.join(AUDIO, `${name}.mp3`);
   const before = parseFloat(probe(original, 'format=duration')).toFixed(2);
   if (AS_IS.includes(name)) {
-    const codec = path.extname(original).toLowerCase() === '.mp3' ? ['-c', 'copy'] : ['-q:a', '2'];
-    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', original, ...codec, '-metadata', `comment=${TAG}`, out]);
-    console.log(`${name}: ${before}s, used as is`);
+    const filter = loudnessFilters(original, ['anull']).join(',');
+    execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', original, '-af', filter, '-metadata', `comment=${TAG}`, '-q:a', '2', out]);
+    console.log(`${name}: ${before}s, full length, ${loudness(out, ['anull']).toFixed(1)} LUFS`);
     continue;
   }
 
   const [start, end] = pickWindow(envelope(original), FULL_LENGTH.includes(name) ? Infinity : MAX_SEC);
   const len = end - start;
   const cut = [`atrim=${start.toFixed(3)}:${end.toFixed(3)}`, 'asetpts=PTS-STARTPTS'];
-  const gain = PEAK_DB - peakDb(original, cut.join(','));
   const filter = [
-    ...cut,
-    `volume=${gain.toFixed(2)}dB`,
+    ...loudnessFilters(original, cut),
     `afade=t=in:d=${FADE_IN_SEC}`,
     `afade=t=out:st=${Math.max(0, len - FADE_OUT_SEC).toFixed(3)}:d=${FADE_OUT_SEC}`,
   ].join(',');
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', original, '-af', filter, '-metadata', `comment=${TAG}`, '-q:a', '2', out]);
   const after = parseFloat(probe(out, 'format=duration')).toFixed(2);
-  console.log(`${name}: ${before}s, kept ${start.toFixed(2)}-${end.toFixed(2)}s -> ${after}s`);
+  console.log(`${name}: ${before}s, kept ${start.toFixed(2)}-${end.toFixed(2)}s -> ${after}s, ${loudness(out, ['anull']).toFixed(1)} LUFS`);
 }
 
 // The page can't list a folder when opened as a file, so write the list of

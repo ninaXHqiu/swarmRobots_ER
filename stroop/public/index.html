@@ -64,6 +64,9 @@
   .shape { position: relative; width: 117px; height: 92px; margin: 28px auto; }
   .shape i { position: absolute; left: 0; top: 0; width: 15px; height: 15px; background: #fff; }
   #byeBtn { visibility: hidden; margin-top: 28px; }
+  /* "We also have some questions" popup */
+  #popup { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 20; }
+  #popup .box { background: #222; border: 2px solid #888; border-radius: 12px; padding: 40px 60px; text-align: center; font-size: 30px; }
   #app.tvOff { animation: tvOff 0.9s ease-in forwards; }
   @keyframes tvOff {
     0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
@@ -126,7 +129,7 @@ for (const id of SOUND_FILES.wrong) {
   audioEls[id] = a;
 }
 function unlockAudio() {
-  for (const a of Object.values(audioEls)) {
+  for (const a of [...Object.values(audioEls), noise]) {
     a.muted = true;
     a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; });
   }
@@ -347,6 +350,22 @@ function submitEval(e) {
   st.rows.push(row);
 
   if (evalTimed) return instructions();
+  if (st.section === 1) return questionsPopup(afterEval);   // section 2 only
+  afterEval();
+}
+
+// "We also have some questions": the dots appear one at a time, the popup
+// stays until 10 s in total, then the next page shows.
+const DOT_MS = 500;
+const POPUP_MS = 10000;
+function questionsPopup(then) {
+  document.body.insertAdjacentHTML('beforeend',
+    '<div id="popup"><div class="box">We also have some questions<span id="dots" style="display:inline-block;width:1.2em;text-align:left"></span></div></div>');
+  for (let i = 1; i <= 3; i++) setTimeout(() => { $('dots').textContent = '.'.repeat(i); }, i * DOT_MS);
+  setTimeout(() => { $('popup').remove(); then(); }, POPUP_MS);
+}
+
+function afterEval() {
   if (st.section === SETS.length - 1) {   // the 6th eval's Submit saves the data
     download();
     return end();
@@ -360,9 +379,18 @@ function ready() {
   st.onSpace = () => { st.section += 1; colours(); };   // the task page is shown once, in section 1
 }
 
+// White noise plays while "Now look at the robots." is on screen, from the
+// start each time, until Next. The file is 10 minutes long, so it just plays.
+const noise = new Audio('audio/noise/white_noise.mp3');
+noise.preload = 'auto';
+noise.loop = true;   // only matters if a robots page ever lasts longer than the file
+function startNoise() { noise.currentTime = 0; noise.play().catch(() => {}); }
+function stopNoise() { noise.pause(); }
+
 function instructions() {
   page(`<div class="centerText">${INSTRUCTIONS[st.section]}<br><br><button id="nextBtn">Next</button></div>`);
-  $('nextBtn').onclick = () => evalForm(false);
+  $('nextBtn').onclick = () => { stopNoise(); evalForm(false); };
+  if (st.section > 0) startNoise();
   if (st.section > 0) {   // robot sections: Next appears once the robots have had their time
     $('nextBtn').style.visibility = 'hidden';
     const btn = $('nextBtn');

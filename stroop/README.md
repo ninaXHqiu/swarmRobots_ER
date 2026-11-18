@@ -15,6 +15,8 @@ Publishing: `tools/publish-pages.sh` copies `stroop/public/` (without `audio/ori
    - the Stroop: 3 minutes, 1 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. A correct answer that would bring the streak to 5, 10, 15 or 20 is marked wrong with a 50, 65, 80 or 95% chance, and to 24 always (`FORCED_WRONG`), so 25 is never reached;
    - FAIL flashes, then the eval with a 25 s countdown bar (SAM valence and arousal with the SAM pictures, STAI-6);
    - an instructions page (section 1: baseline; sections 2 and 3: "Now look at the robots.", where Next only appears after 2 minutes, `ROBOT_MS`), then the same eval again without a timer and "How do you feel now?";
+   - while "Now look at the robots." is on screen, white noise plays (`public/audio/noise/white_noise.mp3`, 10 min, about -11 LUFS) until Next;
+   - after section 2's last eval: a "We also have some questions" popup (dots appear one at a time, 10 s, no button);
    - after sections 1 and 2: "Ready for the next test?".
 
    Every eval question must be answered before Submit works. SAM pictures are in `public/image/`.
@@ -40,4 +42,4 @@ Put clips in `public/audio/` named `w_<name>`. Any common format works (mp3, wav
 npm run trim
 ```
 
-This finds where the sound actually is in each clip (silence at either end is dropped), keeps at most the loudest 0.95 s, and brings every clip to the same peak loudness so each one hits as a sudden burst. Exceptions are set at the top of `trim.js`: `FULL_LENGTH` clips keep their whole sound (only silence at the ends is dropped), `AS_IS` clips are used exactly as downloaded. Saved as `<name>.mp3`; originals are kept in `public/audio/originals/`. It also updates the list of clips inside `index.html`, so run it after adding or removing files. Re-running is safe. Needs ffmpeg.
+This finds where the sound actually is in each clip (silence at either end is dropped), keeps at most the loudest 0.95 s, and brings every clip to the same perceived loudness (`LOUDNESS_LUFS`, -5) with a limiter so nothing distorts. Exceptions are set at the top of `trim.js`: `FULL_LENGTH` clips keep their whole sound (only silence at the ends is dropped), `AS_IS` clips are used exactly as downloaded. Saved as `<name>.mp3`; originals are kept in `public/audio/originals/`. It also updates the list of clips inside `index.html`, so run it after adding or removing files. Re-running is safe. Needs ffmpeg.

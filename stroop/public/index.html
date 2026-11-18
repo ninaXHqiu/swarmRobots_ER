@@ -235,15 +235,7 @@ function answer(key) {
   const forced = right && Math.random() < p;
   const correct = right && !forced;
   sr.streak = correct ? sr.streak + 1 : 0;
-  const sound = correct ? '' : playWrong();
-  st.rows.push({
-    participant_id: st.id, section: st.section + 1, row_type: 'stroop', trial: sr.index,
-    word: t.word, ink: t.ink, correct_key: t.ink[0], key_pressed: key ? key.toUpperCase() : '',
-    response_colour: key ? (sr.byKey[key] || '') : '', result: correct ? 'correct' : 'wrong',
-    marked_wrong_on_purpose: forced ? 'yes' : '', timeout: key === null ? 'yes' : '', sound,
-    response_time_ms: key ? Math.round(performance.now() - sr.shownAt) : '', streak: sr.streak,
-    time_since_start_ms: Math.round(performance.now() - sr.start),
-  });
+  if (!correct) playWrong();
   nextWord();
 }
 
@@ -341,9 +333,8 @@ function submitEval(e) {
   e.preventDefault();
   const value = (name) => $('form').querySelector(`input[name="${name}"]:checked`)?.value || '';
   const row = {
-    participant_id: st.id, section: st.section + 1, row_type: evalTimed ? 'eval_after_stroop' : 'eval_after_instructions',
-    stroop_score: evalTimed ? st.score : '', eval_time_limit_s: evalTimed ? EVAL_S : '',
-    eval_time_ms: Math.round(performance.now() - evalStart),
+    participant_id: st.id, section: st.section + 1, eval: evalTimed ? 'after_stroop' : 'after_instructions',
+    stroop_score: st.score,
   };
   for (const it of SAM) row[it.id] = value(it.id);
   for (const w of STAI) row[`stai_${w}`] = value(`stai_${w}`);
@@ -373,7 +364,7 @@ function instructions() {
   }
 }
 
-// One CSV per participant: a row per Stroop word and a row per eval.
+// One CSV per participant: a row per eval, with that section's final Stroop score.
 function upload() {
   const cols = [];
   for (const r of st.rows) for (const c of Object.keys(r)) if (!cols.includes(c)) cols.push(c);

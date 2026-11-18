@@ -18,7 +18,7 @@ Publishing: `tools/publish-pages.sh` copies `stroop/public/` (without `audio/ori
    - after sections 1 and 2: "Ready for the next test?".
 
    Every eval question must be answered before Submit works. SAM pictures are in `public/image/`.
-4. The 6th eval's Submit uploads one CSV to the Google Drive folder (through the Apps Script web app in `UPLOAD_URL`), named `<ID>_<date>.csv`, with a row per Stroop word and a row per eval.
+4. The 6th eval's Submit uploads one CSV to the Google Drive folder (through the Apps Script web app in `UPLOAD_URL`), named `<ID>_<date>.csv`, with one row per eval (6 rows): section, which eval, that section's final Stroop score, and the SAM and STAI-6 answers.
 5. End page: fireworks into a heart, then a smile; Bye Bye! turns the screen off like an old TV.
 
 Colour sets, one per section (`SETS`):

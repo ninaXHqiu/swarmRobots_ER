@@ -3,7 +3,7 @@
 (function (global) {
   'use strict';
   var SERVICE = '10b20100-5b3b-4571-9508-cf3efcd7bbae';
-  var LIGHT = '10b20103-5b3b-4571-9508-cf3efcd7bbae';      // write: 0x03 duration number-of-lights light-id r g b  /  0x01 all off
+  var LIGHT = '10b20103-5b3b-4571-9508-cf3efcd7bbae';      // write (with response): 0x03 duration number-of-lights light-id r g b  /  0x01 all off
   var BATTERY = '10b20108-5b3b-4571-9508-cf3efcd7bbae';    // read, notify: one byte, 0 to 100
 
   var GREEN = [0, 255, 0], ORANGE = [255, 90, 0], RED = [255, 0, 0], PURPLE = [160, 0, 255];
@@ -24,7 +24,12 @@
     var self = this;
     this.queue = this.queue.then(function () {
       if (!self.light || !self.connected) { return; }
-      return (self.light.writeValueWithoutResponse ? self.light.writeValueWithoutResponse(bytes) : self.light.writeValue(bytes)).catch(function () {});
+      // The robot's light characteristic is a plain write (with response), as the toio SDK sends it; a write without response is only a fallback.
+      var ch = self.light;
+      var first = ch.writeValueWithResponse ? ch.writeValueWithResponse(bytes) : ch.writeValue(bytes);
+      return first.catch(function () {
+        return ch.writeValueWithoutResponse ? ch.writeValueWithoutResponse(bytes) : null;
+      }).catch(function (e) { if (global.console) { console.warn('light write failed', e && e.message ? e.message : e); } });
     });
     return this.queue;
   };

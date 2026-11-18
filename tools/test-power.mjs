@@ -12,7 +12,8 @@ check('light on bytes', eq(P.lightOn([1, 2, 3]), [3, 0, 1, 1, 1, 2, 3])); check(
 
 function fakeRobot(id, power) {
   const writes = []; const listeners = {}; let notify = null;
-  const light = { writeValueWithoutResponse: async (b) => { writes.push(Array.from(b)); } };
+  // like the real robot's light characteristic: it takes a write with response, and refuses one without
+  const light = { writeValueWithResponse: async (b) => { writes.push(Array.from(b)); }, writeValueWithoutResponse: async () => { throw new Error('not supported'); } };
   const battery = { readValue: async () => ({ getUint8: () => power }), startNotifications: async () => {}, addEventListener: (n, f) => { notify = f; } };
   const svc = { getPrimaryService: null, getCharacteristic: async (u) => (u === P.LIGHT ? light : battery) };
   const device = { id, name: 'toio-' + id, addEventListener: (n, f) => { listeners[n] = f; },

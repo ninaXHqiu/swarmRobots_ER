@@ -69,6 +69,10 @@ jobs:
             mkdir -p site/stroop
             rsync -a --exclude originals stroop/public/ site/stroop/
           fi
+          if [ -d power ]; then
+            mkdir -p site/power
+            rsync -a power/ site/power/
+          fi
 
       - name: Publish to the gh-pages branch
         uses: peaceiris/actions-gh-pages@v4

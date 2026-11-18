@@ -54,6 +54,11 @@ if [ -d stroop/public ]; then
   mkdir -p "$STAGE/stroop"
   rsync -a --exclude originals stroop/public/ "$STAGE/stroop/"
 fi
+# The robot power page rides along at /power/
+if [ -d power ]; then
+  mkdir -p "$STAGE/power"
+  rsync -a power/ "$STAGE/power/"
+fi
 touch "$STAGE/.nojekyll"   # serve the Unity files as they are
 git -C "$STAGE" init -q -b "$BRANCH"
 git -C "$STAGE" add -A

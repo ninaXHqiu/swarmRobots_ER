@@ -3,125 +3,109 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Stroop Task</title>
+<title>Stroop Study</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #000; color: #fff;
-    font-family: Arial, Helvetica, sans-serif; user-select: none; }
-  .screen { position: fixed; inset: 0; display: none; }
-  .screen.on { display: block; }
-  .center { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-
-  /* Setup and end screens */
-  h1 { font-size: 48px; margin: 0 0 24px; }
-  .field { font-size: 22px; margin: 8px 0; }
-  .field input { font-size: 22px; width: 80px; margin-left: 10px; padding: 4px; text-align: center; }
-  button { font-size: 22px; padding: 12px 28px; margin: 8px; border-radius: 8px; border: 2px solid #888;
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: Arial, Helvetica, sans-serif; }
+  #app { position: fixed; inset: 0; overflow: auto; background: #000; }
+  .page { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .text { max-width: 900px; padding: 0 40px; font-size: 26px; line-height: 1.5; text-align: left; }
+  .text h2 { font-size: 34px; margin: 0 0 18px; }
+  .text .example { font-size: 40px; font-weight: 900; margin: 14px 0 14px 40px; }
+  .next { position: fixed; left: 0; right: 0; bottom: 12vh; color: #c9a26b; font-style: italic; text-align: center; font-size: 26px; line-height: 1.5; }
+  .centerText { text-align: center; font-size: 30px; }
+  button { font-size: 22px; padding: 12px 32px; border-radius: 8px; border: 2px solid #888;
     background: #222; color: #fff; cursor: pointer; }
-  .scores { font-size: 32px; margin-bottom: 24px; line-height: 1.6; }
-  .scores b { color: #ff2a2a; }
-  .modes { margin-bottom: 16px; }
-  .modes button.on { background: #fff; color: #000; border-color: #fff; }
-  #doneTitle.fail, #doneTitle.success { font-size: 16vw; font-weight: 900; margin-bottom: 2vh; }
-  #doneTitle.fail { color: #ff2222; }
-  #doneTitle.success { color: #22dd22; }
+  input[type=text] { font-size: 22px; padding: 6px 10px; margin: 0 0 20px 10px; width: 160px; }
 
-  /* Intro screens */
-  #intro { cursor: none; }
-  .intro { max-width: 900px; padding: 0 40px; text-align: left; font-size: 26px; line-height: 1.5; }
-  .intro h2 { font-size: 34px; margin: 0 0 18px; }
-  .intro .example { font-size: 40px; font-weight: 900; margin: 14px 0 14px 40px; }
-  .intro .next { color: #c9a26b; font-style: italic; text-align: center; margin-top: 28px; }
-  .rows { display: grid; grid-template-columns: auto auto auto; justify-content: center; column-gap: 20px; row-gap: 6px; align-items: baseline; font-size: 32px; }
-  .rows .w { font-weight: bold; text-align: right; }
-  .rows .k { color: #fff; font-weight: bold; }
-  .rows span { color: #aaa; }
+  .colours { font-size: 32px; line-height: 1.6; }
+  .colours .k { display: inline-block; width: 44px; }
+  .goal { font-size: 40px; text-align: center; }
+  .goal .big { font-size: 64px; font-weight: 900; }
 
-  /* Task screen */
-  #task { cursor: none; }
-  #countdown[hidden] { display: none; }
-  #countdown { position: fixed; top: 2vh; right: 3vw; font-size: 22vh; font-weight: bold; line-height: 1; }
-  #score { position: fixed; top: 3vh; left: 3vw; font-size: 10vh; font-weight: bold; color: #ff2a2a; line-height: 1; }
-  #word { font-size: 22vw; font-weight: 900; letter-spacing: 0.02em; }
-  #word.feedback { font-size: 16vw; }
+  /* Stroop */
+  #score { position: fixed; top: 30px; left: 40px; font-size: calc(16.5vw * 2 / 3); font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #word { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 16.5vw; font-weight: 900; letter-spacing: 0.02em; }
 
-  #pausedNote { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center;
-    justify-content: center; flex-direction: column; font-size: 6vh; z-index: 5; }
-  #pausedNote.on { display: flex; }
-  #pausedNote small { font-size: 2.6vh; color: #aaa; margin-top: 2vh; }
+  /* FAIL: flashes full screen, then moves under the bar */
+  #failOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
+  #failOverlay.on { display: flex; animation: flash 0.25s steps(1) 8; }
+  @keyframes flash { 0% { background: #ff0000; } 50% { background: #000; } }
+  #failBig { font-size: 22vw; font-weight: 900; color: #fff; }
+  .fly { position: fixed; z-index: 11; font-weight: 900; color: #fff; white-space: nowrap; transition: all 0.7s ease-in-out; }
+  #fail { position: fixed; top: 70px; left: 40px; font-size: 70px; font-weight: bold; color: #ff2222; }
+  #fail span { margin-left: 16px; }
+  #feelNow { position: fixed; top: 70px; left: 40px; font-size: 60px; font-weight: bold; color: #fff; }
+
+  /* Countdown bar */
+  #barTop { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #222; }
+  #barTop .fill { height: 100%; }
+  #barTop .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; }
+
+  /* Eval form: one centred column, every row the same width */
+  .evalPage { display: flex; flex-direction: column; align-items: center; padding: 220px 0 28px; }
+  .grid { display: grid; grid-template-columns: 170px 520px 170px; row-gap: 22px; align-items: center; font-size: 20px; }
+  .grid .l { text-align: right; padding-right: 18px; }
+  .grid .r { text-align: left; padding-left: 18px; }
+  .opts { display: flex; justify-content: space-between; }
+  .opts label { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 15px; color: #bbb; }
+  .opts input { width: 24px; height: 24px; margin: 0; cursor: pointer; }
+  .sam .opts label { width: 40px; }
+  .stai .opts label { width: 110px; }
+  .heads { display: flex; justify-content: space-between; }
+  .heads span { width: 110px; text-align: center; font-size: 15px; color: #bbb; }
+  .head { grid-column: 1 / 4; text-align: center; font-size: 22px; font-weight: bold; margin-top: 34px; }
+  .submit { display: block; margin: 30px auto 0; }
+  /* SAM pictures: buttons 1, 3, 5, 7, 9 sit under the centre of each picture */
+  .pics { position: relative; height: 116px; margin-top: 14px; }
+  .pics img { position: absolute; top: 0; width: 104px; height: 116px; }
+
+  /* End page */
+  .shape { position: relative; width: 117px; height: 92px; margin: 28px auto; }
+  .shape i { position: absolute; left: 0; top: 0; width: 15px; height: 15px; background: #fff; }
+  #byeBtn { visibility: hidden; margin-top: 28px; }
+  #app.tvOff { animation: tvOff 0.9s ease-in forwards; }
+  @keyframes tvOff {
+    0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
+    45%  { transform: scale(1, 0.004); filter: brightness(4); background: #fff; opacity: 1; }
+    75%  { transform: scale(0.003, 0.004); filter: brightness(6); background: #fff; opacity: 1; }
+    100% { transform: scale(0, 0); opacity: 0; }
+  }
 </style>
 </head>
 <body>
-
-<div id="setup" class="screen on">
-  <div class="center">
-    <h1>Stroop Task</h1>
-    <div class="modes">
-      <button id="modeFixed" data-mode="fixed">Fixed trials</button>
-      <button id="modeChallenge" data-mode="challenge">Streak challenge</button>
-      <button id="modeHard" data-mode="hard">Hard challenge</button>
-    </div>
-    <div class="field" data-for="fixed">Trials <input id="trialsIn" type="number" min="1" max="50" value="50"></div>
-    <div class="field" data-for="fixed">Countdown seconds <input id="secondsIn" type="number" min="1" max="30" value="3"></div>
-    <button id="startBtn">Begin (Space)</button>
-  </div>
-</div>
-
-<div id="intro" class="screen"><div class="center"><div class="intro" id="introBody"></div></div></div>
-
-<div id="task" class="screen">
-  <div id="countdown"></div>
-  <div id="score"></div>
-  <div class="center"><div id="word"></div></div>
-  <div id="pausedNote">Paused<small>Esc to resume · Q to quit to setup</small></div>
-</div>
-
-<div id="done" class="screen">
-  <div class="center">
-    <h1 id="doneTitle">Finished</h1>
-    <div class="scores" id="finalScores"></div>
-    <div>
-      <button id="exportBtn">Export CSV</button>
-      <button id="againBtn">New session</button>
-    </div>
-  </div>
-</div>
+<div id="app"></div>
+<div id="failOverlay"><div id="failBig">FAIL</div></div>
 
 <script>
-const $ = (id) => document.getElementById(id);
-
-// Ink colours, tuned to be readable on a black background. Each colour's key is
-// its first letter, so the first letters within a set must all differ.
-const STANDARD = {
-  RED: '#ff1a1a',
-  BLUE: '#2f6bff',
-  GREEN: '#1fbf1f',
-  YELLOW: '#ffe100',
-  PURPLE: '#9b40ff',
-  ORANGE: '#ff8c00',
-  WHITE: '#ffffff',
-  CYAN: '#00e5ff',
-};
-// The hard challenge uses one of these per session, taking the next set each
-// session. Each set has at least two colours of the same shade
-// (red/pink; green/lime and brown/orange; purple/violet).
-const HARD_SETS = [
+// Stroop study: participant ID, welcome, then three sections of
+// Stroop -> FAIL -> timed eval -> instructions -> eval, then the end page.
+// The 6th eval's Submit uploads one CSV per participant to the Drive folder.
+const UPLOAD_URL = 'https://script.google.com/macros/s/AKfycbwK281UiBzNMpsnoopaXs3mcaizX3VkLFD1v_xhIHK6yG4dJXDpAiQE-W1IW1TuY787RA/exec';
+const STROOP_MS = 3 * 60 * 1000;   // each Stroop runs this long
+const WORD_MS = 1000;              // time per word
+// A correct answer that would bring the streak to one of these is marked wrong
+// with this chance.
+const FORCED_WRONG = { 5: 0.5, 10: 0.65, 15: 0.8, 20: 0.95, 24: 1 };
+const EVAL_S = 25;
+const FLASH_MS = 2000;
+const SETS = [
   { RED: '#ff1a1a', PINK: '#ff7ab8', BLUE: '#2f6bff', YELLOW: '#ffe100', WHITE: '#ffffff', CYAN: '#00e5ff' },
   { BROWN: '#a0522d', ORANGE: '#ff8c00', GREEN: '#1fbf1f', LIME: '#9dff00', CYAN: '#00e5ff', MAGENTA: '#ff00ff' },
   { ROSE: '#ff4d7a', PURPLE: '#9b40ff', VIOLET: '#c77dff', MINT: '#7dffb0', GREY: '#8a8a8a', NAVY: '#2b3fae' },
 ];
-
-// Three modes: 'fixed' runs a set number of trials; 'challenge' keeps going
-// until the streak reaches the target, and fails if the time limit runs out
-// first; 'hard' is the challenge with rotating colour sets, and the answer
-// after a streak of RIG_AT is always marked wrong, even when it is right.
-const MAX_TRIALS = 50;
-const CHALLENGE = { target: 25, minutes: 3, seconds: 1 };
-const RIG_AT = 16;
-let mode = 'fixed';
-const isChallenge = (m) => m === 'challenge' || m === 'hard';
-const FEEDBACK_MS = 1000;
-// The countdown still runs and times trials out; this only controls whether it is shown.
-const SHOW_TIMER = false;
+const INSTRUCTIONS = [
+  'This is a baseline test. Now just sit back and relax.',
+  'Now look at the robots.',
+  'Now look at the robots.',
+];
+const ROBOT_MS = 4 * 60 * 1000;   // the Next button shows this long after "Now look at the robots."
+const SAM = [
+  { id: 'sam_valence', img: 'valence', left: 'Unhappy', right: 'Happy' },
+  { id: 'sam_arousal', img: 'arousal', left: 'Calm', right: 'Excited' },
+];
+const STAI = ['calm', 'tense', 'upset', 'relaxed', 'content', 'worried'];
+const STAI_LABELS = ['Not at all', 'Somewhat', 'Moderately', 'Very much'];
 
 // SOUND_FILES:BEGIN (written by `npm run trim` from the files in audio/)
 const SOUND_FILES = {
@@ -129,373 +113,337 @@ const SOUND_FILES = {
 };
 // SOUND_FILES:END
 
-// ---- Audio ----
-// Correct answers are silent. Wrong answers play one of the w_ clips, picked
-// evenly at random, at full volume.
+const $ = (id) => document.getElementById(id);
+const app = $('app');
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const st = { id: '', section: 0, score: 0, onSpace: null, rows: [] };
+let ticker = null;
+
+// ---- Audio: wrong answers play one of the w_ clips; a new one cuts off the last ----
 const audioEls = {};
 for (const id of SOUND_FILES.wrong) {
   const a = new Audio(`audio/${id}.mp3`);
   a.preload = 'auto';
   audioEls[id] = a;
 }
-
-// Called from the Begin key/click so the browser allows audio later.
 function unlockAudio() {
   for (const a of Object.values(audioEls)) {
     a.muted = true;
     a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; });
   }
 }
-
-// Long clips (boo, mocking laugh) carry on into the next trial; a new wrong
-// answer cuts off whatever is still playing.
-function playSound(id) {
+function playWrong() {
+  if (!SOUND_FILES.wrong.length) return '';
+  const id = pick(SOUND_FILES.wrong);
+  for (const a of Object.values(audioEls)) a.pause();
   const el = audioEls[id];
-  if (!el) return;
-  for (const other of Object.values(audioEls)) if (other !== el) other.pause();
   el.volume = 1;
   el.currentTime = 0;
   el.play().catch(() => {});
+  return id;
 }
 
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
+function page(html) {
+  clearInterval(ticker);
+  for (const id of ['fail', 'feelNow', 'barTop', 'score', 'word']) $(id)?.remove();
+  st.onSpace = null;
+  app.innerHTML = `<div class="page">${html}</div>`;
+  app.scrollTop = 0;
 }
 
-function wrongSound() {
-  return SOUND_FILES.wrong.length ? pick(SOUND_FILES.wrong) : '';
+// ---- Pages ----
+function setup() {
+  page(`<div class="centerText">Participant ID <input type="text" id="pid"><br><button id="startBtn">Start</button></div>`);
+  $('startBtn').onclick = () => { st.id = $('pid').value.trim(); unlockAudio(); welcome(); };
 }
 
-// ---- Trials ----
-// Every trial is incongruent, and no word or ink repeats back to back.
-function makeTrial(prev) {
-  const colours = Object.keys(s.ink);
+function welcome() {
+  page(`<div class="text"><h2>Welcome</h2>
+    This research contains three sections, each starting with a colour Stroop test.
+    Please read and follow the instructions on the screen.
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = task;
+}
+
+function task() {
+  page(`<div class="text"><h2>Stroop task</h2>
+    You will see colour words printed in a <b>different ink colour</b>.
+    Press the key for the <b>ink colour</b>, not the word. For example, if you see:
+    <div class="example" style="color:${SETS[0].RED}">GREEN</div>
+    the ink is red, so press <b>R</b>.<br>
+    Answer as fast and as accurately as you can.
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = colours;
+}
+
+function colours() {
+  const rows = Object.entries(SETS[st.section])
+    .map(([c, hex]) => `<div style="color:${hex}"><span class="k">${c[0]}:</span>${c}</div>`).join('');
+  page(`<div class="text"><h2>Here are the colours</h2><div class="colours">${rows}</div>
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = st.section === 0 ? goal : stroop;   // the goal page is shown once, in section 1
+}
+
+function goal() {
+  page(`<div class="goal">Lowest score was <span class="big">25!</span><div style="font-size: 32px; margin-top: 15px">Your goal is to beat it!</div>
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = stroop;
+}
+
+// ---- Stroop ----
+let sr = null;   // the running Stroop
+
+function stroop() {
+  page('');
+  const ink = SETS[st.section];
+  sr = {
+    ink, names: Object.keys(ink), streak: 0, index: 0, prev: null,
+    byKey: Object.fromEntries(Object.keys(ink).map((c) => [c[0].toLowerCase(), c])),
+    start: performance.now(),
+  };
+  document.body.insertAdjacentHTML('beforeend', '<div id="score">0</div><div id="word"></div>');
+  nextWord();
+  ticker = setInterval(stroopTick, 20);
+}
+
+// Every word is in a different colour from its name, and no word or ink repeats back to back.
+function nextWord() {
   let word, ink;
   do {
-    word = pick(colours);
-    ink = pick(colours.filter((c) => c !== word));
-  } while (prev && (word === prev.word || ink === prev.ink));
-  return { word, ink };
+    word = pick(sr.names);
+    ink = pick(sr.names.filter((c) => c !== word));
+  } while (sr.prev && (word === sr.prev.word || ink === sr.prev.ink));
+  sr.prev = sr.trial = { word, ink };
+  sr.index += 1;
+  sr.shownAt = performance.now();
+  $('word').textContent = word;
+  $('word').style.color = sr.ink[ink];
+  $('score').textContent = sr.streak;
 }
 
-function makeTrials(n) {
-  const out = [];
-  for (let i = 0; i < n; i++) out.push(makeTrial(out[out.length - 1]));
-  return out;
+function stroopTick() {
+  const now = performance.now();
+  if (now - sr.start >= STROOP_MS) { clearInterval(ticker); return fail(); }
+  if (now - sr.shownAt >= WORD_MS) answer(null);
 }
 
-// ---- Intro screens ----
-function introPages() {
-  const first = `<h2>Stroop task</h2>
-       You will see colour words printed in a <b>different ink colour</b>.
-       Press the key for the <b>ink colour</b>, not the word. For example, if you see:
-       <div class="example" style="color:${STANDARD.RED}">GREEN</div>
-       the ink is red, so press <b>R</b>.<br>
-       You have ${s.seconds} ${s.seconds === 1 ? 'second' : 'seconds'} for each word. Answer as fast and as accurately as you can.`;
-
-  const second = `<h2>The keys</h2>${keyRows()}`;
-
-  if (!isChallenge(s.mode)) {
-    return [
-      first + '<div class="next">press space for the keys…</div>',
-      second + '<div class="next">press space to start…</div>',
-    ];
-  }
-
-  // Challenges get a third screen with what it takes to pass.
-  const third = `<h2>To pass the test</h2>
-       You need a score of <b>${s.target}</b>.`;
-  return [
-    first + '<div class="next">press space for the keys…</div>',
-    second + '<div class="next">press space to continue…</div>',
-    third + '<div class="next">press space to start…</div>',
-  ];
-}
-
-// Each colour of the current set with its key.
-function keyRows() {
-  const rows = Object.entries(s.ink).map(([c, hex]) =>
-    `<div class="w" style="color:${hex}">${c.toLowerCase()}</div><span>=</span><div class="k">${c[0]}</div>`).join('');
-  return `<div class="rows">${rows}</div>`;
-}
-
-// Hard challenge: the colour set for the next session (1, 2, 3, 1, ...).
-let hardSet = 0;
-try { hardSet = (parseInt(localStorage.getItem('stroopHardSet'), 10) || 0) % HARD_SETS.length; } catch (e) {}
-
-function useSet(i) {
-  s.setIndex = i;
-  s.ink = s.mode === 'hard' ? HARD_SETS[i] : STANDARD;
-  s.byKey = Object.fromEntries(Object.keys(s.ink).map((c) => [c[0].toLowerCase(), c]));
-}
-
-// ---- Task state ----
-let s = null;
-let ticker = null;
-
-function show(id) {
-  for (const el of document.querySelectorAll('.screen')) el.classList.toggle('on', el.id === id);
-}
-
-// Active time on the current trial, excluding pauses.
-function elapsed() {
-  return s.activeMs + (s.paused ? 0 : performance.now() - s.clockStart);
-}
-
-// Time since the trials started, excluding pauses. Used for the challenge time limit.
-function sessionElapsed() {
-  return s.sessionMs + (s.paused ? 0 : performance.now() - s.sessionStart);
-}
-
-function formatMinutes(ms) {
-  const total = Math.round(ms / 1000);
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
-}
-
-function setMode(m) {
-  mode = m;
-  for (const b of document.querySelectorAll('.modes button')) b.classList.toggle('on', b.dataset.mode === m);
-  for (const f of document.querySelectorAll('[data-for]')) f.hidden = !f.dataset.for.split(' ').includes(m);
-}
-
-function begin() {
-  const trials = Math.max(1, Math.min(MAX_TRIALS, parseInt($('trialsIn').value, 10) || MAX_TRIALS));
-  const fixedSeconds = Math.max(1, Math.min(30, parseInt($('secondsIn').value, 10) || 3));
-  try { localStorage.setItem('stroopSettings', JSON.stringify({ mode, trials, seconds: fixedSeconds })); } catch (e) {}
-  unlockAudio();
-  const seconds = isChallenge(mode) ? CHALLENGE.seconds : fixedSeconds;
-  s = { mode, count: trials, seconds, target: CHALLENGE.target, limitMs: CHALLENGE.minutes * 60000, log: [], paused: false };
-  useSet(mode === 'hard' ? hardSet : 0);
-  if (mode === 'hard') {
-    hardSet = (hardSet + 1) % HARD_SETS.length;
-    try { localStorage.setItem('stroopHardSet', hardSet); } catch (e) {}
-  }
-  startIntro();
-}
-
-function startIntro() {
-  s.phase = 'intro';
-  s.pages = introPages();
-  s.page = 0;
-  $('introBody').innerHTML = s.pages[0];
-  show('intro');
-}
-
-function nextIntroPage() {
-  s.page += 1;
-  if (s.page < s.pages.length) {
-    $('introBody').innerHTML = s.pages[s.page];
-    return;
-  }
-  // Start the trials.
-  s.trials = s.mode === 'fixed' ? makeTrials(s.count) : [];
-  s.index = -1;
-  s.sessionMs = 0;
-  s.sessionStart = performance.now();
-  // The score on screen is a streak: +1 per correct answer, back to 0 on a wrong one.
-  s.streak = 0;
-  s.best = 0;
-  show('task');
-  nextTrial();
-  clearInterval(ticker);
-  ticker = setInterval(tick, 20);
-}
-
-function nextTrial() {
-  s.index += 1;
-  if (isChallenge(s.mode)) s.trials.push(makeTrial(s.trials[s.index - 1]));
-  if (s.index >= s.trials.length) return finish();
-  s.phase = 'running';
-  s.activeMs = 0;
-  s.clockStart = performance.now();
-  const t = s.trials[s.index];
-  const word = $('word');
-  word.className = '';
-  word.style.color = s.ink[t.ink];
-  word.textContent = t.word;
-  renderClock();
-}
-
-
-function remaining() {
-  return Math.max(0, s.seconds - Math.floor(elapsed() / 1000));
-}
-
-function renderClock() {
-  const left = remaining();
-  const cd = $('countdown');
-  cd.textContent = left;
-  cd.style.color = `hsl(${Math.round(120 * (left / s.seconds))}, 100%, 50%)`;
-  $('score').textContent = scoreText();
-}
-
-// Streak over the goal: the number of trials, or the target streak in a challenge.
-function scoreText() {
-  return `${s.streak} / ${isChallenge(s.mode) ? s.target : s.trials.length}`;
-}
-
-function tick() {
-  if (!s || s.paused) return;
-  if (isChallenge(s.mode) && (s.phase === 'running' || s.phase === 'feedback') && sessionElapsed() >= s.limitMs) {
-    finish('fail');
-    return;
-  }
-  if (s.phase !== 'running') return;
-  if (elapsed() >= s.seconds * 1000) {
-    resolve(null);
-    return;
-  }
-  renderClock();
-}
-
-// Scores the current trial once. key is the letter pressed, or null on timeout.
-function resolve(key) {
-  if (s.phase !== 'running' || s.paused) return;
-  s.phase = 'feedback';
-  const t = s.trials[s.index];
-  const rt = Math.round(elapsed());
-  const right = key !== null && s.byKey[key] === t.ink;
-  // Hard challenge: the answer after a streak of RIG_AT is marked wrong anyway.
-  const rigged = s.mode === 'hard' && right && s.streak === RIG_AT;
-  const isCorrect = right && !rigged;
-  const sound = isCorrect ? '' : wrongSound();
-  s.streak = isCorrect ? s.streak + 1 : 0;
-  s.best = Math.max(s.best, s.streak);
-  s.log.push({
-    trial: s.index + 1,
-    word: t.word,
-    ink: t.ink,
-    colour_set: s.mode === 'hard' ? s.setIndex + 1 : '',
-    answer_key: t.ink[0],
-    key: key ? key.toUpperCase() : '',
-    response: key ? s.byKey[key] : '',
-    result: isCorrect ? 'correct' : 'wrong',
-    rigged: rigged ? 'yes' : '',
-    source: key ? 'response' : 'timeout',
-    sound,
-    rt_ms: key ? rt : '',
-    streak: s.streak,
-    session_ms: Math.round(sessionElapsed()),
+// key is the letter pressed, or null when the word timed out.
+function answer(key) {
+  const t = sr.trial;
+  const right = key !== null && sr.byKey[key] === t.ink;
+  const p = FORCED_WRONG[sr.streak + 1] || 0;
+  const forced = right && Math.random() < p;
+  const correct = right && !forced;
+  sr.streak = correct ? sr.streak + 1 : 0;
+  const sound = correct ? '' : playWrong();
+  st.rows.push({
+    participant_id: st.id, section: st.section + 1, row_type: 'stroop', trial: sr.index,
+    word: t.word, ink: t.ink, correct_key: t.ink[0], key_pressed: key ? key.toUpperCase() : '',
+    response_colour: key ? (sr.byKey[key] || '') : '', result: correct ? 'correct' : 'wrong',
+    marked_wrong_on_purpose: forced ? 'yes' : '', timeout: key === null ? 'yes' : '', sound,
+    response_time_ms: key ? Math.round(performance.now() - sr.shownAt) : '', streak: sr.streak,
+    time_since_start_ms: Math.round(performance.now() - sr.start),
   });
-  if (isChallenge(s.mode) && s.streak >= s.target) {
-    finish('success');
-    return;
-  }
-
-  if (key === null) $('countdown').textContent = 0;
-  $('score').textContent = scoreText();
-  const word = $('word');
-  word.className = 'feedback';
-  word.style.color = isCorrect ? '#22dd22' : '#ff2222';
-  word.textContent = isCorrect ? 'CORRECT' : 'WRONG';
-  if (sound) playSound(sound);
-  s.feedbackLeft = FEEDBACK_MS;
-  s.feedbackStart = performance.now();
-  s.feedbackTimer = setTimeout(nextTrial, FEEDBACK_MS);
+  nextWord();
 }
 
-// outcome is 'success' or 'fail' in a challenge; nothing in fixed mode.
-function finish(outcome) {
-  clearInterval(ticker);
-  clearTimeout(s.feedbackTimer);
-  s.phase = 'done';
-  s.outcome = outcome || '';
-  const title = $('doneTitle');
-  title.className = s.outcome;
-  if (isChallenge(s.mode)) {
-    title.textContent = outcome === 'success' ? 'SUCCESS' : 'FAIL';
-    $('finalScores').innerHTML = outcome === 'success'
-      ? `${s.target} in a row in <b>${formatMinutes(sessionElapsed())}</b>`
-      : `Best streak: <b>${s.best} / ${s.target}</b>`;
+// FAIL flashes, then flies under the bar, and the timed eval appears.
+function fail() {
+  st.score = sr.streak;
+  sr = null;
+  page('');
+  const ov = $('failOverlay');
+  ov.classList.add('on');
+  setTimeout(() => {
+    const big = $('failBig');
+    const from = big.getBoundingClientRect();
+    const fly = document.createElement('div');
+    fly.className = 'fly';
+    fly.textContent = 'FAIL';
+    Object.assign(fly.style, { left: `${from.left}px`, top: `${from.top}px`, fontSize: getComputedStyle(big).fontSize });
+    document.body.appendChild(fly);
+    ov.classList.remove('on');
+
+    evalForm(true);
+    app.style.visibility = 'hidden';
+    $('fail').style.visibility = 'hidden';
+    $('barTop').style.visibility = 'hidden';
+    const to = $('fail').getBoundingClientRect();
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      Object.assign(fly.style, { left: `${to.left}px`, top: `${to.top}px`, fontSize: getComputedStyle($('fail')).fontSize, color: '#ff2222' });
+    }));
+    setTimeout(() => {
+      fly.remove();
+      app.style.visibility = '';
+      $('fail').style.visibility = '';
+      $('barTop').style.visibility = '';
+      startTimer();
+    }, 750);
+  }, FLASH_MS);
+}
+
+// ---- Eval ----
+function picsHtml(name) {
+  // Button centres run from 20 px to 500 px, so pictures are centred every 120 px.
+  return Array.from({ length: 5 }, (_, i) =>
+    `<img src="image/SAM_${name}_${i + 1}.png" alt="" style="left:${20 + i * 120 - 52}px">`).join('');
+}
+
+let evalStart = 0;
+let evalTimed = false;
+
+function evalForm(timed) {
+  let sam = '';
+  for (const it of SAM) {
+    const opts = Array.from({ length: 9 }, (_, i) =>
+      `<label><input type="radio" name="${it.id}" value="${i + 1}" required>${i + 1}</label>`).join('');
+    sam += `<div></div><div class="pics">${picsHtml(it.img)}</div><div></div>`;
+    sam += `<div class="l">${it.left}</div><div class="opts">${opts}</div><div class="r">${it.right}</div>`;
+  }
+  let stai = `<div class="head">Right now, I feel…</div>
+    <div></div><div class="heads">${STAI_LABELS.map((l) => `<span>${l}</span>`).join('')}</div><div></div>`;
+  for (const w of STAI) {
+    const opts = STAI_LABELS.map((l, i) => `<label><input type="radio" name="stai_${w}" value="${i + 1}" required></label>`).join('');
+    stai += `<div class="l">I feel ${w}</div><div class="opts">${opts}</div><div></div>`;
+  }
+  page('');
+  app.innerHTML = `<div class="evalPage"><form id="form">
+    <div class="grid sam">${sam}</div><div class="grid stai">${stai}</div>
+    <button type="submit" class="submit">Submit</button></form></div>`;
+  if (timed) {
+    document.body.insertAdjacentHTML('beforeend',
+      `<div id="fail">FAIL<span>${st.score}</span></div>` +
+      `<div id="barTop"><div class="fill" id="barFill"></div><div class="num" id="barNum">${EVAL_S}</div></div>`);
   } else {
-    title.textContent = 'Finished';
-    $('finalScores').innerHTML = `Best streak: <b>${s.best} / ${s.trials.length}</b>`;
+    document.body.insertAdjacentHTML('beforeend', '<div id="feelNow">How do you feel now?</div>');
   }
-  show('done');
+  // The questions start below the FAIL / "How do you feel now?" line, however tall it wraps.
+  const header = $(timed ? 'fail' : 'feelNow');
+  app.querySelector('.evalPage').style.paddingTop = `${Math.round(header.getBoundingClientRect().bottom + 40)}px`;
+  evalTimed = timed;
+  evalStart = performance.now();
+  $('form').addEventListener('submit', submitEval);
 }
 
-function togglePause() {
-  if (!s.paused) {
-    s.activeMs = elapsed();
-    s.sessionMs = sessionElapsed();
-    s.paused = true;
-    if (s.phase === 'feedback') {
-      clearTimeout(s.feedbackTimer);
-      s.feedbackLeft -= performance.now() - s.feedbackStart;
-    }
-  } else {
-    s.paused = false;
-    s.clockStart = performance.now();
-    s.sessionStart = performance.now();
-    if (s.phase === 'feedback') {
-      s.feedbackStart = performance.now();
-      s.feedbackTimer = setTimeout(nextTrial, Math.max(0, s.feedbackLeft));
-    }
+function startTimer() {
+  evalStart = performance.now();
+  const tick = () => {
+    const left = Math.max(0, EVAL_S - (performance.now() - evalStart) / 1000);
+    $('barFill').style.width = `${(left / EVAL_S) * 100}%`;
+    $('barFill').style.background = left > 15 ? '#22dd22' : left > 10 ? '#ffcc00' : left > 5 ? '#ff8c00' : '#ff2222';
+    $('barNum').textContent = Math.ceil(left);
+  };
+  tick();
+  ticker = setInterval(tick, 50);
+}
+
+function submitEval(e) {
+  e.preventDefault();
+  const value = (name) => $('form').querySelector(`input[name="${name}"]:checked`)?.value || '';
+  const row = {
+    participant_id: st.id, section: st.section + 1, row_type: evalTimed ? 'eval_after_stroop' : 'eval_after_instructions',
+    stroop_score: evalTimed ? st.score : '', eval_time_limit_s: evalTimed ? EVAL_S : '',
+    eval_time_ms: Math.round(performance.now() - evalStart),
+  };
+  for (const it of SAM) row[it.id] = value(it.id);
+  for (const w of STAI) row[`stai_${w}`] = value(`stai_${w}`);
+  st.rows.push(row);
+
+  if (evalTimed) return instructions();
+  if (st.section === SETS.length - 1) {   // the 6th eval's Submit sends the data
+    upload();
+    return end();
   }
-  $('pausedNote').classList.toggle('on', s.paused);
+  ready();
 }
 
-function quitToSetup() {
-  clearInterval(ticker);
-  clearTimeout(s.feedbackTimer);
-  s = null;
-  setMode(mode);
-  $('pausedNote').classList.remove('on');
-  show('setup');
+function ready() {
+  page(`<div class="centerText">Ready for the next test?
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = () => { st.section += 1; colours(); };   // the task page is shown once, in section 1
 }
 
-function exportCsv() {
-  const cols = ['trial', 'colour_set', 'word', 'ink', 'answer_key', 'key', 'response', 'result', 'rigged', 'source', 'sound',
-    'rt_ms', 'streak', 'session_ms'];
-  const header = ['trial', 'colour_set', 'word', 'ink_colour', 'correct_key', 'key_pressed', 'response_colour',
-    'correct_wrong', 'marked_wrong_on_purpose', 'response_timeout', 'sound', 'response_time_ms', 'streak', 'time_since_start_ms'];
-  const lines = [header.join(','), ...s.log.map((r) => cols.map((c) => r[c]).join(','))];
-  const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  const tag = isChallenge(s.mode) ? `${s.mode}-${s.outcome}-` : '';
-  a.download = `stroop-${tag}${new Date().toISOString().replace(/[:.]/g, '-')}.csv`;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+function instructions() {
+  page(`<div class="centerText">${INSTRUCTIONS[st.section]}<br><br><button id="nextBtn">Next</button></div>`);
+  $('nextBtn').onclick = () => evalForm(false);
+  if (st.section > 0) {   // robot sections: Next appears once the robots have had their time
+    $('nextBtn').style.visibility = 'hidden';
+    const btn = $('nextBtn');
+    setTimeout(() => { btn.style.visibility = 'visible'; }, ROBOT_MS);
+  }
 }
 
-$('countdown').hidden = !SHOW_TIMER;
+// One CSV per participant: a row per Stroop word and a row per eval.
+function upload() {
+  const cols = [];
+  for (const r of st.rows) for (const c of Object.keys(r)) if (!cols.includes(c)) cols.push(c);
+  const csv = [cols.join(','), ...st.rows.map((r) => cols.map((c) => r[c] ?? '').join(','))].join('\n') + '\n';
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  fetch(UPLOAD_URL, {
+    method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ filename: `${st.id || 'noid'}_${stamp}.csv`, csv }),
+  }).catch(() => {});
+}
 
-// ---- Input ----
+// ---- End page: fireworks into a heart, then a smile ----
+const STEP = 17;   // 15 px squares, 2 px apart
+const HEART = [[1, 0], [3, 0], [0, 1], [2, 1], [4, 1], [1, 2], [3, 2], [2, 3]].map(([x, y]) => [x * 1.5, y * 1.5]);
+// SMILE[i] is where heart square i goes: 2-square eyes and an evenly spaced mouth.
+const SMILE = [[1, 0], [4, 0], [1, 1], [10 / 3, 4], [4, 1], [0, 3], [5, 3], [5 / 3, 4]].map(([x, y]) => [x + 0.5, y + 0.25]);
+const FIREWORKS_MS = 2600;
+const HOLD_MS = 1000;
+const MORPH_MS = 800;
+
+function end() {
+  page(`<div class="centerText">
+    <div>Thank you for the support.</div>
+    <div style="margin-top: 5px">Hope you liked it!</div>
+    <div class="shape" id="shape"></div>
+    <div>- toio robots</div>
+    <button id="byeBtn">Bye Bye!</button></div>`);
+  $('byeBtn').onclick = () => app.classList.add('tvOff');
+  fireworks();
+}
+
+function fireworks() {
+  const box = $('shape');
+  box.innerHTML = HEART.map(() => '<i></i>').join('');
+  const cx = 51, cy = 38.5;
+  const squares = [...box.children];
+  squares.forEach((sq, i) => {
+    const [x, y] = HEART[i];
+    const angle = (i / squares.length) * 2 * Math.PI + Math.random() * 0.5;
+    const dist = 110 + Math.random() * 50;
+    const bx = cx + Math.cos(angle) * dist, by = cy - 90 + Math.sin(angle) * dist;
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 360);
+    sq.animate([
+      { transform: `translate(${cx}px, ${cy + 220}px) scale(0.6)`, offset: 0 },
+      { transform: `translate(${cx}px, ${cy - 90}px) scale(0.6)`, offset: 0.3, easing: 'ease-out' },
+      { transform: `translate(${bx}px, ${by}px) rotate(${spin}deg) scale(1)`, opacity: 0.5, offset: 0.55 },
+      { transform: `translate(${bx}px, ${by + 20}px) rotate(${spin}deg) scale(1)`, opacity: 1, offset: 0.65, easing: 'ease-in-out' },
+      { transform: `translate(${x * STEP}px, ${y * STEP}px) rotate(0deg) scale(1)`, offset: 1 },
+    ], { duration: FIREWORKS_MS, fill: 'forwards', easing: 'ease-in-out' });
+  });
+  setTimeout(() => {
+    squares.forEach((sq, i) => sq.animate([
+      { transform: `translate(${HEART[i][0] * STEP}px, ${HEART[i][1] * STEP}px)` },
+      { transform: `translate(${SMILE[i][0] * STEP}px, ${SMILE[i][1] * STEP}px)` },
+    ], { duration: MORPH_MS, fill: 'forwards', easing: 'ease-in-out' }));
+  }, FIREWORKS_MS + HOLD_MS);
+  setTimeout(() => { $('byeBtn').style.visibility = 'visible'; }, FIREWORKS_MS + HOLD_MS + MORPH_MS);
+}
+
 document.addEventListener('keydown', (e) => {
   if (e.repeat) return;
-  const key = e.key.toLowerCase();
-  if (!s) {
-    if (key === ' ' && document.activeElement.tagName !== 'BUTTON') { e.preventDefault(); begin(); }
+  if (sr) {
+    const key = e.key.toLowerCase();
+    if (sr.byKey[key]) answer(key);
     return;
   }
-  if (s.phase === 'done') return;
-  if (s.phase === 'intro') {
-    if (key === ' ') { e.preventDefault(); nextIntroPage(); }
-    return;
-  }
-  if (key === 'escape') return togglePause();
-  if (s.paused) {
-    if (key === 'q') quitToSetup();
-    return;
-  }
-  if (s.byKey[key]) resolve(key);
+  if (e.key === ' ' && st.onSpace) { e.preventDefault(); st.onSpace(); }
 });
 
-for (const b of document.querySelectorAll('.modes button')) b.onclick = () => { setMode(b.dataset.mode); b.blur(); };  // blur so Space still begins
-$('startBtn').onclick = begin;
-$('exportBtn').onclick = exportCsv;
-$('againBtn').onclick = () => { s = null; setMode(mode); show('setup'); };
-
-try {
-  const saved = JSON.parse(localStorage.getItem('stroopSettings'));
-  if (saved) {
-    $('trialsIn').value = saved.trials;
-    $('secondsIn').value = saved.seconds;
-    if (saved.mode) mode = saved.mode;
-  }
-} catch (e) {}
-setMode(mode);
+setup();
 </script>
 </body>
 </html>

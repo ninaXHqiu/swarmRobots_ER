@@ -48,4 +48,18 @@ fakes[0].device.id = 'a'; next = 0; await P.addRobot(bluetooth, robots, onChange
 check('same robot chosen again is not listed twice', robots.length === 3);
 fakes[2].drop(); await sleep(5);
 check('a dropped robot is marked not connected', robots[2].connected === false);
+;
+// Shimmer: connect only, battery read as a percentage, colour by the same rules, lost connection marked
+{
+  let pct = 78.4, dropped = null; const shimmers = []; const seen = [];
+  const makeClient = () => ({ device: { name: 'Shimmer3R-ABCD' }, connect: async () => {}, getBattery: async () => ({ percentage: pct, voltage: 3.9, chargingStatus: 'Not charging' }),
+    set onDisconnect(f) { dropped = f; } });
+  const sh = await P.addShimmer(makeClient, shimmers, (x) => seen.push(x.power));
+  check('shimmer listed with rounded percent', shimmers.length === 1 && sh.power === 78 && sh.volts === 3.9, String(sh.power));
+  check('shimmer 78 is green', eq(sh.currentColor(), P.GREEN));
+  pct = 41.2; await sh.read(); check('shimmer 41 is orange', sh.power === 41 && eq(sh.currentColor(), P.ORANGE));
+  pct = null; await sh.read(); check('shimmer with no percentage has no colour', sh.power === null && sh.currentColor() === null);
+  dropped(); check('shimmer disconnect marked', sh.connected === false);
+  clearInterval(sh.poll);
+}
 process.exit(failed ? 1 : 0);

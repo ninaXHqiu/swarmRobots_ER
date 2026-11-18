@@ -79,7 +79,35 @@
     });
   }
 
-  var api = { SERVICE: SERVICE, LIGHT: LIGHT, BATTERY: BATTERY, GREEN: GREEN, ORANGE: ORANGE, RED: RED, PURPLE: PURPLE,
+  // A Shimmer sensor (read only: its battery, no light to set). `client` is a connected Shimmer SDK client.
+  function Shimmer(client, onChange) {
+    this.client = client; this.name = (client.device && client.device.name) || 'Shimmer'; this.power = null; this.volts = null; this.charging = '';
+    this.connected = true; this.isShimmer = true; this.onChange = onChange; this.poll = null;
+  }
+  Shimmer.prototype.currentColor = function () { return this.power === null ? null : colorFor(this.power); };
+  Shimmer.prototype.flash = function () { return Promise.resolve(); };
+  Shimmer.prototype.read = function () {
+    var self = this;
+    return self.client.getBattery().then(function (b) {
+      self.power = b.percentage === null || b.percentage === undefined ? null : Math.round(b.percentage);
+      self.volts = b.voltage; self.charging = b.chargingStatus || ''; self.onChange(self);
+    }).catch(function (e) { if (global.console) { console.warn('shimmer battery read failed', e && e.message ? e.message : e); } });
+  };
+  // Ask for one Shimmer (the browser shows its own device list), connect, and follow its battery every 30 s.
+  // `makeClient()` gives a new Shimmer3RClient; the sensor is only connected, it is not set up or started.
+  function addShimmer(makeClient, shimmers, onChange) {
+    var client = makeClient();
+    return client.connect().then(function () {
+      var sh = new Shimmer(client, onChange); shimmers.push(sh); onChange(sh);
+      client.onDisconnect = function () { sh.connected = false; if (sh.poll) { clearInterval(sh.poll); } onChange(sh); };
+      return sh.read().then(function () {
+        sh.poll = setInterval(function () { if (sh.connected) { sh.read(); } }, 30000);
+        return sh;
+      });
+    });
+  }
+
+  var api = { Shimmer: Shimmer, addShimmer: addShimmer, SERVICE: SERVICE, LIGHT: LIGHT, BATTERY: BATTERY, GREEN: GREEN, ORANGE: ORANGE, RED: RED, PURPLE: PURPLE,
               colorFor: colorFor, lightOn: lightOn, lightOff: lightOff, cssColor: cssColor, Robot: Robot, addRobot: addRobot };
   global.RobotPower = api;
   if (typeof module !== 'undefined' && module.exports) { module.exports = api; }

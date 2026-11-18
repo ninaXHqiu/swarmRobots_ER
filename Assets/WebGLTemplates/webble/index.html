@@ -31,6 +31,7 @@
           <button onclick="Physio.connect('shimmer3r-ble').catch(function(){})">Connect Shimmer3R (Bluetooth LE)</button>
           <button onclick="Physio.disconnect()">Disconnect</button>
         </div>
+        <div class="physio-row"><span id="physio-battery">Shimmer battery: not read yet</span></div>
         <div class="physio-row">
           <button onclick="Physio.downloadCsv()">Download CSV</button>
           <button onclick="Physio.openMonitor()">Open the monitor in a new tab</button>
@@ -104,6 +105,10 @@
     <script>
       if (window.Physio) {
         Physio.onStatus = function (m) { var e = document.getElementById("physio-summary"); if (e) { e.textContent = m; } };
+        Physio.onBattery = function (b) {
+          var e = document.getElementById("physio-battery"); if (!e) { return; }
+          e.textContent = !b ? "Shimmer battery: not read yet" : "Shimmer battery: " + (b.percent === null || b.percent === undefined ? "?" : Math.round(b.percent) + "%") + " (" + b.volts.toFixed(2) + " V), " + b.charging;
+        };
         Physio.onLog = function (lines) { var e = document.getElementById("physio-log"); if (e) { e.textContent = lines.join("\n"); e.scrollTop = e.scrollHeight; } };
       }
       // the monitor fits its content, so the accordion never needs an inner scrollbar

@@ -10,7 +10,8 @@
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.4 system-ui, sans-serif; padding:16px; }
   main { max-width:520px; margin:0 auto; }
-  button#connect { font:inherit; padding:10px 18px; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; cursor:pointer; }
+  button.top { margin-right:8px; }
+  button.top { font:inherit; padding:10px 18px; border:1px solid var(--line); background:var(--card); color:var(--fg); border-radius:8px; cursor:pointer; }
   ul { list-style:none; margin:16px 0 0; padding:0; }
   li { display:flex; align-items:center; gap:14px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px 14px; margin-bottom:8px; }
   .swatch { width:34px; height:34px; border-radius:50%; border:1px solid var(--line); padding:0; cursor:pointer; flex:none; }
@@ -21,13 +22,14 @@
 </head>
 <body>
 <main>
-  <button id="connect">Connect</button>
+  <button id="connect" class="top">Connect</button>
+  <button id="connect-shimmer" class="top">Connect Shimmer</button>
   <ul id="list"></ul>
 </main>
 <script src="power.js"></script>
 <script>
 (function () {
-  var robots = [], list = document.getElementById('list'), rows = new Map();
+  var robots = [], shimmers = [], sdk = null, list = document.getElementById('list'), rows = new Map();
   function render(r) {
     var li = rows.get(r);
     if (!li) {
@@ -44,6 +46,13 @@
     var c = r.currentColor();
     li.querySelector('.swatch').style.background = c && r.connected ? RobotPower.cssColor(c) : 'transparent';
   }
+  // load the Shimmer SDK ahead of the click (a Bluetooth chooser must open straight from a click)
+  import('../StreamingAssets/physio/vendor/shimmer-web-sdk.esm.js').then(function (m) { sdk = m; }).catch(function () {});
+  document.getElementById('connect-shimmer').onclick = function () {
+    if (!navigator.bluetooth) { alert('Use Chrome or Edge on a computer.'); return; }
+    if (!sdk) { alert('The Shimmer library is not loaded. Open this page from the published site.'); return; }
+    RobotPower.addShimmer(function () { return new sdk.Shimmer3RClient(); }, shimmers, render).catch(function (e) { if (e && e.name !== 'NotFoundError') { alert(e.message || e); } });
+  };
   document.getElementById('connect').onclick = function () {
     if (!navigator.bluetooth) { alert('Use Chrome or Edge on a computer.'); return; }
     RobotPower.addRobot(navigator.bluetooth, robots, render).catch(function (e) { if (e && e.name !== 'NotFoundError') { alert(e.message || e); } });

@@ -31,15 +31,25 @@ export async function connectShimmer(kind, handlers) {
   handlers.status('Choose the sensor in the browser window that opens...');
   await client.connect();
   handlers.status('Connected. Setting up PPG and GSR...');
+  // Battery: read once now (before the stream starts), then now and then while streaming. A failed read never stops the recording.
+  const readBattery = async () => {
+    try {
+      const b = await client.getBattery();
+      if (handlers.battery) { handlers.battery({ percent: b.percentage, volts: b.voltage, charging: b.chargingStatus }); }
+    } catch (e) { handlers.status('Battery read failed: ' + (e && e.message ? e.message : e)); }
+  };
+  await readBattery();
   await client.setSamplingRate(SAMPLING_HZ);
   await client.setInternalExpPower(1);
   await client.setGSRRange(4);                 // auto range
   await client.setSensors(SENSORS_PPG_GSR);
   await client.startStreaming();
   handlers.status('Streaming PPG and GSR at ' + SAMPLING_HZ + ' Hz.');
+  const batteryTimer = setInterval(readBattery, 60000);
   return {
     name: (client.device && client.device.name) || 'Shimmer',
     stop: async () => {
+      clearInterval(batteryTimer);
       try { await client.stopStreaming(); } catch (e) { /* already stopped */ }
       try { await client.disconnect(); } catch (e) { /* already closed */ }
     },

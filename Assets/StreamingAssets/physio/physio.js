@@ -127,7 +127,7 @@
     latest: { t: 0, ppg: NaN, eda: NaN, edaSmooth: NaN, edaTonic: NaN, edaPhasic: NaN, hr: NaN, hrValid: false, beats: 0, lastBeatT: -1 },
     routine: '', section: '',
     recording: false, rows: [], recStart: 0,
-    onStatus: null, onUpdate: null, onLog: null, logLines: [],
+    battery: null, onBattery: null, onStatus: null, onUpdate: null, onLog: null, logLines: [],
     _hr: new HeartRateEstimator(), _eda: new EdaFilter(), _lastT: null, _handle: null, _sim: null, _channel: null,
     _batch: [], _batchTimer: null, _hist: [], _simulatedBpm: 72,
 
@@ -148,6 +148,7 @@
           this._handle = await mod.connectShimmer(kind, {
             status: (m) => this._setStatus(m),
             sample: (s) => this._push(s),
+            battery: (b) => { this.battery = b; if (this.onBattery) { this.onBattery(b); } this._post({ type: 'battery', battery: b }); },
             closed: (why) => { this.connected = false; this._setStatus('Connection lost: ' + why); this._announce(); },
           });
         }
@@ -163,7 +164,7 @@
     },
     async disconnect() {
       if (this._handle) { try { await this._handle.stop(); } catch (e) { /* ignore */ } }
-      this._handle = null; this._sim = null; this.connected = false; this.source = null;
+      this._handle = null; this._sim = null; this.connected = false; this.source = null; this.battery = null; if (this.onBattery) { this.onBattery(null); }
       this._setStatus('Not connected'); this._announce();
     },
     setSimulatedBpm(b) { this._simulatedBpm = b; if (this._sim) { this._sim.setBpm(b); } },

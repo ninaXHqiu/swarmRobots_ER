@@ -12,7 +12,7 @@ Publishing: `tools/publish-pages.sh` copies `stroop/public/` (without `audio/ori
 2. Welcome page.
 3. Three sections, each:
    - the Stroop task page and the goal page ("Lowest score was 25! Your goal is to beat it!") in section 1 only, and the colours page;
-   - the Stroop: 3 minutes, 1 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. A correct answer that would bring the streak to 5, 10, 15 or 20 is marked wrong with a 50, 65, 80 or 95% chance, and to 24 always (`FORCED_WRONG`), so 25 is never reached;
+   - the Stroop: 3 minutes, 1.5 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. A correct answer that would bring the streak to 20 is marked wrong with a 50% chance, and to 24 always (`FORCED_WRONG`), so 25 is never reached;
    - FAIL flashes, then the eval with a 25 s countdown bar (SAM valence and arousal with the SAM pictures, STAI-6);
    - an instructions page (section 1: baseline; sections 2 and 3: "Now look at the robots.", where Next only appears after 2 minutes, `ROBOT_MS`), then the same eval again without a timer and "How do you feel now?";
    - while "Now look at the robots." is on screen, white noise plays (`public/audio/noise/white_noise.mp3`, 10 min, about -11 LUFS) until Next;

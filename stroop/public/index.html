@@ -85,10 +85,10 @@
 // Stroop -> FAIL -> timed eval -> instructions -> eval, then the end page.
 // The 6th eval's Submit downloads one CSV per participant.
 const STROOP_MS = 3 * 60 * 1000;   // each Stroop runs this long
-const WORD_MS = 1000;              // time per word
+const WORD_MS = 1500;              // time per word
 // A correct answer that would bring the streak to one of these is marked wrong
 // with this chance.
-const FORCED_WRONG = { 5: 0.5, 10: 0.65, 15: 0.8, 20: 0.95, 24: 1 };
+const FORCED_WRONG = { 20: 0.5, 24: 1 };
 const EVAL_S = 25;
 const FLASH_MS = 2000;
 const SETS = [

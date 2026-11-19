@@ -11,16 +11,16 @@ Publishing: `tools/publish-pages.sh` copies `stroop/public/` (without `audio/ori
 1. Participant ID (typed by the researcher), then Start.
 2. Welcome page.
 3. Three sections, each:
-   - the Stroop task page and the goal page ("Lowest score was 25! Your goal is to beat it!") in section 1 only, and the colours page;
-   - the Stroop: 3 minutes, 1.5 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. A correct answer that would bring the streak to 20 is marked wrong with a 50% chance, and to 24 always (`FORCED_WRONG`), so 25 is never reached;
-   - FAIL flashes, then the eval with a 25 s countdown bar (SAM valence and arousal with the SAM pictures, STAI-6);
+   - the Stroop task page and the record page ("The highest record is 35. Your goal is to beat the record. Good luck!") in section 1 only, and the colours page. Before the Stroop in sections 2 and 3, a goal page shows the highest streak from any earlier Stroop: under the record it says how far from it; at or past the goal it says awesome and sets a new goal of best + 10 rounded up to a multiple of 5; between the record and their own goal it says how far from the prize; reaching their own goal gives the "Were you promised a prize? ... anything under $10!" page with a goal of best + 5 rounded down to a multiple of 5 (`progress()`, `RECORD`);
+   - the Stroop: 3 minutes, 1.5 s per word, every word in a different ink from its name. The participant presses the first letter of the **ink colour**. The score (current streak) is top left; there is no CORRECT/WRONG screen, a wrong answer or timeout plays a wrong sound and the next word comes straight away. No answers are forced wrong;
+   - TIME'S UP with the swarm smile under it shows on red for 1 s, then the red screen shrinks into the top-left score spot, which shows that Stroop's highest streak, and the eval appears with a 25 s countdown bar (SAM valence and arousal with the SAM pictures, STAI-6);
    - an instructions page (section 1: baseline; sections 2 and 3: "Now look at the robots.", where Next only appears after 2 minutes, `ROBOT_MS`), then the same eval again without a timer and "How do you feel now?";
    - while "Now look at the robots." is on screen, white noise plays (`public/audio/noise/white_noise.mp3`, 10 min, about -11 LUFS) until Next;
    - after section 2's last eval: a "We also have some questions" popup (dots appear one at a time, 10 s, no button);
    - after sections 1 and 2: "Ready for the next test?".
 
    Every eval question must be answered before Submit works. SAM pictures are in `public/image/`.
-4. The 6th eval's Submit downloads one CSV, named `<ID>_<date>.csv` (to save straight into OneDrive, set the browser's download folder to a OneDrive-synced folder and turn off "ask where to save"), with one row per eval (6 rows): the time it was submitted, section, which eval, that section's final Stroop score, and the SAM and STAI-6 answers.
+4. The 6th eval's Submit downloads one CSV, named `<ID>_<date>.csv` (to save straight into OneDrive, set the browser's download folder to a OneDrive-synced folder and turn off "ask where to save"), with one row per eval (6 rows): the time it was submitted, section, which eval, that section's highest Stroop streak, and the SAM and STAI-6 answers.
 5. End page: fireworks into a heart, then a smile; Bye Bye! turns the screen off like an old TV.
 
 Colour sets, one per section (`SETS`):

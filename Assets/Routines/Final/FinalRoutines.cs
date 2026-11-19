@@ -1,17 +1,17 @@
 using System.Collections;
 
-// The study's final routines (1:55 each, 8 robots), designed in the simulator in tools/final-sim
-// (open tools/final-sim/preview/index.html). One button per routine; the Resonance routines have
-// one button per starting intensity, the level 1, 2 or 3 that the experiment page gives from the
-// skin-conductance rise (1 = low, 2 = medium, 3 = high). Only their short chaos changes with it.
+// The study's final routines (v5, 2:20 each, 8 robots), designed in the swarm simulator ("rutinas
+// finales v5"). One button per routine; Resonance 1 and 2 have one button per starting intensity,
+// the level 1, 2 or 3 that the experiment page gives from the skin-conductance rise (1 = low,
+// 2 = medium, 3 = high). Only their chaos changes with it.
 //
-//   E01-E03  Resonance 1: brief chaos, a racing heart that slows, three breaths
-//   E04-E06  Resonance 2: brief chaos, a flower, round the petals, a heart that beats and turns
-//   E07      Cheerleading 1: line to the middle, "here we are", pairs, turning heart, circle, spinning
-//   E08      Cheerleading 2: line to the middle, the book, two fireworks, the finale
+//   E01-E03  Resonance 1: wide chaos in the middle of the mat, a racing heart that slows, three breaths, calm heart
+//   E04-E06  Resonance 2: chaos, a flower, round the petals, a heart that beats and turns
+//   E07      Resonance 3: line to the middle, "here we are", pairs, turning circle, spinning, a heart that beats
+//   E08      Cheerleading: line to the middle, the book, two fireworks of four, the finale
 //
 // Every routine: the messenger (robot 1) walks to the participant looking at them, looks at their
-// hand, goes back and talks to the team; the middle; everyone looks at the participant and the
+// hand, goes back and talks to the team; the middle; everyone turns slowly to the participant and the
 // messenger asks "better?"; slowly back into the line, everyone looking at the participant.
 public abstract class FinalRoutine : SwarmRoutine
 {
@@ -68,17 +68,17 @@ public class Final_Resonance2_Level3 : FinalRoutine
     protected override string Data { get { return "res_flower_level3"; } }
 }
 
-public class Final_Cheerleading1 : FinalRoutine
+public class Final_Resonance3 : FinalRoutine
 {
-    public override string Name { get { return "Final Cheerleading 1"; } }
+    public override string Name { get { return "Final Resonance 3"; } }
     public override string Code { get { return "E07"; } }
-    public override string Note { get { return "Turning heart, circle, spinning"; } }
-    protected override string Data { get { return "cl_heart"; } }
+    public override string Note { get { return "Circle, spinning, beating heart"; } }
+    protected override string Data { get { return "res_circle"; } }
 }
 
-public class Final_Cheerleading2 : FinalRoutine
+public class Final_Cheerleading : FinalRoutine
 {
-    public override string Name { get { return "Final Cheerleading 2"; } }
+    public override string Name { get { return "Final Cheerleading"; } }
     public override string Code { get { return "E08"; } }
     public override string Note { get { return "Book, fireworks, finale"; } }
     protected override string Data { get { return "cl_fireworks"; } }

@@ -27,14 +27,13 @@
   #word { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
     font-size: 16.5vw; font-weight: 900; letter-spacing: 0.02em; }
 
-  /* FAIL: flashes full screen, then moves under the bar */
+  /* TIME'S UP with the face under it, on red, then it shrinks into the score spot */
   #failOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
-  #failOverlay.on { display: flex; animation: flash 0.25s steps(1) 8; }
-  @keyframes flash { 0% { background: #ff0000; } 50% { background: #000; } }
-  #failBig { font-size: 22vw; font-weight: 900; color: #fff; }
-  .fly { position: fixed; z-index: 11; font-weight: 900; color: #fff; white-space: nowrap; transition: all 0.7s ease-in-out; }
+  #failOverlay.on { display: flex; flex-direction: column; background: #ff0000; }
+  #endFace { position: relative; display: none; margin-top: 4vw; width: calc(5 * 4.6vw + 4vw); height: calc(3 * 4.6vw + 4vw); }
+  #endFace i { position: absolute; width: 4vw; height: 4vw; background: #fff; }
+  #failBig { font-size: 16vw; white-space: nowrap; font-weight: 900; color: #fff; }
   #fail { position: fixed; top: 70px; left: 40px; font-size: 70px; font-weight: bold; color: #ff2222; }
-  #fail span { margin-left: 16px; }
   #feelNow { position: fixed; top: 70px; left: 40px; font-size: 60px; font-weight: bold; color: #fff; }
 
   /* Countdown bar */
@@ -78,19 +77,21 @@
 </head>
 <body>
 <div id="app"></div>
-<div id="failOverlay"><div id="failBig">FAIL</div></div>
+<div id="failOverlay"><div id="failBig"></div><div id="endFace"></div></div>
 
 <script>
 // Stroop study: participant ID, welcome, then three sections of
-// Stroop -> FAIL -> timed eval -> instructions -> eval, then the end page.
+// Stroop -> TIME'S UP -> timed eval -> instructions -> eval, then the end page.
 // The 6th eval's Submit downloads one CSV per participant.
 const STROOP_MS = 3 * 60 * 1000;   // each Stroop runs this long
 const WORD_MS = 1500;              // time per word
-// A correct answer that would bring the streak to one of these is marked wrong
-// with this chance.
-const FORCED_WRONG = { 20: 0.5, 24: 1 };
+// The record shown on the first goal page. Reaching it counts as beating it;
+// after that the goal moves up (see progress()).
+const RECORD = 35;
 const EVAL_S = 25;
-const FLASH_MS = 2000;
+const END_STEP_MS = 1000;   // TIME'S UP with the face under it shows this long
+// The swarm smile: one square per eye, 6 for the mouth.
+const END_FACE = [[1, 0], [4, 0], [0, 2], [5, 2], [1, 3], [2, 3], [3, 3], [4, 3]];
 const SETS = [
   { RED: '#ff1a1a', PINK: '#ff7ab8', BLUE: '#2f6bff', YELLOW: '#ffe100', WHITE: '#ffffff', CYAN: '#00e5ff' },
   { BROWN: '#a0522d', ORANGE: '#ff8c00', GREEN: '#1fbf1f', LIME: '#9dff00', CYAN: '#00e5ff', MAGENTA: '#ff00ff' },
@@ -118,7 +119,7 @@ const SOUND_FILES = {
 const $ = (id) => document.getElementById(id);
 const app = $('app');
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
-const st = { id: '', section: 0, score: 0, onSpace: null, rows: [] };
+const st = { id: '', section: 0, score: 0, best: 0, target: RECORD, onSpace: null, rows: [] };
 let ticker = null;
 
 // ---- Audio: wrong answers play one of the w_ clips; a new one cuts off the last ----
@@ -173,7 +174,7 @@ function task() {
     Press the key for the <b>ink colour</b>, not the word. For example, if you see:
     <div class="example" style="color:${SETS[0].RED}">GREEN</div>
     the ink is red, so press <b>R</b>.<br>
-    Answer as fast and as accurately as you can.
+    You have 3 minutes for each Stroop test. Answer as fast and as accurately as you can.
     <div class="next">press space to continue</div></div>`);
   st.onSpace = colours;
 }
@@ -183,23 +184,43 @@ function colours() {
     .map(([c, hex]) => `<div style="color:${hex}"><span class="k">${c[0]}:</span>${c}</div>`).join('');
   page(`<div class="text"><h2>Here are the colours</h2><div class="colours">${rows}</div>
     <div class="next">press space to continue</div></div>`);
-  st.onSpace = st.section === 0 ? goal : stroop;   // the goal page is shown once, in section 1
+  st.onSpace = st.section === 0 ? goal : progress;   // the record page in section 1, the progress page after
 }
 
 function goal() {
-  page(`<div class="goal">Lowest score was <span class="big">25!</span><div style="font-size: 32px; margin-top: 15px">Your goal is to beat it!</div>
+  page(`<div class="goal">The highest record is <span class="big">${RECORD}</span><div style="font-size: 32px; margin-top: 15px">Your goal is to beat the record. Good luck!</div>
     <div class="next">press space to begin</div></div>`);
   st.onSpace = stroop;
 }
 
 // ---- Stroop ----
+// Before sections 2 and 3: the best streak from any Stroop so far against the goal.
+function progress() {
+  const b = st.best;
+  const ownGoal = b >= st.target && st.target > RECORD;   // reached their own goal
+  // Next goal: best + 10 up to the next multiple of 5; once they reached their own goal,
+  // best + 5 down to a multiple of 5.
+  const next = ownGoal ? Math.floor((b + 5) / 5) * 5 : Math.ceil((b + 10) / 5) * 5;
+  const lines = ownGoal
+    ? [`Your highest streak was <span class="big">${b}</span>`, 'Were you promised a prize?', `Well... That's only if you can reach ${next}`, 'You get to pick anything under $10!']
+    : b >= st.target
+    ? [`Your highest streak was <span class="big">${b}</span>`, 'This is awesome!', `Try reaching ${next} to get a reward 🎁🎁🎁`]
+    : st.target > RECORD   // already past the record, working toward their own goal
+      ? [`Your highest streak was <span class="big">${b}</span>`, `You are ${st.target - b} away from getting the prize`, 'Keep it up you still have a chance!']
+      : [`Your highest streak was <span class="big">${b}</span>`, `Still ${st.target - b} away from beating the record.`, 'You are doing great!'];
+  if (b >= st.target) st.target = next;
+  page(`<div class="goal">${lines[0]}${lines.slice(1).map((l) => `<div style="font-size: 32px; margin-top: 15px">${l}</div>`).join('')}
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = stroop;
+}
+
 let sr = null;   // the running Stroop
 
 function stroop() {
   page('');
   const ink = SETS[st.section];
   sr = {
-    ink, names: Object.keys(ink), streak: 0, index: 0, prev: null,
+    ink, names: Object.keys(ink), streak: 0, best: 0, index: 0, prev: null,
     byKey: Object.fromEntries(Object.keys(ink).map((c) => [c[0].toLowerCase(), c])),
     start: performance.now(),
   };
@@ -232,48 +253,40 @@ function stroopTick() {
 // key is the letter pressed, or null when the word timed out.
 function answer(key) {
   const t = sr.trial;
-  const right = key !== null && sr.byKey[key] === t.ink;
-  const p = FORCED_WRONG[sr.streak + 1] || 0;
-  const forced = right && Math.random() < p;
-  const correct = right && !forced;
+  const correct = key !== null && sr.byKey[key] === t.ink;
   sr.streak = correct ? sr.streak + 1 : 0;
+  sr.best = Math.max(sr.best, sr.streak);
   if (!correct) playWrong();
   nextWord();
 }
 
-// FAIL flashes, then flies under the bar, and the timed eval appears.
+// TIME'S UP with the face shows, then the timed eval with this Stroop's highest streak.
 function fail() {
-  st.score = sr.streak;
+  st.score = sr.best;
+  st.best = Math.max(st.best, sr.best);
   sr = null;
   page('');
-  const ov = $('failOverlay');
+  const ov = $('failOverlay'), big = $('failBig'), face = $('endFace');
+  face.innerHTML = END_FACE.map(([x, y]) => `<i style="left:${x * 4.6}vw;top:${y * 4.6}vw"></i>`).join('');
+  big.textContent = "TIME'S UP"; big.style.display = ''; face.style.display = 'block';
   ov.classList.add('on');
+  // Then the red screen, face and all, shrinks into the score spot and the eval shows around it.
   setTimeout(() => {
-    const big = $('failBig');
-    const from = big.getBoundingClientRect();
-    const fly = document.createElement('div');
-    fly.className = 'fly';
-    fly.textContent = 'FAIL';
-    Object.assign(fly.style, { left: `${from.left}px`, top: `${from.top}px`, fontSize: getComputedStyle(big).fontSize });
-    document.body.appendChild(fly);
-    ov.classList.remove('on');
-
     evalForm(true);
-    app.style.visibility = 'hidden';
-    $('fail').style.visibility = 'hidden';
-    $('barTop').style.visibility = 'hidden';
-    const to = $('fail').getBoundingClientRect();
+    const score = $('fail'), to = score.getBoundingClientRect();
+    score.style.visibility = 'hidden';
+    ov.style.transformOrigin = 'top left';
+    ov.style.transition = 'transform 0.7s ease-in-out';
     requestAnimationFrame(() => requestAnimationFrame(() => {
-      Object.assign(fly.style, { left: `${to.left}px`, top: `${to.top}px`, fontSize: getComputedStyle($('fail')).fontSize, color: '#ff2222' });
+      ov.style.transform = `translate(${to.left}px, ${to.top}px) scale(${to.width / innerWidth}, ${to.height / innerHeight})`;
     }));
     setTimeout(() => {
-      fly.remove();
-      app.style.visibility = '';
-      $('fail').style.visibility = '';
-      $('barTop').style.visibility = '';
+      ov.classList.remove('on');
+      ov.style.transition = ''; ov.style.transform = '';
+      score.style.visibility = '';
       startTimer();
     }, 750);
-  }, FLASH_MS);
+  }, END_STEP_MS);
 }
 
 // ---- Eval ----
@@ -306,12 +319,12 @@ function evalForm(timed) {
     <button type="submit" class="submit">Submit</button></form></div>`;
   if (timed) {
     document.body.insertAdjacentHTML('beforeend',
-      `<div id="fail">FAIL<span>${st.score}</span></div>` +
+      `<div id="fail">${st.score}</div>` +
       `<div id="barTop"><div class="fill" id="barFill"></div><div class="num" id="barNum">${EVAL_S}</div></div>`);
   } else {
     document.body.insertAdjacentHTML('beforeend', '<div id="feelNow">How do you feel now?</div>');
   }
-  // The questions start below the FAIL / "How do you feel now?" line, however tall it wraps.
+  // The questions start below the score / "How do you feel now?" line, however tall it wraps.
   const header = $(timed ? 'fail' : 'feelNow');
   app.querySelector('.evalPage').style.paddingTop = `${Math.round(header.getBoundingClientRect().bottom + 40)}px`;
   evalTimed = timed;

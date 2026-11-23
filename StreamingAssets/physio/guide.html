@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shimmer setup guide</title>
+<style>
+  :root { --bg:#f7f7f5; --fg:#1d1d1b; --muted:#6b6b66; --card:#fff; --line:#d9d9d4; --blue:#2b7bd9; --red:#d9472b; --green:#15803d; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161615; --fg:#ececea; --muted:#9a9a94; --card:#20201f; --line:#383836; --blue:#6aa9ff; --red:#ff7a5c; --green:#4ade80; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; padding:16px; }
+  main { max-width:980px; margin:0 auto; }
+  h1 { font-size:24px; margin:0 0 4px; } h2 { font-size:19px; margin:28px 0 8px; }
+  .muted { color:var(--muted); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin:10px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:12px; }
+  .part { text-align:center; } .part svg { width:100%; max-width:200px; height:auto; }
+  .num { display:inline-block; width:26px; height:26px; line-height:26px; border-radius:50%; background:var(--fg); color:var(--bg); text-align:center; font-weight:700; margin-right:6px; }
+  .warn { border-left:4px solid var(--red); padding-left:10px; }
+  svg text { fill:currentColor; font-family:system-ui, sans-serif; }
+  ol li { margin-bottom:8px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Shimmer3R GSR+ : what is what, and where it goes</h1>
+<p class="muted">Use only the <b>GSR+ unit (SR48-8-1)</b>. Leave the ExG unit (SR47-8-1) in the box and switched off: this page cannot read it.</p>
+
+<h2>1. The parts in your kit</h2>
+<p class="muted">Simplified drawings, adjusted after looking at a photo of the kit. The black coil with a round snap button is not part of this list (probably ExG): leave it out.</p>
+<div class="grid">
+  <div class="card part">
+    <svg viewBox="0 0 200 150" role="img" aria-label="Shimmer GSR+ unit">
+      <rect x="40" y="35" width="120" height="70" rx="10" fill="#3a3a3a" stroke="#111" stroke-width="2"/>
+      <text x="100" y="75" text-anchor="middle" font-size="14" style="fill:#fff">Shimmer3R</text>
+      <circle cx="62" cy="52" r="5" fill="#4ade80"/>
+      <rect x="148" y="52" width="14" height="10" rx="2" fill="#bbb"/><rect x="148" y="76" width="14" height="10" rx="2" fill="#bbb"/>
+      <text x="100" y="135" text-anchor="middle" font-size="12">small box with two round sockets</text>
+    </svg>
+    <div><span class="num">1</span><b>GSR+ unit</b><br><span class="muted">White box, Shimmer3R GSR+ SR48-8-1, label BTID <b>90D7</b>. Top: orange round button (power) and two small light bumps. One short end has <b>three round sockets: black, red, black</b>. Leave the small orange slide switch and the orange slot alone.</span></div>
+  </div>
+  <div class="card part">
+    <svg viewBox="0 0 200 150" role="img" aria-label="Wrist strap">
+      <rect x="20" y="55" width="160" height="40" rx="8" fill="#7a7a7a" stroke="#333" stroke-width="2"/>
+      <rect x="75" y="48" width="50" height="54" rx="6" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="4 3"/>
+      <text x="100" y="135" text-anchor="middle" font-size="12">strap with a pocket for the box</text>
+    </svg>
+    <div><span class="num">2</span><b>Wrist strap</b><br><span class="muted">Holds the box on the wrist.</span></div>
+  </div>
+  <div class="card part">
+    <svg viewBox="0 0 200 150" role="img" aria-label="GSR electrodes">
+      <rect x="20" y="30" width="60" height="26" rx="6" fill="#2b7bd9" stroke="#14407a"/><rect x="20" y="70" width="60" height="26" rx="6" fill="#2b7bd9" stroke="#14407a"/>
+      <path d="M80 43 C 130 43, 130 70, 170 70" fill="none" stroke="#2b7bd9" stroke-width="3"/>
+      <path d="M80 83 C 130 83, 130 70, 170 70" fill="none" stroke="#2b7bd9" stroke-width="3"/>
+      <rect x="168" y="63" width="14" height="14" rx="3" fill="#bbb"/>
+      <text x="100" y="135" text-anchor="middle" font-size="12">two finger straps, one plug</text>
+    </svg>
+    <div><span class="num">3</span><b>GSR electrodes (x2)</b><br><span class="muted">One black Velcro strip with two grey round pads side by side, and two thin black leads ending in thin pins. The pads touch the palm side of the index and middle finger, the strip wraps round both fingers. Measures sweat (skin conductance).</span></div>
+  </div>
+  <div class="card part">
+    <svg viewBox="0 0 200 150" role="img" aria-label="Optical pulse probe">
+      <path d="M60 60 C 20 70, 20 120, 90 118 C 140 116, 150 100, 175 100" fill="none" stroke="#bbb" stroke-width="4"/>
+      <ellipse cx="62" cy="52" rx="20" ry="16" fill="#f3eef2" stroke="#999" stroke-width="2"/>
+      <rect x="66" y="30" width="26" height="14" rx="5" fill="#f3eef2" stroke="#999" stroke-width="2" transform="rotate(-25 66 30)"/>
+      <rect x="112" y="30" width="46" height="34" rx="8" fill="#222" stroke="#000"/>
+      <text x="135" y="52" text-anchor="middle" font-size="10" style="fill:#fff">Velcro ring</text>
+      <rect x="172" y="94" width="14" height="12" rx="2" fill="#555"/>
+      <text x="100" y="140" text-anchor="middle" font-size="12">white cable, white pod + clip</text>
+    </svg>
+    <div><span class="num">4</span><b>Optical pulse probe</b><br><span class="muted">White cable with a small white pod (the light sensor) and a spring clip, plus a black Velcro ring. Measures heartbeat. Your kit has two.</span></div>
+  </div>
+</div>
+
+<h2>2. Where each part goes on the person</h2>
+<div class="card">
+  <svg viewBox="0 0 560 270" style="width:100%;height:auto" role="img" aria-label="Placement on the hand">
+    <rect x="10" y="100" width="170" height="70" rx="18" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="170" y="88" width="130" height="96" rx="24" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="296" y="94" width="170" height="22" rx="11" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="300" y="120" width="185" height="22" rx="11" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="296" y="146" width="165" height="22" rx="11" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="284" y="172" width="130" height="20" rx="10" fill="#f1d9c4" stroke="#8a6a50"/>
+    <rect x="190" y="52" width="100" height="24" rx="12" fill="#f1d9c4" stroke="#8a6a50" transform="rotate(28 190 52)"/>
+    <text x="236" y="212" text-anchor="middle" font-size="12" style="fill:#8a6a50">palm facing up</text>
+    <!-- box on wrist -->
+    <rect x="92" y="92" width="50" height="86" rx="6" fill="#3a3a3a" stroke="#111"/>
+    <text x="117" y="137" font-size="11" text-anchor="middle" transform="rotate(-90 117 137)" style="fill:#fff">Shimmer</text>
+    <!-- GSR electrodes: index + middle, middle segment -->
+    <rect x="368" y="92" width="26" height="26" rx="5" fill="#2b7bd9" stroke="#14407a"/>
+    <rect x="372" y="118" width="26" height="26" rx="5" fill="#2b7bd9" stroke="#14407a"/>
+    <!-- pulse probe on ring finger tip -->
+    <rect x="440" y="144" width="34" height="26" rx="7" fill="#d9472b" stroke="#7a1d0f"/>
+    <!-- leads -->
+    <path d="M142 118 C 220 40, 320 60, 372 100" fill="none" stroke="#2b7bd9" stroke-width="2.5" stroke-dasharray="6 4"/>
+    <path d="M142 150 C 240 235, 400 230, 450 170" fill="none" stroke="#d9472b" stroke-width="2.5" stroke-dasharray="6 4"/>
+    <text x="117" y="80" font-size="13" text-anchor="middle"><tspan font-weight="700">1 + 2</tspan> box in strap</text>
+    <text x="380" y="70" font-size="13" text-anchor="middle" style="fill:#2b7bd9"><tspan font-weight="700">3</tspan> GSR on index + middle</text>
+    <text x="460" y="205" font-size="13" text-anchor="middle" style="fill:#d9472b"><tspan font-weight="700">4</tspan> pulse probe on ring finger</text>
+  </svg>
+  <ol>
+    <li><b>Prepare.</b> Hands clean and dry, no cream. Use the hand the person uses less (left if they write with the right). Arm resting on a table, palm up or relaxed.</li>
+    <li><b>1 + 2 Box.</b> Put the box in the wrist strap, strap on the wrist like a watch. Snug, must not slide.</li>
+    <li><b>3 GSR.</b> The two grey pads go on the <b>palm side</b> of the <b>index</b> and <b>middle</b> finger, on the middle segment (between the two lower knuckles). Wrap the Velcro strip around both fingers. Snug, not tight.</li>
+    <li><b>4 Pulse probe.</b> Easiest and steadiest: clip the white pod on the <b>earlobe</b>. Or on the <b>ring finger</b> of the same hand: put the pod flat on the fingertip pad and wrap the black Velcro ring around it. Snug, not squeezing: if the fingertip turns white or tingles, loosen it. Keep it still.</li>
+    <li><b>Plugs.</b> The box has three round sockets in a row: black, red, black. Match by size: the <b>thick earphone-style plug</b> (pulse probe) goes in the <b>biggest</b> socket; the <b>two thin pins</b> (GSR leads) go in the two <b>smaller</b> sockets. Never force a plug: if it does not slide in, it is the wrong socket. The connection log checks it: "no PPG channel" means the probe is in the wrong socket; a flat skin-conductance line means the GSR pins are.</li>
+    <li><b>Switch on</b> the box (light on), then wait about 2 minutes before recording.</li>
+  </ol>
+  <p class="muted">Placement (index + middle for GSR, ring finger or ear lobe for the pulse, non-dominant hand) is common practice and matches published Shimmer case studies. The exact socket labels were not in the sources I could read, so verify with
+  <a href="https://shimmersensing.com/wp-content/docs/support/documentation/GSR_User_Guide_rev1.13.pdf">Shimmer GSR+ User Guide</a> and the
+  <a href="https://www.shimmersensing.com/product/optical-pulse-probe/">optical pulse probe page</a>.</p>
+</div>
+
+<h2>3. Using it on the page</h2>
+<div class="card">
+  <ol>
+    <li>Use <b>Chrome or Edge</b> (not Safari). Open the robot page.</li>
+    <li><b>Scroll down</b>, below the black robot window. You will see the bar <b>"Sensor and monitor (Shimmer)"</b>. Click it if it is closed.</li>
+    <li>Click <b>Connect Shimmer3R (Bluetooth LE)</b>. A small window opens: choose the one named <b>Shimmer3R-xxxx</b> and click Pair.</li>
+    <li>The <b>Connection log</b> is the dark box right under the buttons. It prints each step. If it says FAILED, copy that line and send it to me.</li>
+    <li>Below the log, the monitor shows heart rate (needs about 5 seconds of a still finger) and skin conductance.</li>
+    <li>Click <b>Start recording</b> before a routine, <b>Stop</b> after, then <b>Download CSV</b>.</li>
+  </ol>
+  <svg viewBox="0 0 520 250" style="width:100%;max-width:560px;height:auto" role="img" aria-label="Page layout">
+    <rect x="1" y="1" width="518" height="248" rx="8" fill="none" stroke="currentColor" opacity=".4"/>
+    <rect x="20" y="14" width="480" height="70" rx="6" fill="#222"/><text x="260" y="54" text-anchor="middle" font-size="13" style="fill:#fff">robot window (Unity)</text>
+    <rect x="20" y="94" width="480" height="24" rx="5" fill="none" stroke="currentColor"/><text x="30" y="111" font-size="12">&#9662; Sensor and monitor (Shimmer)   not connected</text>
+    <rect x="20" y="124" width="150" height="22" rx="5" fill="#2b7bd9"/><text x="95" y="139" text-anchor="middle" font-size="11" style="fill:#fff">Connect Shimmer3R</text>
+    <rect x="20" y="152" width="480" height="48" rx="5" fill="#1d1d1b"/><text x="30" y="170" font-size="11" style="fill:#e8e8e4">12:01  Connecting (shimmer3r-ble)</text><text x="30" y="188" font-size="11" style="fill:#e8e8e4">12:01  Selected: Shimmer3R-A1B2 ...</text>
+    <text x="510" y="166" font-size="12" text-anchor="end" style="fill:#4ade80">&#8592; connection log</text>
+    <rect x="20" y="208" width="480" height="30" rx="5" fill="none" stroke="currentColor" opacity=".5"/><text x="30" y="228" font-size="12">monitor: heart rate, skin conductance, graphs</text>
+  </svg>
+</div>
+<p class="warn muted">If the page looks the same as before, hard refresh it (Cmd+Shift+R). The Unity build must also be rebuilt/re-published for the new panel to appear; running the Unity editor alone does not show it.</p>
+</main>
+</body>
+</html>

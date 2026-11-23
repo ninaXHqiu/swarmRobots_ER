@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stroop difficulty demo</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: Arial, Helvetica, sans-serif; }
+  #menu, #end { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+  h2 { font-size: 34px; margin: 0 0 10px; }
+  .opt { width: 640px; max-width: 90vw; text-align: left; font-size: 22px; padding: 14px 24px; border-radius: 8px; border: 2px solid #888; background: #222; color: #fff; cursor: pointer; }
+  .opt:hover { border-color: #c9a26b; }
+  .opt small { display: block; color: #aaa; font-size: 16px; margin-top: 4px; }
+  #end p { font-size: 26px; margin: 4px; }
+  #score { position: fixed; top: 30px; left: 40px; font-size: calc(16.5vw * 2 / 3); font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #word { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 16.5vw; font-weight: 900; letter-spacing: 0.02em; }
+  #hud { position: fixed; top: 16px; right: 24px; text-align: right; font-size: 20px; color: #888; line-height: 1.5; }
+  #hud b { color: #fff; }
+  #bar { position: fixed; left: 0; bottom: 0; height: 8px; background: #c9a26b; }
+  #flash { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 0 #ff2a2a; }
+  .hint { color: #888; font-size: 16px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div id="menu">
+  <h2>Stroop difficulty demo</h2>
+  <button class="opt" data-mode="1">1. Fixed 1.5 s<small>Every word 1.5 s for the whole 2:30.</small></button>
+  <button class="opt" data-mode="2">2. Streak speed-up<small>1.5 s. At streak 15 it drops to 1.2 s and holds for 10 words; after those 10, back to 1.5 s if the streak broke.</small></button>
+  <button class="opt" data-mode="3">3. Ramp down<small>Starts at 1.5 s, drops 0.2 s every 25 s per word, floor 1.0 s.</small></button>
+  <button class="opt" data-mode="4">4. Random<small>Each word randomly 1.5 s, 1.2 s or 1.0 s.</small></button>
+  <div class="hint">Press the first letter of the INK colour: r, p, b, y, w, c. Esc quits a run.</div>
+</div>
+<div id="end" style="display:none"></div>
+<div id="run" style="display:none">
+  <div id="score">0</div><div id="word"></div><div id="hud"></div><div id="bar"></div>
+</div>
+<script>
+const TOTAL_MS = 150 * 1000;
+const COLORS = { RED: '#ff1a1a', PINK: '#ff7ab8', BLUE: '#2f6bff', YELLOW: '#ffe100', WHITE: '#ffffff', CYAN: '#00e5ff' };
+const NAMES = Object.keys(COLORS);
+const BYKEY = Object.fromEntries(NAMES.map((c) => [c[0].toLowerCase(), c]));
+const LABEL = { 1: 'Fixed 1.5 s', 2: 'Streak speed-up', 3: 'Ramp down', 4: 'Random' };
+const $ = (id) => document.getElementById(id);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+let sr = null, ticker = null;
+
+// Mode 2 state lives in sr: fast = on 1.2 s, fastLeft = words left in the 10-word hold.
+function wordMs() {
+  const el = performance.now() - sr.start;
+  if (sr.mode === 1) return 1500;
+  if (sr.mode === 2) return sr.fast ? 1200 : 1500;
+  if (sr.mode === 3) return Math.max(1000, 1500 - 200 * Math.floor(el / 25000));
+  return sr.cur;   // mode 4: chosen per word
+}
+
+function start(mode) {
+  $('menu').style.display = 'none'; $('end').style.display = 'none'; $('run').style.display = 'block';
+  sr = { mode, streak: 0, best: 0, words: 0, correct: 0, fast: false, fastLeft: 0, prev: null, start: performance.now(), log: [] };
+  nextWord();
+  ticker = setInterval(tick, 20);
+}
+
+function nextWord() {
+  let w, i;
+  do { w = pick(NAMES); i = pick(NAMES.filter((c) => c !== w)); } while (sr.prev && (w === sr.prev.w || i === sr.prev.i));
+  sr.prev = sr.trial = { w, i };
+  if (sr.mode === 4) sr.cur = pick([1500, 1200, 1000]);
+  sr.limit = wordMs();
+  sr.shownAt = performance.now();
+  sr.words++;
+  sr.log.push(sr.limit);
+  $('word').textContent = w; $('word').style.color = COLORS[i]; $('score').textContent = sr.streak;
+  hud();
+}
+
+function hud() {
+  const left = Math.max(0, Math.ceil((TOTAL_MS - (performance.now() - sr.start)) / 1000));
+  const m = Math.floor(left / 60), s = String(left % 60).padStart(2, '0');
+  let extra = '';
+  if (sr.mode === 2) extra = sr.fast ? `<br>fast hold: <b>${sr.fastLeft}</b> words left` : '<br>need streak 15 for 1.2 s';
+  $('hud').innerHTML = `${LABEL[sr.mode]}<br>word time: <b>${(sr.limit / 1000).toFixed(1)} s</b>${extra}<br>time left: <b>${m}:${s}</b>`;
+  $('bar').style.width = (100 * (performance.now() - sr.start) / TOTAL_MS) + 'vw';
+}
+
+function tick() {
+  const now = performance.now();
+  if (now - sr.start >= TOTAL_MS) return finish();
+  if (now - sr.shownAt >= sr.limit) answer(null);
+  hud();
+}
+
+function answer(key) {
+  const ok = key !== null && BYKEY[key] === sr.trial.i;
+  sr.streak = ok ? sr.streak + 1 : 0;
+  if (ok) sr.correct++;
+  sr.best = Math.max(sr.best, sr.streak);
+  if (!ok) beep();
+  if (sr.mode === 2) {
+    if (sr.fast) {
+      sr.fastLeft--;
+      if (sr.fastLeft <= 0 && sr.streak === 0) sr.fast = false;   // hold over and streak broke: back to 1.5 s
+      else if (sr.fastLeft < 0) sr.fastLeft = 0;                    // streak alive: stay fast
+    } else if (sr.streak >= 15) { sr.fast = true; sr.fastLeft = 10; }
+  }
+  nextWord();
+}
+
+function beep() {
+  try {
+    const a = beep.ctx || (beep.ctx = new AudioContext()); const o = a.createOscillator(), g = a.createGain();
+    o.type = 'sawtooth'; o.frequency.value = 160; g.gain.value = 0.15;
+    o.connect(g); g.connect(a.destination); o.start(); o.stop(a.currentTime + 0.2);
+  } catch (e) {}
+}
+
+function finish() {
+  clearInterval(ticker); $('run').style.display = 'none';
+  const avg = sr.log.reduce((a, b) => a + b, 0) / sr.log.length / 1000;
+  $('end').innerHTML = `<h2>${LABEL[sr.mode]} done</h2>
+    <p>Words shown: ${sr.words}</p><p>Correct: ${sr.correct}</p><p>Best streak: ${sr.best}</p><p>Average word time: ${avg.toFixed(2)} s</p>
+    <p></p><button class="opt" style="width:auto" onclick="menu()">Back to menu</button>`;
+  $('end').style.display = 'flex'; sr = null;
+}
+
+function menu() { $('end').style.display = 'none'; $('menu').style.display = 'flex'; }
+
+document.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => start(+b.dataset.mode));
+document.addEventListener('keydown', (e) => {
+  if (e.repeat || !sr) return;
+  if (e.key === 'Escape') { clearInterval(ticker); sr = null; $('run').style.display = 'none'; menu(); return; }
+  const k = e.key.toLowerCase();
+  if (BYKEY[k]) answer(k);
+});
+</script>
+</body>
+</html>

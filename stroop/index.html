@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stroop Study</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; color: #fff; font-family: Arial, Helvetica, sans-serif; }
+  #app { position: fixed; inset: 0; overflow: auto; background: #000; }
+  .page { min-height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .text { max-width: 900px; padding: 0 40px; font-size: 26px; line-height: 1.5; text-align: left; }
+  .text h2 { font-size: 34px; margin: 0 0 18px; }
+  .text .example { font-size: 40px; font-weight: 900; margin: 14px 0 14px 40px; }
+  .next { position: fixed; left: 0; right: 0; bottom: 12vh; color: #c9a26b; font-style: italic; text-align: center; font-size: 26px; line-height: 1.5; }
+  .centerText { text-align: center; font-size: 30px; }
+  button { font-size: 22px; padding: 12px 32px; border-radius: 8px; border: 2px solid #888;
+    background: #222; color: #fff; cursor: pointer; }
+  input[type=text] { font-size: 22px; padding: 6px 10px; margin: 0 0 20px 10px; width: 160px; }
+
+  .colours { font-size: 32px; line-height: 1.6; }
+  .colours .k { display: inline-block; width: 44px; }
+  .goal { font-size: 40px; text-align: center; }
+  .goal .big { font-size: 64px; font-weight: 900; }
+
+  /* Stroop */
+  #score { position: fixed; top: 30px; left: 40px; font-size: calc(16.5vw * 2 / 3); font-weight: bold; color: #ff2a2a; line-height: 1; }
+  #word { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: 16.5vw; font-weight: 900; letter-spacing: 0.02em; }
+
+  /* TIME'S UP with the face under it, on red, then it shrinks into the score spot */
+  #failOverlay { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10; }
+  #failOverlay.on { display: flex; flex-direction: column; background: #ff0000; }
+  #endFace { position: relative; display: none; margin-top: 4vw; width: calc(5 * 4.6vw + 4vw); height: calc(3 * 4.6vw + 4vw); }
+  #endFace i { position: absolute; width: 4vw; height: 4vw; background: #fff; }
+  #failBig { font-size: 16vw; white-space: nowrap; font-weight: 900; color: #fff; }
+  #fail { position: fixed; top: 70px; left: 40px; font-size: 70px; font-weight: bold; color: #ff2222; }
+  #feelNow { position: fixed; top: 70px; left: 40px; font-size: 60px; font-weight: bold; color: #fff; }
+
+  /* Countdown bar */
+  #barTop { position: fixed; top: 0; left: 0; right: 0; height: 56px; background: #222; }
+  #barTop .fill { height: 100%; }
+  #barTop .num { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 34px; font-weight: bold; }
+
+  /* Eval form: one centred column, every row the same width */
+  .evalPage { display: flex; flex-direction: column; align-items: center; padding: 220px 0 28px; }
+  .grid { display: grid; grid-template-columns: 170px 520px 170px; row-gap: 22px; align-items: center; font-size: 20px; }
+  .grid .l { text-align: right; padding-right: 18px; }
+  .grid .r { text-align: left; padding-left: 18px; }
+  .opts { display: flex; justify-content: space-between; }
+  .opts label { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 15px; color: #bbb; }
+  .opts input { width: 24px; height: 24px; margin: 0; cursor: pointer; }
+  .sam .opts label { width: 40px; }
+  .stai .opts label { width: 110px; }
+  .heads { display: flex; justify-content: space-between; }
+  .heads span { width: 110px; text-align: center; font-size: 15px; color: #bbb; }
+  .head { grid-column: 1 / 4; text-align: center; font-size: 22px; font-weight: bold; margin-top: 34px; }
+  .submit { display: block; margin: 30px auto 0; }
+  /* SAM pictures: buttons 1, 3, 5, 7, 9 sit under the centre of each picture */
+  .pics { position: relative; height: 116px; margin-top: 14px; }
+  .pics img { position: absolute; top: 0; width: 104px; height: 116px; }
+
+  /* End page */
+  .shape { position: relative; width: 117px; height: 92px; margin: 28px auto; }
+  .shape i { position: absolute; left: 0; top: 0; width: 15px; height: 15px; background: #fff; }
+  #byeBtn { visibility: hidden; margin-top: 28px; }
+  /* "We also have some questions" popup */
+  #popup { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); display: flex; align-items: center; justify-content: center; z-index: 20; }
+  #popup .box { background: #222; border: 2px solid #888; border-radius: 12px; padding: 40px 60px; text-align: center; font-size: 30px; }
+  #app.tvOff { animation: tvOff 0.9s ease-in forwards; }
+  @keyframes tvOff {
+    0%   { transform: scale(1, 1); filter: brightness(1); opacity: 1; }
+    45%  { transform: scale(1, 0.004); filter: brightness(4); background: #fff; opacity: 1; }
+    75%  { transform: scale(0.003, 0.004); filter: brightness(6); background: #fff; opacity: 1; }
+    100% { transform: scale(0, 0); opacity: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="failOverlay"><div id="failBig"></div><div id="endFace"></div></div>
+
+<script>
+// Stroop study: participant ID, welcome, then three sections of
+// Stroop -> TIME'S UP -> timed eval -> instructions -> eval, then the end page.
+// The 6th eval's Submit downloads one CSV per participant.
+const STROOP_MS = 3 * 60 * 1000;   // each Stroop runs this long
+const WORD_CHOICES_MS = [1500, 1200, 1000];   // each word gets one of these at random
+// The record shown on the first goal page. Reaching it counts as beating it;
+// after that the goal moves up (see progress()).
+const RECORD = 35;
+const EVAL_S = 25;
+const END_STEP_MS = 1000;   // TIME'S UP with the face under it shows this long
+// The swarm smile: one square per eye, 6 for the mouth.
+const END_FACE = [[1, 0], [4, 0], [0, 2], [5, 2], [1, 3], [2, 3], [3, 3], [4, 3]];
+const SETS = [
+  { RED: '#ff1a1a', PINK: '#ff7ab8', BLUE: '#2f6bff', YELLOW: '#ffe100', WHITE: '#ffffff', CYAN: '#00e5ff' },
+  { BROWN: '#a0522d', ORANGE: '#ff8c00', GREEN: '#1fbf1f', LIME: '#9dff00', CYAN: '#00e5ff', MAGENTA: '#ff00ff' },
+  { RED: '#ff1a1a', PURPLE: '#9b40ff', LIME: '#9dff00', GREY: '#8a8a8a', BLUE: '#2f6bff', NAVY: '#2b3fae' },
+];
+const INSTRUCTIONS = [
+  'This is a baseline test. Now just sit back and relax.',
+  'Now look at the robots.',
+  'Now look at the robots.',
+];
+const ROBOT_MS = 2 * 60 * 1000;   // the Next button shows this long after "Now look at the robots."
+const SAM = [
+  { id: 'sam_valence', img: 'valence', left: 'Unhappy', right: 'Happy' },
+  { id: 'sam_arousal', img: 'arousal', left: 'Calm', right: 'Excited' },
+];
+const STAI = ['calm', 'tense', 'upset', 'relaxed', 'content', 'worried'];
+const STAI_LABELS = ['Not at all', 'Somewhat', 'Moderately', 'Very much'];
+
+// SOUND_FILES:BEGIN (written by `npm run trim` from the files in audio/)
+const SOUND_FILES = {
+  wrong: ["w_boo","w_buzzer","w_mocking"],
+};
+// SOUND_FILES:END
+
+const $ = (id) => document.getElementById(id);
+const app = $('app');
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const st = { id: '', section: 0, score: 0, best: 0, target: RECORD, onSpace: null, rows: [] };
+let ticker = null;
+
+// ---- Audio: wrong answers play one of the w_ clips; a new one cuts off the last ----
+const audioEls = {};
+for (const id of SOUND_FILES.wrong) {
+  const a = new Audio(`audio/${id}.mp3`);
+  a.preload = 'auto';
+  audioEls[id] = a;
+}
+function unlockAudio() {
+  for (const a of [...Object.values(audioEls), noise]) {
+    a.muted = true;
+    a.play().then(() => { a.pause(); a.currentTime = 0; a.muted = false; }).catch(() => { a.muted = false; });
+  }
+}
+function playWrong() {
+  if (!SOUND_FILES.wrong.length) return '';
+  const id = pick(SOUND_FILES.wrong);
+  for (const a of Object.values(audioEls)) a.pause();
+  const el = audioEls[id];
+  el.volume = 1;
+  el.currentTime = 0;
+  el.play().catch(() => {});
+  return id;
+}
+
+function page(html) {
+  clearInterval(ticker);
+  for (const id of ['fail', 'feelNow', 'barTop', 'score', 'word']) $(id)?.remove();
+  st.onSpace = null;
+  app.innerHTML = `<div class="page">${html}</div>`;
+  app.scrollTop = 0;
+}
+
+// ---- Pages ----
+function setup() {
+  page(`<div class="centerText">Participant ID <input type="text" id="pid"><br><button id="startBtn">Start</button></div>`);
+  $('startBtn').onclick = () => { st.id = $('pid').value.trim(); unlockAudio(); welcome(); };
+}
+
+function welcome() {
+  page(`<div class="text"><h2>Welcome</h2>
+    This research contains three sections, each starting with a colour Stroop test.
+    Please read and follow the instructions on the screen.
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = task;
+}
+
+function task() {
+  page(`<div class="text"><h2>Stroop task</h2>
+    You will see colour words printed in a <b>different ink colour</b>.
+    Press the key for the <b>ink colour</b>, not the word. For example, if you see:
+    <div class="example" style="color:${SETS[0].RED}">GREEN</div>
+    the ink is red, so press <b>R</b>.<br>
+    You have 3 minutes for each Stroop test. Answer as fast and as accurately as you can.
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = colours;
+}
+
+function colours() {
+  const rows = Object.entries(SETS[st.section])
+    .map(([c, hex]) => `<div style="color:${hex}"><span class="k">${c[0]}:</span>${c}</div>`).join('');
+  page(`<div class="text"><h2>Here are the colours</h2><div class="colours">${rows}</div>
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = st.section === 0 ? goal : progress;   // the record page in section 1, the progress page after
+}
+
+function goal() {
+  page(`<div class="goal">The highest record is <span class="big">${RECORD}</span><div style="font-size: 32px; margin-top: 15px">Your goal is to beat the record. Good luck!</div>
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = stroop;
+}
+
+// ---- Stroop ----
+// Before sections 2 and 3: the best streak from any Stroop so far against the goal.
+function progress() {
+  const b = st.best;
+  const ownGoal = b >= st.target && st.target > RECORD;   // reached their own goal
+  // Next goal: best + 10 up to the next multiple of 5; once they reached their own goal,
+  // best + 5 down to a multiple of 5.
+  const next = ownGoal ? Math.floor((b + 5) / 5) * 5 : Math.ceil((b + 10) / 5) * 5;
+  const lines = ownGoal
+    ? [`Your highest streak was <span class="big">${b}</span>`, 'Were you promised a prize?', `Well... That's only if you can reach ${next}`, 'You get to pick anything under $10!']
+    : b >= st.target
+    ? [`Your highest streak was <span class="big">${b}</span>`, 'This is awesome!', `Try reaching ${next} to get a reward 🎁🎁🎁`]
+    : st.target > RECORD   // already past the record, working toward their own goal
+      ? [`Your highest streak was <span class="big">${b}</span>`, `You are ${st.target - b} away from getting the prize`, 'Keep it up you still have a chance!']
+      : [`Your highest streak was <span class="big">${b}</span>`, `Still ${st.target - b} away from beating the record.`, 'You are doing great!'];
+  if (b >= st.target) st.target = next;
+  page(`<div class="goal">${lines[0]}${lines.slice(1).map((l) => `<div style="font-size: 32px; margin-top: 15px">${l}</div>`).join('')}
+    <div class="next">press space to begin</div></div>`);
+  st.onSpace = stroop;
+}
+
+let sr = null;   // the running Stroop
+
+function stroop() {
+  page('');
+  const ink = SETS[st.section];
+  sr = {
+    ink, names: Object.keys(ink), streak: 0, best: 0, index: 0, prev: null,
+    byKey: Object.fromEntries(Object.keys(ink).map((c) => [c[0].toLowerCase(), c])),
+    start: performance.now(),
+  };
+  document.body.insertAdjacentHTML('beforeend', '<div id="score">0</div><div id="word"></div>');
+  nextWord();
+  ticker = setInterval(stroopTick, 20);
+}
+
+// Every word is in a different colour from its name, and no word or ink repeats back to back.
+function nextWord() {
+  let word, ink;
+  do {
+    word = pick(sr.names);
+    ink = pick(sr.names.filter((c) => c !== word));
+  } while (sr.prev && (word === sr.prev.word || ink === sr.prev.ink));
+  sr.prev = sr.trial = { word, ink };
+  sr.index += 1;
+  sr.wordMs = pick(WORD_CHOICES_MS);
+  sr.shownAt = performance.now();
+  $('word').textContent = word;
+  $('word').style.color = sr.ink[ink];
+  $('score').textContent = sr.streak;
+}
+
+function stroopTick() {
+  const now = performance.now();
+  if (now - sr.start >= STROOP_MS) { clearInterval(ticker); return fail(); }
+  if (now - sr.shownAt >= sr.wordMs) answer(null);
+}
+
+// key is the letter pressed, or null when the word timed out.
+function answer(key) {
+  const t = sr.trial;
+  const correct = key !== null && sr.byKey[key] === t.ink;
+  sr.streak = correct ? sr.streak + 1 : 0;
+  sr.best = Math.max(sr.best, sr.streak);
+  if (!correct) playWrong();
+  nextWord();
+}
+
+// TIME'S UP with the face shows, then the timed eval with this Stroop's highest streak.
+function fail() {
+  st.score = sr.best;
+  st.best = Math.max(st.best, sr.best);
+  sr = null;
+  page('');
+  const ov = $('failOverlay'), big = $('failBig'), face = $('endFace');
+  face.innerHTML = END_FACE.map(([x, y]) => `<i style="left:${x * 4.6}vw;top:${y * 4.6}vw"></i>`).join('');
+  big.textContent = "TIME'S UP"; big.style.display = ''; face.style.display = 'block';
+  ov.classList.add('on');
+  // Then the red screen, face and all, shrinks into the score spot and the eval shows around it.
+  setTimeout(() => {
+    evalForm(true);
+    const score = $('fail'), to = score.getBoundingClientRect();
+    score.style.visibility = 'hidden';
+    ov.style.transformOrigin = 'top left';
+    ov.style.transition = 'transform 0.7s ease-in-out';
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ov.style.transform = `translate(${to.left}px, ${to.top}px) scale(${to.width / innerWidth}, ${to.height / innerHeight})`;
+    }));
+    setTimeout(() => {
+      ov.classList.remove('on');
+      ov.style.transition = ''; ov.style.transform = '';
+      score.style.visibility = '';
+      startTimer();
+    }, 750);
+  }, END_STEP_MS);
+}
+
+// ---- Eval ----
+function picsHtml(name) {
+  // Button centres run from 20 px to 500 px, so pictures are centred every 120 px.
+  return Array.from({ length: 5 }, (_, i) =>
+    `<img src="image/SAM_${name}_${i + 1}.png" alt="" style="left:${20 + i * 120 - 52}px">`).join('');
+}
+
+let evalStart = 0;
+let evalTimed = false;
+
+function evalForm(timed) {
+  let sam = '';
+  for (const it of SAM) {
+    const opts = Array.from({ length: 9 }, (_, i) =>
+      `<label><input type="radio" name="${it.id}" value="${i + 1}" required>${i + 1}</label>`).join('');
+    sam += `<div></div><div class="pics">${picsHtml(it.img)}</div><div></div>`;
+    sam += `<div class="l">${it.left}</div><div class="opts">${opts}</div><div class="r">${it.right}</div>`;
+  }
+  let stai = `<div class="head">Right now, I feel…</div>
+    <div></div><div class="heads">${STAI_LABELS.map((l) => `<span>${l}</span>`).join('')}</div><div></div>`;
+  for (const w of STAI) {
+    const opts = STAI_LABELS.map((l, i) => `<label><input type="radio" name="stai_${w}" value="${i + 1}" required></label>`).join('');
+    stai += `<div class="l">I feel ${w}</div><div class="opts">${opts}</div><div></div>`;
+  }
+  page('');
+  app.innerHTML = `<div class="evalPage"><form id="form">
+    <div class="grid sam">${sam}</div><div class="grid stai">${stai}</div>
+    <button type="submit" class="submit">Submit</button></form></div>`;
+  if (timed) {
+    document.body.insertAdjacentHTML('beforeend',
+      `<div id="fail">${st.score}</div>` +
+      `<div id="barTop"><div class="fill" id="barFill"></div><div class="num" id="barNum">${EVAL_S}</div></div>`);
+  } else {
+    document.body.insertAdjacentHTML('beforeend', '<div id="feelNow">How do you feel now?</div>');
+  }
+  // The questions start below the score / "How do you feel now?" line, however tall it wraps.
+  const header = $(timed ? 'fail' : 'feelNow');
+  app.querySelector('.evalPage').style.paddingTop = `${Math.round(header.getBoundingClientRect().bottom + 40)}px`;
+  evalTimed = timed;
+  evalStart = performance.now();
+  $('form').addEventListener('submit', submitEval);
+}
+
+function startTimer() {
+  evalStart = performance.now();
+  const tick = () => {
+    const left = Math.max(0, EVAL_S - (performance.now() - evalStart) / 1000);
+    $('barFill').style.width = `${(left / EVAL_S) * 100}%`;
+    $('barFill').style.background = left > 15 ? '#22dd22' : left > 10 ? '#ffcc00' : left > 5 ? '#ff8c00' : '#ff2222';
+    $('barNum').textContent = Math.ceil(left);
+  };
+  tick();
+  ticker = setInterval(tick, 50);
+}
+
+// Local clock time, e.g. 2026-11-18 14:32:05
+function clockTime() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function submitEval(e) {
+  e.preventDefault();
+  const value = (name) => $('form').querySelector(`input[name="${name}"]:checked`)?.value || '';
+  const row = {
+    participant_id: st.id, timestamp: clockTime(), section: st.section + 1, eval: evalTimed ? 'after_stroop' : 'after_instructions',
+    stroop_score: st.score,
+  };
+  for (const it of SAM) row[it.id] = value(it.id);
+  for (const w of STAI) row[`stai_${w}`] = value(`stai_${w}`);
+  st.rows.push(row);
+
+  if (evalTimed) return instructions();
+  if (st.section === 1) return questionsPopup(afterEval);   // section 2 only
+  afterEval();
+}
+
+// "We also have some questions": the dots appear one at a time, the popup
+// stays until 10 s in total, then the next page shows.
+const DOT_MS = 500;
+const POPUP_MS = 10000;
+function questionsPopup(then) {
+  document.body.insertAdjacentHTML('beforeend',
+    '<div id="popup"><div class="box">We also have some questions<span id="dots" style="display:inline-block;width:1.2em;text-align:left"></span></div></div>');
+  for (let i = 1; i <= 3; i++) setTimeout(() => { $('dots').textContent = '.'.repeat(i); }, i * DOT_MS);
+  setTimeout(() => { $('popup').remove(); then(); }, POPUP_MS);
+}
+
+function afterEval() {
+  if (st.section === SETS.length - 1) {   // the 6th eval's Submit saves the data
+    download();
+    return end();
+  }
+  ready();
+}
+
+function ready() {
+  page(`<div class="centerText">Ready for the next test?
+    <div class="next">press space to continue</div></div>`);
+  st.onSpace = () => { st.section += 1; colours(); };   // the task page is shown once, in section 1
+}
+
+// White noise plays while "Now look at the robots." is on screen, from the
+// start each time, until Next. The file is 10 minutes long, so it just plays.
+const noise = new Audio('audio/noise/white_noise.mp3');
+noise.preload = 'auto';
+noise.loop = true;   // only matters if a robots page ever lasts longer than the file
+function startNoise() { noise.currentTime = 0; noise.play().catch(() => {}); }
+function stopNoise() { noise.pause(); }
+
+function instructions() {
+  page(`<div class="centerText">${INSTRUCTIONS[st.section]}<br><br><button id="nextBtn">Next</button></div>`);
+  $('nextBtn').onclick = () => { stopNoise(); evalForm(false); };
+  if (st.section > 0) startNoise();
+  if (st.section > 0) {   // robot sections: Next appears once the robots have had their time
+    $('nextBtn').style.visibility = 'hidden';
+    const btn = $('nextBtn');
+    setTimeout(() => { btn.style.visibility = 'visible'; }, ROBOT_MS);
+  }
+}
+
+// One CSV per participant: a row per eval, with that section's final Stroop score.
+function download() {
+  const cols = [];
+  for (const r of st.rows) for (const c of Object.keys(r)) if (!cols.includes(c)) cols.push(c);
+  const csv = [cols.join(','), ...st.rows.map((r) => cols.map((c) => r[c] ?? '').join(','))].join('\n') + '\n';
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `${st.id || 'noid'}_${stamp}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---- End page: fireworks into a heart, then a smile ----
+const STEP = 17;   // 15 px squares, 2 px apart
+const HEART = [[1, 0], [3, 0], [0, 1], [2, 1], [4, 1], [1, 2], [3, 2], [2, 3]].map(([x, y]) => [x * 1.5, y * 1.5]);
+// SMILE[i] is where heart square i goes: 2-square eyes and an evenly spaced mouth.
+const SMILE = [[1, 0], [4, 0], [1, 1], [10 / 3, 4], [4, 1], [0, 3], [5, 3], [5 / 3, 4]].map(([x, y]) => [x + 0.5, y + 0.25]);
+const FIREWORKS_MS = 2600;
+const BEAT_MS = 1600;   // the heart beats twice (bigger, smaller) in this time, then turns into the smile
+const MORPH_MS = 800;
+
+function end() {
+  page(`<div class="centerText">
+    <div>Thank you for the support.</div>
+    <div style="margin-top: 5px">Hope you liked it!</div>
+    <div class="shape" id="shape"></div>
+    <div>- toio robots</div>
+    <button id="byeBtn">Bye Bye!</button></div>`);
+  $('byeBtn').onclick = () => app.classList.add('tvOff');
+  fireworks();
+}
+
+function fireworks() {
+  const box = $('shape');
+  box.innerHTML = HEART.map(() => '<i></i>').join('');
+  const cx = 51, cy = 38.5;
+  const squares = [...box.children];
+  squares.forEach((sq, i) => {
+    const [x, y] = HEART[i];
+    const angle = (i / squares.length) * 2 * Math.PI + Math.random() * 0.5;
+    const dist = 110 + Math.random() * 50;
+    const bx = cx + Math.cos(angle) * dist, by = cy - 90 + Math.sin(angle) * dist;
+    const spin = (Math.random() < 0.5 ? -1 : 1) * (360 + Math.random() * 360);
+    sq.animate([
+      { transform: `translate(${cx}px, ${cy + 220}px) scale(0.6)`, offset: 0 },
+      { transform: `translate(${cx}px, ${cy - 90}px) scale(0.6)`, offset: 0.3, easing: 'ease-out' },
+      { transform: `translate(${bx}px, ${by}px) rotate(${spin}deg) scale(1)`, opacity: 0.5, offset: 0.55 },
+      { transform: `translate(${bx}px, ${by + 20}px) rotate(${spin}deg) scale(1)`, opacity: 1, offset: 0.65, easing: 'ease-in-out' },
+      { transform: `translate(${x * STEP}px, ${y * STEP}px) rotate(0deg) scale(1)`, offset: 1 },
+    ], { duration: FIREWORKS_MS, fill: 'forwards', easing: 'ease-in-out' });
+  });
+  setTimeout(() => {
+    box.animate([
+      { transform: 'scale(1)' }, { transform: 'scale(1.25)' }, { transform: 'scale(1)' },
+      { transform: 'scale(1.25)' }, { transform: 'scale(1)' },
+    ], { duration: BEAT_MS, easing: 'ease-in-out' });
+  }, FIREWORKS_MS);
+  setTimeout(() => {
+    squares.forEach((sq, i) => sq.animate([
+      { transform: `translate(${HEART[i][0] * STEP}px, ${HEART[i][1] * STEP}px)` },
+      { transform: `translate(${SMILE[i][0] * STEP}px, ${SMILE[i][1] * STEP}px)` },
+    ], { duration: MORPH_MS, fill: 'forwards', easing: 'ease-in-out' }));
+  }, FIREWORKS_MS + BEAT_MS);
+  setTimeout(() => { $('byeBtn').style.visibility = 'visible'; }, FIREWORKS_MS + BEAT_MS + MORPH_MS);
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (sr) {
+    const key = e.key.toLowerCase();
+    if (sr.byKey[key]) answer(key);
+    return;
+  }
+  if (e.key === ' ' && st.onSpace) { e.preventDefault(); st.onSpace(); }
+});
+
+setup();
+</script>
+</body>
+</html>
